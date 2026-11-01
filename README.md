@@ -204,6 +204,111 @@ cargo run -p kernel-privacy --example quickstart_mask
 cargo run -p kernel-privacy --example quickstart_gate
 ```
 
+## Everyday use
+
+These are the three ways people use the kernel day to day. The examples below
+use invented values and run offline: the model call is faked, so there is no
+network and no API key.
+
+`Registry` and `Anonymizer` are the lower-level parts; the gate adds extra
+passes, so use the gate unless you know why not.
+
+### 1. Your app calls a cloud model
+
+**The situation:** your app sends a prompt to a hosted model and shows the
+answer.
+
+**What it hides:** the values it detects leave as tokens, including bank
+accounts, cards, ID numbers, health terms, API keys, e-mail addresses and phone
+numbers. **What it does not hide:** person and company names stay clear by
+design; postal addresses and dates of birth are only partly caught — the
+measured recall table shows the rates.
+
+```rust
+use kernel_core::privacy::{admit, Context, Decision, Destination, PathId, PrivacyMode};
+use kernel_privacy::{Gate, PLACEHOLDER_CLOSE, PLACEHOLDER_OPEN};
+
+let text = "Alice from ACME asks: IBAN GB82 WEST 1234 5698 7654 32, mail alice@example.com.";
+let to_model = Context { destination: Destination::Vendor("hosted-model".into()) };
+let Decision::Allow(grant) = admit(PathId::A1, PrivacyMode::Private, &to_model) else {
+    panic!("A1 is refused");
+};
+let mut key = [0u8; 32];
+getrandom::getrandom(&mut key).expect("random session key");
+let mut gate = Gate::for_grant(&grant, key);
+let (safe, _report) = gate.text(text).expect("the gate fails closed");
+println!("to the model: {}", safe.as_str());
+
+let fake_model = |prompt: &str| format!("About your invoice: {prompt}");
+let answer = fake_model(safe.as_str());
+// The gate gives `(token, value)` pairs; fold the public placeholders back.
+let restored = gate.take_minted().iter().fold(answer, |text, (token, value)| {
+    text.replace(&format!("{PLACEHOLDER_OPEN}{token}{PLACEHOLDER_CLOSE}"), value)
+});
+println!("back to you: {restored}");
+```
+
+The gate hands out `(token, value)` pairs, not a restore object, so the snippet
+folds the public placeholders back; this is the same route the crate's tests
+use. The full program is
+[`crates/kernel-privacy/examples/everyday_llm_call.rs`](crates/kernel-privacy/examples/everyday_llm_call.rs);
+it runs offline.
+
+### 2. Before you paste a document into a chatbot
+
+**The situation:** you want to ask a chatbot about a document without pasting
+the raw values.
+
+**What it hides:** the same classes as above, when it detects them. **What it
+does not hide:** person and company names stay clear by design; postal
+addresses and dates of birth are only partly caught — the measured recall table
+shows the rates.
+
+Until a command-line tool exists (it is planned, not there yet), this example
+reads a file and prints the masked text:
+
+```rust
+use std::io::{self, Read};
+
+use kernel_core::privacy::{admit, Context, Decision, Destination, PathId, PrivacyMode};
+use kernel_privacy::Gate;
+
+let mut text = String::new();
+io::stdin().read_to_string(&mut text).expect("read stdin");
+let to_model = Context { destination: Destination::Vendor("hosted-model".into()) };
+let Decision::Allow(grant) = admit(PathId::A1, PrivacyMode::Private, &to_model) else {
+    panic!("A1 is refused");
+};
+let mut key = [0u8; 32];
+getrandom::getrandom(&mut key).expect("random session key");
+let mut gate = Gate::for_grant(&grant, key);
+let (safe, _report) = gate.text(&text).expect("the gate fails closed");
+print!("{}", safe.as_str());
+```
+
+```sh
+cargo run -p kernel-privacy --example everyday_mask_stdin < document.txt
+```
+
+The token map is thrown away, so this output is for pasting, not for restoring
+the chatbot's answer.
+
+### 3. A team that sends customer messages to an AI tool
+
+**The situation:** a support team sends customer messages to a hosted AI tool.
+**What it hides:** the kernel sits between the app and the provider. **Open**
+mode hides the most sensitive classes — bank accounts, cards, IDs, health
+terms, secrets, and any address or labelled date of birth it detects — and
+leaves the rest readable with a report. **Private** mode tokenises every value
+it detects apart from names, so more of the text becomes tokens you can restore
+on the machine. **What it does not hide:** names and company names stay clear
+in both modes by design, and postal addresses and dates of birth are only
+partly caught — the measured recall table shows the rates. No new code for this
+one: it is the same policy path as the quickstart examples.
+
+One honest limit: it is not a legal compliance guarantee. It reduces what
+leaves the machine; the measured recall table shows how much it catches.
+
 ## What is in this repository
 
 | Crate | What it does |
