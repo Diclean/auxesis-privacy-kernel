@@ -1,0 +1,45 @@
+# cargo-deny policy: `cargo deny check`. Every licence in the dependency graph
+# must be on this allow-list before a dependency is accepted.
+
+[graph]
+all-features = true
+
+[advisories]
+yanked = "deny"
+# `paste` 1.0.15 is unmaintained (RUSTSEC-2024-0436) and has no fixed release.
+# It reaches this graph only through `tokenizers 0.21.4`, a transitive dependency
+# of the optional `ner-gliner` feature. Updating tokenizers beyond 0.21.4 is a
+# separate dependency decision, so record the reason here rather than leave an
+# unfixable advisory failing the export.
+ignore = [
+    { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained and has no fixed release; reached only via tokenizers 0.21.4 (gliner2-rs, optional ner-gliner feature), and a tokenizers major update is a separate decision" },
+]
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "MPL-2.0",
+    "CDLA-Permissive-2.0",
+    "0BSD",
+    "CC0-1.0",
+]
+confidence-threshold = 0.9
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

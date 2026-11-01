@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/kernel-core",
+    "crates/gliner2",
+    "crates/kernel-privacy",
+    "crates/kernel-broker",
+    "crates/kernel-net",
+    "crates/kernel-mcp",
+    "qa/privacy-eval",
+]
+# The quickstart builds on the privacy crate alone.
+default-members = ["crates/kernel-privacy"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["The Auxesis kernel authors"]
+license = "Apache-2.0"
+rust-version = "1.99"
+
+[workspace.dependencies]
+proptest = "1"
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+rusqlite = { version = "0.39", features = ["bundled-sqlcipher", "fallible_uint"] }
+serde = { version = "1", features = ["derive"] }
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+toml = "0.9"
+toml_edit = "=0.25.16"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[workspace.lints.rust]
+# Crates that opt in with `[lints] workspace = true` may not use `unsafe`.
+# kernel-core and kernel-broker call libc and do not opt in.
+unsafe_code = "forbid"
+
+[profile.dev]
+debug = "line-tables-only"
