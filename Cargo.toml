@@ -39,3 +39,12 @@ unsafe_code = "forbid"
 
 [profile.dev]
 debug = "line-tables-only"
+
+# Same as the Auxesis workspace: dependencies (regex, unicode tables) and the
+# detector are optimised even in debug, so tests and their linear-time bars
+# run at a realistic speed.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev.package.kernel-privacy]
+opt-level = 2
