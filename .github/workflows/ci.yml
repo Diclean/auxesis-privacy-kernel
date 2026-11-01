@@ -32,7 +32,8 @@ jobs:
       - run: rustup show
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
+      # Release: the linear-time bars in the tests are set for optimised code.
+      - run: cargo test --workspace --locked --release
       - run: scripts/check-egress.sh
 
   deny:
