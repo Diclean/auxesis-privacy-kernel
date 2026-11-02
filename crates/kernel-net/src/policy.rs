@@ -158,26 +158,12 @@ pub enum EgressDecision {
 }
 
 impl EgressDecision {
-    /// True for [`EgressDecision::Allow`].
-    pub fn is_allow(self) -> bool {
-        matches!(self, EgressDecision::Allow)
-    }
-
     /// Stable label for the audit record.
     pub fn as_str(self) -> &'static str {
         match self {
             EgressDecision::Allow => "allow",
             EgressDecision::Ask(_) => "ask",
             EgressDecision::Deny(_) => "deny",
-        }
-    }
-
-    /// The reason label, when there is one.
-    pub fn reason_label(self) -> Option<&'static str> {
-        match self {
-            EgressDecision::Allow => None,
-            EgressDecision::Ask(reason) => Some(reason.as_str()),
-            EgressDecision::Deny(reason) => Some(reason.as_str()),
         }
     }
 }

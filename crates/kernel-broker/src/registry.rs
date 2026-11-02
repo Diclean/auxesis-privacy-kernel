@@ -245,13 +245,6 @@ impl ToolRegistry {
         dropped
     }
 
-    /// Owning version of [`ToolRegistry::map_tools`], for callers that build
-    /// a registry and immediately wrap it.
-    pub fn into_mapped(mut self, f: impl FnMut(Box<dyn Tool>) -> Box<dyn Tool>) -> ToolRegistry {
-        self.map_tools(f);
-        self
-    }
-
     /// Mark `name` as a tool whose output must taint the conversation.
     pub fn mark_untrusted_output(&mut self, name: impl Into<String>) {
         self.untrusted_outputs.insert(name.into());

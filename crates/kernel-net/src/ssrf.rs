@@ -18,7 +18,6 @@ pub enum AddressPolicy {
     /// gated on `cfg(test)` or the `testing` feature, which is enabled only
     /// by `[dev-dependencies]` edges, never by a production dependency.
     #[cfg(any(test, feature = "testing"))]
-    #[allow(dead_code)]
     AllowLoopback,
 }
 
@@ -30,6 +29,13 @@ impl AddressPolicy {
             #[cfg(any(test, feature = "testing"))]
             AddressPolicy::AllowLoopback => is_public_address(addr) || addr.is_loopback(),
         }
+    }
+
+    /// Tests only: the loopback policy, so a local `wiremock` server is
+    /// reachable through a `[dev-dependencies]` edge.
+    #[cfg(any(test, feature = "testing"))]
+    pub fn allow_loopback() -> Self {
+        Self::AllowLoopback
     }
 }
 

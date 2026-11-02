@@ -112,11 +112,6 @@ pub const MAX_PENDING_REQUESTS: usize = 64;
 /// gateway.
 pub const ALLOWED_ENV_KEYS: &[&str] = &["LANG", "LC_ALL", "LC_CTYPE", "NO_COLOR", "TMPDIR", "TZ"];
 
-/// Whether `key` may be copied into a child environment.
-pub fn env_key_allowed(key: &str) -> bool {
-    ALLOWED_ENV_KEYS.contains(&key)
-}
-
 /// Environment prefixes a user-declared secret name may never use.
 ///
 /// Those names belong to Auxesis' own credential store (`AUX_KEY_*` provider

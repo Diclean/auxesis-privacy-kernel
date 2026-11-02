@@ -879,7 +879,8 @@ fn fold_ideographic_stop(chars: &mut [char]) {
 }
 
 /// Zero-width and otherwise invisible characters, stripped before scanning.
-/// The set lives once, in [`crate::contacts::fold::is_default_ignorable`].
+/// The ranges live once, in [`kernel_core::text::is_invisible`]; the folder's
+/// narrower subset is [`crate::contacts::fold::is_default_ignorable`].
 fn is_zero_width(ch: char) -> bool {
     crate::contacts::fold::is_default_ignorable(ch)
 }

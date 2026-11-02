@@ -97,11 +97,6 @@ impl ToolSchema {
         &self.0
     }
 
-    /// Consume the wrapper and return the JSON value.
-    pub fn into_value(self) -> Value {
-        self.0
-    }
-
     /// The serialised size of the schema, in bytes.
     pub fn serialized_len(&self) -> usize {
         serialized_len(&self.0)

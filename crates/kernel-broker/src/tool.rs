@@ -164,12 +164,6 @@ impl ToolCtx {
         self
     }
 
-    /// Attach the tokens the session has minted (builder style).
-    pub fn with_session_tokens(mut self, tokens: std::collections::BTreeSet<String>) -> Self {
-        self.session_tokens = Some(Arc::new(tokens));
-        self
-    }
-
     /// The privacy grant for this call, when a gate minted one.
     pub fn grant(&self) -> Option<&kernel_core::privacy::Grant> {
         self.grant.as_deref()
