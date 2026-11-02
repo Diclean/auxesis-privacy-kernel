@@ -289,10 +289,14 @@ impl Registry {
         // `sk&#45;key`) is invisible to a recogniser on the raw bytes. The
         // recognisers read the decoded view too, and a span maps back to every
         // source byte of the value, so masking never depends on a name rule.
-        let decoded = DecodedText::new(text);
-        let runs = marker_runs(text, decoded.markers());
-        let mut views = vec![decoded];
-        if views[0].dropped_marker_body() {
+        // A text decoding leaves alone has no marker and no decoded view: do
+        // not build one (every ASCII text without `&` or `%`).
+        let decoded = (!DecodedText::is_unchanged(text)).then(|| DecodedText::new(text));
+        let runs: Vec<(usize, usize)> = decoded
+            .as_ref()
+            .map_or_else(Vec::new, |view| marker_runs(text, view.markers()));
+        let mut views: Vec<DecodedText> = decoded.into_iter().collect();
+        if views.first().is_some_and(DecodedText::dropped_marker_body) {
             // A value inside a `⟦…⟧` pair: read it with only the brackets gone.
             views.push(DecodedText::brackets_only(text));
         }
@@ -301,7 +305,7 @@ impl Registry {
         // `1⟦sk-…⟧`). A test on the dropped view's markers is not enough: a
         // nested or unbalanced bracket (`⟦1⟦sk-…⟧ ⟧`) hides inside the outer
         // pair that view drops whole.
-        if !views[0].markers().is_empty() {
+        if views.first().is_some_and(|view| !view.markers().is_empty()) {
             views.push(DecodedText::brackets_as_spaces(text));
         }
         // A marker between two letters splices a word (`chimioth⟦X⟧éra⟦pie ⟧`):

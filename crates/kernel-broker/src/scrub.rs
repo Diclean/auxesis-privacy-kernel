@@ -412,9 +412,40 @@ pub fn registry_oversized() -> bool {
     read_registry().oversized
 }
 
+/// True for the environment and `.env` names whose value is a secret this
+/// process resolves: provider keys, the Telegram bot token, one mailbox
+/// password per account (`AUX_MAIL_<ID>`; mail hosts and ports live in
+/// `mail.toml`, never in `.env`) and an extension's OAuth token bundle
+/// (`EXT_<NAME>__OAUTH_TOKENS`).
+fn is_known_secret_name(name: &str) -> bool {
+    name.starts_with("AUX_KEY_")
+        || name == "AUX_TELEGRAM_BOT_TOKEN"
+        || name.starts_with("AUX_MAIL_")
+        || name.ends_with("__OAUTH_TOKENS")
+}
+
+/// Collect one named secret, and for an OAuth bundle the access and refresh
+/// tokens it holds: a provider error echoes a token on its own, not the whole
+/// JSON line, so the leaves are registered as secrets of their own.
+fn push_known_secret(values: &mut Vec<(String, Zeroizing<String>)>, name: &str, value: String) {
+    if name.ends_with("__OAUTH_TOKENS") {
+        if let Ok(serde_json::Value::Object(fields)) =
+            serde_json::from_str::<serde_json::Value>(&value)
+        {
+            for key in ["access_token", "refresh_token"] {
+                if let Some(serde_json::Value::String(token)) = fields.get(key) {
+                    values.push((format!("{name}.{key}"), Zeroizing::new(token.clone())));
+                }
+            }
+        }
+    }
+    values.push((name.to_owned(), Zeroizing::new(value)));
+}
+
 /// Register every known secret from `<home>/.env`, the process environment
-/// (`AUX_KEY_*`, `AUX_TELEGRAM_BOT_TOKEN`) and `<home>/api.token`. Returns
-/// how many values were new.
+/// (`AUX_KEY_*`, `AUX_TELEGRAM_BOT_TOKEN`, `AUX_MAIL_*` and
+/// `EXT_*__OAUTH_TOKENS`) and `<home>/api.token`. Returns how many values
+/// were new.
 ///
 /// Called at daemon start and again whenever a key is re-resolved, so a
 /// changed `.env` is picked up without a restart. Never returns or logs a
@@ -424,21 +455,14 @@ pub fn registry_oversized() -> bool {
 pub fn register_known_secrets_from_home(home: &Path) -> usize {
     let mut values: Vec<(String, Zeroizing<String>)> = Vec::new();
     for (name, value) in std::env::vars() {
-        if name.starts_with("AUX_KEY_") || name == "AUX_TELEGRAM_BOT_TOKEN" {
-            values.push((name, Zeroizing::new(value)));
+        if is_known_secret_name(&name) {
+            push_known_secret(&mut values, &name, value);
         }
     }
     if let Some(text) = read_small_file(&home.join(ENV_FILE)) {
-        values.extend(
-            dotenv_aux_key_values(&text)
-                .into_iter()
-                .map(|(name, value)| (name, Zeroizing::new(value))),
-        );
-        values.extend(
-            dotenv_named_values(&text, "AUX_TELEGRAM_BOT_TOKEN")
-                .into_iter()
-                .map(|(name, value)| (name, Zeroizing::new(value))),
-        );
+        for (name, value) in dotenv_known_secret_values(&text) {
+            push_known_secret(&mut values, &name, value);
+        }
     }
     if let Some(token) = read_small_file(&home.join(API_TOKEN_FILE)) {
         values.push((
@@ -1846,9 +1870,10 @@ fn read_small_file(path: &Path) -> Option<String> {
     std::fs::read_to_string(path).ok()
 }
 
-/// `AUX_KEY_*` values from a dotenv file, quotes stripped like the
-/// app's `DotEnvStore` does.
-fn dotenv_aux_key_values(text: &str) -> Vec<(String, String)> {
+/// Every known-secret value from a dotenv file, quotes stripped like the
+/// app's `DotEnvStore` does. The name filter is [`is_known_secret_name`], so
+/// a new secret family is read here as soon as it is added there.
+fn dotenv_known_secret_values(text: &str) -> Vec<(String, String)> {
     let mut values = Vec::new();
     for line in text.lines() {
         let line = line.trim();
@@ -1859,7 +1884,8 @@ fn dotenv_aux_key_values(text: &str) -> Vec<(String, String)> {
         let Some((name, value)) = line.split_once('=') else {
             continue;
         };
-        if !name.trim().starts_with("AUX_KEY_") {
+        let name = name.trim();
+        if !is_known_secret_name(name) {
             continue;
         }
         let value = value.trim();
@@ -1873,33 +1899,10 @@ fn dotenv_aux_key_values(text: &str) -> Vec<(String, String)> {
             })
             .unwrap_or(value);
         if !value.is_empty() {
-            values.push((name.trim().to_string(), value.to_string()));
+            values.push((name.to_string(), value.to_string()));
         }
     }
     values
-}
-
-fn dotenv_named_values(text: &str, wanted: &str) -> Vec<(String, String)> {
-    text.lines()
-        .filter_map(|line| {
-            let line = line.trim().strip_prefix("export ").unwrap_or(line.trim());
-            let (name, raw) = line.split_once('=')?;
-            if name.trim() != wanted {
-                return None;
-            }
-            let value = raw.trim();
-            let value = value
-                .strip_prefix('"')
-                .and_then(|rest| rest.strip_suffix('"'))
-                .or_else(|| {
-                    value
-                        .strip_prefix('\'')
-                        .and_then(|rest| rest.strip_suffix('\''))
-                })
-                .unwrap_or(value);
-            (!value.is_empty()).then(|| (wanted.to_string(), value.to_string()))
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -2504,6 +2507,77 @@ mod tests {
         assert!(!clean.contains(&token_secret), "{clean}");
         assert!(redact_known_secrets("not-registered").is_none());
         clear_known_secrets();
+    }
+
+    #[test]
+    fn home_registration_reads_mail_passwords_and_extension_oauth_tokens() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|err| err.into_inner());
+        clear_known_secrets();
+        let dir = tempfile::tempdir().unwrap();
+        let mail_password = unique("MAILPASS");
+        let access = unique("OAUTHACCESS");
+        let refresh = unique("OAUTHREFRESH");
+        let bundle = format!(
+            r#"{{"access_token":"{access}","refresh_token":"{refresh}","expires_at":4102444800,"scopes":["mail"],"token_type":"Bearer"}}"#
+        );
+        std::fs::write(
+            dir.path().join(ENV_FILE),
+            format!(
+                "AUX_MAIL_PERSONAL={mail_password}\n\
+                 EXT_DEMO__OAUTH_TOKENS={bundle}\n\
+                 OTHER=not-registered\n"
+            ),
+        )
+        .unwrap();
+        let registered = register_known_secrets_from_home(dir.path());
+        assert!(registered >= 4, "registered {registered}");
+
+        // The IMAP repro: a server echoes the mailbox password inside quotes.
+        let imap = format!("NO [ALERT] wrong password \"{mail_password}\"");
+        let clean = redact_known_secrets(&imap).expect("mail password must be registered");
+        assert!(clean.contains(MASK), "{clean}");
+        assert!(!clean.contains(&mail_password), "{clean}");
+        assert!(
+            clean.contains('"'),
+            "surrounding text must survive: {clean}"
+        );
+
+        // The whole token bundle, and the individual tokens a provider error
+        // echoes without the JSON around them, are both secrets.
+        let clean = redact_known_secrets(&format!("EXT_DEMO__OAUTH_TOKENS={bundle}"))
+            .expect("the token bundle must be registered");
+        assert!(!clean.contains(&access), "{clean}");
+        assert!(!clean.contains(&refresh), "{clean}");
+        for token in [&access, &refresh] {
+            let clean = redact_known_secrets(&format!("Authorization: Bearer {token}"))
+                .unwrap_or_else(|| panic!("token {token:?} must be registered"));
+            assert!(clean.contains(MASK), "{clean}");
+            assert!(!clean.contains(token), "{clean}");
+        }
+        assert!(redact_known_secrets("not-registered").is_none());
+        clear_known_secrets();
+    }
+
+    #[test]
+    fn known_secret_names_cover_mail_and_oauth_only() {
+        for name in [
+            "AUX_KEY_DEEPSEEK",
+            "AUX_TELEGRAM_BOT_TOKEN",
+            "AUX_MAIL_PERSONAL",
+            "AUX_MAIL_WORK_MAIL",
+            "EXT_DEMO__OAUTH_TOKENS",
+        ] {
+            assert!(is_known_secret_name(name), "{name}");
+        }
+        for name in [
+            "AUX_MAILBOX_HOST",
+            "AUX_MAIL",
+            "EXT_DEMO__CLIENT_SECRET",
+            "OAUTH_TOKENS",
+            "OTHER",
+        ] {
+            assert!(!is_known_secret_name(name), "{name}");
+        }
     }
 
     #[test]

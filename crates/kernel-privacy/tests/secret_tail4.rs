@@ -94,6 +94,13 @@ fn check(id: &str, text: &str, hide: &[&str], clear: &[&str]) -> Vec<String> {
 }
 
 #[test]
+fn prose_password_masks_a_quoted_fragment_past_a_newline() {
+    let text = "Ref: password is a0A0 \" 0\nAaa:";
+    let wrong = check("quoted fragment", text, &["a0A0", "Aaa:"], &[]);
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+#[test]
 fn prose_password_in_a_reference_masks_a_wrapped_entry_shaped_tail() {
     let text = "Ref: password is a0A0 \\\" 0\nAaa:";
     assert!(masked(text, 17..31), "the entire passphrase must be masked");

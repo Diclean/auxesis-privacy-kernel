@@ -102,6 +102,12 @@ impl DecodedText {
         Self::build_inner(source, mode, None, &mut |_, _, _| {}).0
     }
 
+    /// Whether decoding leaves `source` alone: only an ASCII text with no
+    /// entity (`&`) and no percent escape decodes to itself.
+    pub(crate) fn is_unchanged(source: &str) -> bool {
+        source.is_ascii() && !source.bytes().any(|byte| matches!(byte, b'&' | b'%'))
+    }
+
     /// Visit each decoded view of a known-secret run, mapped back to `source`.
     /// Returns false if decoding cannot settle within the shared limits.
     pub fn scan_known_secret(

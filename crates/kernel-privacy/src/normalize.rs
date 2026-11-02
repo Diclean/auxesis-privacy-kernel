@@ -53,19 +53,35 @@ const RUN_BOUNDARY: char = '\u{0}';
 /// original byte offsets. Cloning shares the view.
 #[derive(Clone)]
 pub struct NormalizedText {
-    text: Arc<str>,
-    /// Byte offset of each normalised char inside `text`.
+    text: Arc<String>,
+    /// Byte offset of each normalised char; empty when offsets are identity.
     char_starts: Arc<[usize]>,
-    /// Original `(start, end)` byte bounds of each normalised char.
+    /// Original `(start, end)` bounds of each normalised char; empty when identity.
     orig_bounds: Arc<[(usize, usize)]>,
+    /// `text` is the input unchanged and every byte maps to itself, so
+    /// [`NormalizedText::to_original`] is the identity and no map is needed.
+    identity: bool,
+    /// All normalised chars are one byte, so a byte offset is also a char
+    /// index and `char_starts` is empty.
+    compact: bool,
 }
 
-/// The text of a running scan and its two views, built on first use.
-type Scan = (String, [Option<NormalizedText>; 2]);
+/// One scan: its text (shared with an identity view, reusable) and two views.
+struct Scan {
+    source: Arc<String>,
+    views: [Option<NormalizedText>; 2],
+}
+
+/// The scans on this thread; `depth` counts live ones, the rest are spare slots.
+struct Shared {
+    scans: Vec<Scan>,
+    depth: usize,
+}
 
 thread_local! {
-    /// The scans running on this thread, innermost last.
-    static SHARED: RefCell<Vec<Scan>> = const { RefCell::new(Vec::new()) };
+    static SHARED: RefCell<Shared> = const {
+        RefCell::new(Shared { scans: Vec::new(), depth: 0 })
+    };
 }
 
 /// While alive, every [`NormalizedText::new`] of exactly this text shares one
@@ -87,7 +103,27 @@ impl SharedViews {
     pub(crate) fn new(text: &str) -> Self {
         let registered = SHARED
             .try_with(|shared| {
-                shared.borrow_mut().push((text.to_owned(), [None, None]));
+                let mut shared = shared.borrow_mut();
+                let depth = shared.depth;
+                if depth < shared.scans.len() {
+                    // Reuse the slot and its source allocation; a caller still
+                    // holding a view keeps the old source alive, so replace it.
+                    let scan = &mut shared.scans[depth];
+                    scan.views = [None, None];
+                    match Arc::get_mut(&mut scan.source) {
+                        Some(source) => {
+                            source.clear();
+                            source.push_str(text);
+                        }
+                        None => scan.source = Arc::new(text.to_owned()),
+                    }
+                } else {
+                    shared.scans.push(Scan {
+                        source: Arc::new(text.to_owned()),
+                        views: [None, None],
+                    });
+                }
+                shared.depth += 1;
             })
             .is_ok();
         Self(registered)
@@ -103,7 +139,13 @@ impl Drop for SharedViews {
             return;
         }
         let _ = SHARED.try_with(|shared| {
-            shared.borrow_mut().pop();
+            let mut shared = shared.borrow_mut();
+            if shared.depth > 0 {
+                let depth = shared.depth - 1;
+                shared.depth = depth;
+                // Release the views; the slot's source stays for reuse.
+                shared.scans[depth].views = [None, None];
+            }
         });
     }
 }
@@ -119,17 +161,28 @@ impl NormalizedText {
         // view, so the recognition result never depends on the cache.
         let found = SHARED.try_with(|shared| {
             let shared = shared.borrow();
-            let (_, views) = shared.last().filter(|(source, _)| source == text)?;
-            Some(views[slot].clone())
+            let depth = shared.depth;
+            if depth == 0 {
+                return None;
+            }
+            let scan = shared.scans.get(depth - 1)?;
+            if scan.source.as_str() != text {
+                return None;
+            }
+            Some((scan.views[slot].clone(), Arc::clone(&scan.source)))
         });
         match found {
             Err(_) | Ok(None) => Self::build(text, ocr),
-            Ok(Some(Some(view))) => view,
-            Ok(Some(None)) => {
-                let view = Self::build(text, ocr);
+            Ok(Some((Some(view), _))) => view,
+            Ok(Some((None, source))) => {
+                let view = Self::build_shared(&source, ocr);
                 let _ = SHARED.try_with(|shared| {
-                    if let Some((_, views)) = shared.borrow_mut().last_mut() {
-                        views[slot] = Some(view.clone());
+                    let mut shared = shared.borrow_mut();
+                    let depth = shared.depth;
+                    if let Some(scan) = shared.scans.get_mut(depth.wrapping_sub(1)) {
+                        if Arc::ptr_eq(&scan.source, &source) {
+                            scan.views[slot] = Some(view.clone());
+                        }
                     }
                 });
                 view
@@ -137,7 +190,91 @@ impl NormalizedText {
         }
     }
 
+    /// The view of `text`: identity, else the ASCII or general builder.
     fn build(text: &str, ocr: bool) -> Self {
+        if is_identity(text, ocr) {
+            return Self::identity(Arc::new(text.to_owned()));
+        }
+        if text.is_ascii() {
+            return Self::build_ascii(text, ocr);
+        }
+        Self::build_slow(text, ocr)
+    }
+
+    /// [`NormalizedText::build`] sharing the scan's source for an identity view.
+    fn build_shared(source: &Arc<String>, ocr: bool) -> Self {
+        if is_identity(source, ocr) {
+            return Self::identity(Arc::clone(source));
+        }
+        if source.is_ascii() {
+            return Self::build_ascii(source, ocr);
+        }
+        Self::build_slow(source, ocr)
+    }
+
+    fn identity(text: Arc<String>) -> Self {
+        Self {
+            text,
+            char_starts: Arc::from(Vec::new()),
+            orig_bounds: Arc::from(Vec::new()),
+            identity: true,
+            compact: true,
+        }
+    }
+
+    /// The ASCII view: one byte per char, so `char_starts` is implicit.
+    fn build_ascii(text: &str, ocr: bool) -> Self {
+        let bytes = text.as_bytes();
+        if has_soft_break(bytes) {
+            return Self::build_slow(text, ocr);
+        }
+        let mut normalized: Vec<u8> = Vec::with_capacity(bytes.len());
+        let mut orig_bounds: Vec<(usize, usize)> = Vec::with_capacity(bytes.len());
+        let mut index = 0;
+        while index < bytes.len() {
+            if !is_ascii_separator(bytes[index]) {
+                normalized.push(bytes[index]);
+                orig_bounds.push((index, index + 1));
+                index += 1;
+                continue;
+            }
+            let start = index;
+            while index < bytes.len() && is_ascii_separator(bytes[index]) {
+                index += 1;
+            }
+            let group = &bytes[start..index];
+            if group.iter().copied().any(is_ascii_break_or_tab) {
+                normalized.push(if ascii_run_folds(group) { b' ' } else { 0 });
+                orig_bounds.push((start, index));
+            } else {
+                for (at, &byte) in bytes[start..index].iter().enumerate() {
+                    normalized.push(byte);
+                    orig_bounds.push((start + at, start + at + 1));
+                }
+            }
+        }
+        if ocr {
+            for at in 0..normalized.len() {
+                if matches!(normalized[at], b'O' | b'o' | b'l' | b'I')
+                    && ocr_folds_at(&normalized, at)
+                {
+                    normalized[at] = match normalized[at] {
+                        b'O' | b'o' => b'0',
+                        _ => b'1',
+                    };
+                }
+            }
+        }
+        Self {
+            text: Arc::new(String::from_utf8(normalized).expect("ASCII view")),
+            char_starts: Arc::from(Vec::new()),
+            orig_bounds: orig_bounds.into(),
+            identity: false,
+            compact: true,
+        }
+    }
+
+    fn build_slow(text: &str, ocr: bool) -> Self {
         let source = without_soft_breaks(text);
         let mut chars: Vec<char> = Vec::with_capacity(source.len());
         let mut orig_bounds: Vec<(usize, usize)> = Vec::with_capacity(source.len());
@@ -183,9 +320,11 @@ impl NormalizedText {
             normalized.push(*ch);
         }
         Self {
-            text: normalized.into(),
+            text: Arc::new(normalized),
             char_starts: char_starts.into(),
             orig_bounds: orig_bounds.into(),
+            identity: false,
+            compact: false,
         }
     }
 
@@ -206,8 +345,17 @@ impl NormalizedText {
         if !self.text.is_char_boundary(start) || !self.text.is_char_boundary(end) {
             return None;
         }
-        let first = self.char_starts.partition_point(|offset| *offset < start);
-        let after = self.char_starts.partition_point(|offset| *offset < end);
+        if self.identity {
+            return Some((start, end));
+        }
+        let (first, after) = if self.compact {
+            (start, end)
+        } else {
+            (
+                self.char_starts.partition_point(|offset| *offset < start),
+                self.char_starts.partition_point(|offset| *offset < end),
+            )
+        };
         if first >= after {
             return None;
         }
@@ -344,9 +492,11 @@ impl NormalizedText {
             if folded != text {
                 let char_starts = folded.char_indices().map(|(at, _)| at).collect();
                 views.push(Self {
-                    text: folded.into(),
+                    text: Arc::new(folded),
                     char_starts,
                     orig_bounds: bounds.into(),
+                    identity: false,
+                    compact: false,
                 });
             }
         }
@@ -354,8 +504,118 @@ impl NormalizedText {
     }
 }
 
-/// How the folded views read one character (see
-/// [`NormalizedText::folded_views`]).
+/// Whether normalisation returns `text` unchanged: every character maps to
+/// itself, none is dropped, no run folds, and the OCR fold does nothing.
+fn is_identity(text: &str, ocr: bool) -> bool {
+    if text.is_ascii() {
+        if text
+            .bytes()
+            .any(|byte| matches!(byte, b'\n' | b'\r' | b'\t' | 0x0b | 0x0c))
+        {
+            return false;
+        }
+        return !ocr || !ocr_would_fold(text.as_bytes());
+    }
+    for ch in text.chars() {
+        if is_line_break_or_tab(ch)
+            || matches!(ch, '\u{85}' | '\u{2028}' | '\u{2029}' | '\u{3002}')
+            || normalize_char(ch) != Some(ch)
+        {
+            return false;
+        }
+    }
+    !ocr || !ocr_would_fold(text.as_bytes())
+}
+
+/// The separator bytes of an ASCII text: space, tab and the ASCII line breaks.
+fn is_ascii_separator(byte: u8) -> bool {
+    byte == b' ' || is_ascii_break_or_tab(byte)
+}
+
+fn is_ascii_break_or_tab(byte: u8) -> bool {
+    matches!(byte, b'\n' | b'\r' | b'\t' | 0x0b | 0x0c)
+}
+
+/// Whether a quoted-printable soft break starts in `bytes`.
+fn has_soft_break(bytes: &[u8]) -> bool {
+    let mut at = 0;
+    while let Some(found) = bytes[at..].iter().position(|&byte| byte == b'=') {
+        let mut cursor = at + found + 1;
+        while matches!(bytes.get(cursor), Some(b' ' | b'\t')) {
+            cursor += 1;
+        }
+        if matches!(bytes.get(cursor), Some(b'\r' | b'\n')) {
+            return true;
+        }
+        at += found + 1;
+    }
+    false
+}
+
+/// [`run_folds`] for one ASCII separator run.
+fn ascii_run_folds(group: &[u8]) -> bool {
+    let (mut breaks, mut previous) = (0usize, None);
+    for &byte in group {
+        // A tab is no line break here: it makes the run fold, but it does not
+        // count toward the break cap (as `run_folds` counts them).
+        if matches!(byte, b'\n' | b'\r' | 0x0b | 0x0c)
+            && !(byte == b'\n' && previous == Some(b'\r'))
+        {
+            breaks += 1;
+        }
+        previous = Some(byte);
+    }
+    breaks <= MAX_FOLDED_BREAKS && group.len() <= MAX_FOLDED_RUN
+}
+
+/// Whether [`fold_ocr_confusables`] would rewrite a confusable in `bytes`.
+fn ocr_would_fold(bytes: &[u8]) -> bool {
+    bytes
+        .iter()
+        .enumerate()
+        .any(|(at, &byte)| matches!(byte, b'O' | b'o' | b'l' | b'I') && ocr_folds_at(bytes, at))
+}
+
+/// [`fold_ocr_confusables`] for one confusable at `at`.
+fn ocr_folds_at(bytes: &[u8], at: usize) -> bool {
+    let touches_digit = at
+        .checked_sub(1)
+        .is_some_and(|left| bytes[left].is_ascii_digit())
+        || bytes.get(at + 1).is_some_and(u8::is_ascii_digit);
+    touches_digit || (digit_across_bytes(bytes, at, false) && digit_across_bytes(bytes, at, true))
+}
+
+fn digit_across_bytes(bytes: &[u8], at: usize, forward: bool) -> bool {
+    let mut cursor = at;
+    loop {
+        if forward {
+            cursor += 1;
+            if cursor >= bytes.len() {
+                return false;
+            }
+        } else {
+            if cursor == 0 {
+                return false;
+            }
+            cursor -= 1;
+        }
+        let byte = bytes[cursor];
+        if byte.is_ascii_digit() {
+            return true;
+        }
+        if !run_material_byte(byte) {
+            return false;
+        }
+    }
+}
+
+/// [`run_material`] over bytes.
+fn run_material_byte(byte: u8) -> bool {
+    byte.is_ascii_digit()
+        || matches!(byte, b'O' | b'o' | b'l' | b'I')
+        || matches!(byte, b' ' | b'-' | b'.' | b'/' | b'(' | b')')
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Fold {
     /// Invisible: dropped.
@@ -699,6 +959,10 @@ fn separator_run_len(source: &[(usize, char)]) -> usize {
 /// still lie inside the offsets of the chars on either side, so a span that
 /// straddles the wrap covers them.
 fn without_soft_breaks(text: &str) -> Vec<(usize, char)> {
+    // No `=` means no soft break: one pass, one buffer.
+    if !text.contains('=') {
+        return text.char_indices().collect();
+    }
     let all: Vec<(usize, char)> = text.char_indices().collect();
     let mut kept = Vec::with_capacity(all.len());
     let mut index = 0;
@@ -901,6 +1165,7 @@ pub fn ascii_digits(raw: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::strategy::Strategy as _;
 
     /// K-REGISTRY-PERF: inside a scan a view of its text is the view a fresh
     /// build returns, another text is built on its own, and the scan's end
@@ -922,7 +1187,53 @@ mod tests {
         }
         assert_eq!(NormalizedText::new("O6 l2", true).text(), "06 12");
         drop(views);
-        assert!(SHARED.with(|shared| shared.borrow().is_empty()));
+        assert!(SHARED.with(|shared| shared.borrow().depth == 0));
+    }
+
+    fn assert_matches_slow(text: &str, ocr: bool) {
+        let fast = NormalizedText::build(text, ocr);
+        let slow = NormalizedText::build_slow(text, ocr);
+        assert_eq!(fast.text(), slow.text(), "{text:?} ocr={ocr}");
+        for start in 0..=text.len() {
+            for end in start..=text.len() {
+                assert_eq!(
+                    fast.to_original(start, end),
+                    slow.to_original(start, end),
+                    "{text:?} ocr={ocr} {start}..{end}",
+                );
+            }
+        }
+    }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(512))]
+
+        #[test]
+        fn the_identity_path_matches_the_slow_build_on_ascii(
+            bytes in proptest::collection::vec(0x00u8..=0x7f, 0..80),
+            ocr in proptest::prelude::any::<bool>(),
+        ) {
+            let text: String = bytes.into_iter().map(char::from).collect();
+            assert_matches_slow(&text, ocr);
+        }
+
+        #[test]
+        fn the_identity_path_matches_the_slow_build_on_mixed_text(
+            chars in proptest::collection::vec(
+                proptest::prop_oneof![
+                    (0x00u8..=0x7f).prop_map(char::from),
+                    proptest::sample::select(vec![
+                        'é', '\u{301}', '\u{200B}', '\u{FF11}', '\u{A0}', '。', '中', '𝐀',
+                        '\u{2028}', '\u{85}',
+                    ]),
+                ],
+                0..60,
+            ),
+            ocr in proptest::prelude::any::<bool>(),
+        ) {
+            let text: String = chars.into_iter().collect();
+            assert_matches_slow(&text, ocr);
+        }
     }
 
     fn folded(text: &str) -> Vec<String> {

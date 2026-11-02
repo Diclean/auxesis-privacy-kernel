@@ -57,8 +57,8 @@ pub mod threshold;
 pub mod vault;
 
 pub use anonymize::{
-    Anonymizer, RestoreReport, TokenMap, UnknownPolicy, PLACEHOLDER_CLOSE, PLACEHOLDER_OPEN,
-    UNKNOWN_REFERENCE,
+    restore, Anonymizer, RestoreReport, TokenMap, UnknownPolicy, PLACEHOLDER_CLOSE,
+    PLACEHOLDER_OPEN, UNKNOWN_REFERENCE,
 };
 pub use company_id::CompanyIdRecognizer;
 pub use contacts::{

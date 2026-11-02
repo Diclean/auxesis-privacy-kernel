@@ -35,6 +35,14 @@
 //! of any prior taint mark. The caller passes [`ExecutionMode::Sandboxed`] as
 //! the default; an unknown mode fails closed (unsandboxed).
 //!
+//! **Network-enabled shell (SHELL-NETWORK-ASK):** a sandboxed `shell` call
+//! whose profile has `network = true` reports [`ExecutionMode::Networked`]. It
+//! gets the same bar: no `allow` rule — and no persisted "always allow" — may
+//! auto-run it, the [`ApprovalRequest`] carries `networked: true`, and the
+//! audit row records `mode = "networked"`. A call that owns neither a sandbox
+//! escape nor all sockets is still `Sandboxed` and keeps its allow-rule
+//! behaviour.
+//!
 //! **Edited drafts:** an [`Approver`] may answer an ask with an
 //! [`ApprovalDecision`] that substitutes the argument payload — the app's
 //! `edit` decision. The broker then authorizes the *substituted* arguments:
@@ -66,15 +74,16 @@ pub const MAX_EDITED_ARGUMENTS_BYTES: usize = 4 * 1024;
 
 /// How a tool call will execute for authorization purposes.
 ///
-/// Only the `shell` tool can run outside its sandbox (the explicit
-/// `[shell] allow_unsandboxed` escape hatch), so [`ToolRegistry`] reports
-/// `Unsandboxed` for exactly that configuration. The broker treats
-/// `Unsandboxed` as an unconditional bar: `allow` rules and persisted
-/// "always allow" answers never apply to it. Unknown provenance fails
-/// closed: [`crate::ToolRegistry::execution_mode`] answers `Unsandboxed`
-/// for a name it cannot classify, and the default of this enum is
-/// `Sandboxed` only so callers that already hold a concrete tool profile
-/// (and non-shell tools) can use it.
+/// The `shell` tool is the only tool with an execution dimension, so
+/// [`ToolRegistry`] reports one of the non-default variants for exactly its two
+/// dangerous configurations: `Unsandboxed` for the explicit
+/// `[shell] allow_unsandboxed` escape hatch, `Networked` for a sandbox that
+/// allows **all** sockets (`[shell] network = true`). The broker treats both as
+/// an unconditional bar: `allow` rules and persisted "always allow" answers
+/// never apply to them. Unknown provenance fails closed:
+/// [`crate::ToolRegistry::execution_mode`] answers `Unsandboxed` for a name it
+/// cannot classify, and the default of this enum is `Sandboxed` only so callers
+/// that already hold a concrete tool profile (and non-shell tools) can use it.
 ///
 /// [`ToolRegistry`]: crate::ToolRegistry
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -86,6 +95,10 @@ pub enum ExecutionMode {
     /// The call will run without its sandbox: every ask is forced and no
     /// persistent allow may be written for it.
     Unsandboxed,
+    /// The call runs sandboxed, but its sandbox has every socket open
+    /// (`[shell] network = true`): every ask is forced and no persistent allow
+    /// may be written for it, exactly as for [`ExecutionMode::Unsandboxed`].
+    Networked,
 }
 
 impl ExecutionMode {
@@ -94,11 +107,23 @@ impl ExecutionMode {
         matches!(self, ExecutionMode::Unsandboxed)
     }
 
+    /// True for [`ExecutionMode::Networked`].
+    pub fn is_networked(self) -> bool {
+        matches!(self, ExecutionMode::Networked)
+    }
+
+    /// True when no `allow` rule may auto-run the call: it either escapes its
+    /// sandbox or has all sockets open. Deny rules and taint are unaffected.
+    pub fn forces_ask(self) -> bool {
+        !matches!(self, ExecutionMode::Sandboxed)
+    }
+
     /// Lowercase label used in audit records.
     pub fn as_str(self) -> &'static str {
         match self {
             ExecutionMode::Sandboxed => "sandboxed",
             ExecutionMode::Unsandboxed => "unsandboxed",
+            ExecutionMode::Networked => "networked",
         }
     }
 }
@@ -188,6 +213,10 @@ pub struct ApprovalRequest {
     /// the card must say so and "always allow" must not be offered or
     /// accepted, exactly as for a tainted ask.
     pub unsandboxed: bool,
+    /// True when the shell runs sandboxed with every socket open
+    /// (`[shell] network = true`): the card must say so and "always allow"
+    /// must not be offered or accepted, exactly as for an unsandboxed ask.
+    pub networked: bool,
 }
 
 /// What an [`Approver`] decided for one ask.
@@ -431,7 +460,7 @@ struct AuditRecord {
     /// What introduced the untrusted content, when known.
     #[serde(skip_serializing_if = "Option::is_none")]
     taint_source: Option<String>,
-    /// How the call will execute (`sandboxed` / `unsandboxed`).
+    /// How the call will execute (`sandboxed` / `unsandboxed` / `networked`).
     mode: &'static str,
     /// SHA-256 (hex) of the arguments the caller requested, present only when
     /// an approver substituted an edited draft.
@@ -671,7 +700,8 @@ pub struct AuthorizeRequest<'a> {
     /// True when the caller declares the tool read-only by construction: it
     /// observes local state and produces no side effects.
     pub read_only: bool,
-    /// How the call will execute ([`ExecutionMode::Unsandboxed`] forces an ask).
+    /// How the call will execute ([`ExecutionMode::forces_ask`] refuses every
+    /// persistent allow).
     pub mode: ExecutionMode,
     /// True when a wildcard `allow` rule must not authorize this tool.
     pub requires_explicit_rule: bool,
@@ -812,6 +842,7 @@ impl Broker {
         let tainted = taint.forces_ask();
         let taint_source = taint.summary();
         let unsandboxed = mode.is_unsandboxed();
+        let networked = mode.is_networked();
 
         // Hardline floor (soul rule 1): a skill-only tool
         // requested without a skill context is refused here, before any rule
@@ -843,24 +874,26 @@ impl Broker {
         // declares read-only is **allow** — an audit row, no approval card.
         // Reads are the daily-use path and a read-only tool cannot move data
         // or run anything. The two existing bars stay exactly as before:
-        // taint still asks, and an unsandboxed call still asks (a matching
-        // rule still wins in both directions).
-        let read_only_default = matched.is_none() && read_only && !tainted && !unsandboxed;
+        // taint still asks, and an unsandboxed or network-enabled call still
+        // asks (a matching rule still wins in both directions).
+        let read_only_default = matched.is_none() && read_only && !tainted && !mode.forces_ask();
         let (rule_index, rule_action) = match matched {
             Some((index, rule)) => (Some(index), rule.action),
             None if read_only_default => (None, Action::Allow),
             None => (None, Action::Ask),
         };
-        // Two independent bars can raise an `allow` rule to `ask`:
+        // Three independent bars can raise an `allow` rule to `ask`:
         // - taint: untrusted content is in the conversation, so a
         //   consequential call must be approved (an explicit read-only
         //   declaration is the only exemption);
         // - unsandboxed: the call will escape its sandbox, so no `allow`
-        //   rule — and no persisted "always allow" — may auto-run it, ever.
+        //   rule — and no persisted "always allow" — may auto-run it, ever;
+        // - networked: the sandbox has every socket open, so the same bar
+        //   applies even though the filesystem is still confined.
         // `Risk` is deliberately not consulted for either: a tool that
         // under-reports its risk must still ask.
         //
-        // The skill floor is the third: a skill-only tool running inside a
+        // The skill floor is the fourth: a skill-only tool running inside a
         // skill asks at minimum, so an `allow` rule cannot lift it either.
         let skill_floor = skill_only && skill.is_some();
         let forced_reason = if skill_floor {
@@ -875,6 +908,15 @@ impl Broker {
                 )
             } else {
                 format!("`{tool}` runs unsandboxed")
+            })
+        } else if networked {
+            Some(if tainted {
+                format!(
+                    "`{tool}` runs with the network enabled and the conversation is tainted ({})",
+                    taint_source.as_deref().unwrap_or("unknown")
+                )
+            } else {
+                format!("`{tool}` runs with the network enabled (all sockets open)")
             })
         } else if tainted && !read_only {
             Some(format!(
@@ -950,6 +992,7 @@ impl Broker {
                     tainted,
                     taint_source: taint_source.clone(),
                     unsandboxed,
+                    networked,
                 };
                 match self.approver.decide(&request).await {
                     Ok(decision) if decision.allow => {
@@ -1630,6 +1673,7 @@ mod tests {
                 tainted: false,
                 taint_source: None,
                 unsandboxed: false,
+                networked: false,
             }]
         );
         assert_eq!(sink.count("tool.decision"), 1);
@@ -1843,6 +1887,7 @@ mod tests {
                 tainted: false,
                 taint_source: None,
                 unsandboxed: false,
+                networked: false,
             }]
         );
     }
@@ -2428,6 +2473,52 @@ mod tests {
         assert_eq!(calls.len(), 1, "the allow rule must not skip the ask");
         assert!(calls[0].unsandboxed, "the card must say it is unsandboxed");
         assert!(!calls[0].tainted);
+    }
+
+    #[tokio::test]
+    async fn a_networked_call_forces_ask_over_an_allow_rule() {
+        // SHELL-NETWORK-ASK: `[shell] network = true` leaves every socket
+        // open. A stored allow rule must not auto-run the command: the first
+        // call asks, the card names the network, and a deny means nothing runs.
+        let sink = sink();
+        let approver = ScriptedApprover::new(Outcome::Deny);
+        let broker = Broker::new(
+            sink.clone(),
+            vec![Rule::new("main", "shell", Action::Allow)],
+            approver.clone(),
+            no_skill_only(),
+        );
+
+        let auth = broker
+            .authorize(request_with(
+                "main",
+                "shell",
+                Risk::High,
+                serde_json::Value::Null,
+                &Taint::Clean,
+                false,
+                ExecutionMode::Networked,
+                false,
+                false,
+                None,
+            ))
+            .await
+            .unwrap();
+
+        assert!(!auth.is_allowed(), "the denied ask must not run");
+        assert!(
+            auth.reason().contains("network"),
+            "reason: {}",
+            auth.reason()
+        );
+        let calls = approver.calls();
+        assert_eq!(calls.len(), 1, "the allow rule must not skip the ask");
+        assert!(calls[0].networked, "the card must say the network is on");
+        assert!(!calls[0].unsandboxed, "the filesystem sandbox is still on");
+        assert!(!calls[0].tainted);
+        let payloads = sink.payloads("tool.decision");
+        assert_eq!(payloads.len(), 1);
+        assert_eq!(payloads[0]["mode"], "networked", "{}", payloads[0]);
     }
 
     #[tokio::test]
