@@ -521,7 +521,7 @@ impl StdioTransport {
     ///
     /// # The unsandboxed constructor is not public
     ///
-    /// [`StdioTransport::new_unsandboxed`] is `pub(crate)`, so a downstream
+    /// `StdioTransport::new_unsandboxed` is `pub(crate)`, so a downstream
     /// crate cannot call it:
     ///
     /// ```compile_fail

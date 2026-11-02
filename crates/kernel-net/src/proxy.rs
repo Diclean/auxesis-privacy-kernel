@@ -35,7 +35,7 @@ pub const UPSTREAM_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub enum ProxyRefusal {
     /// The client closed (or sent nothing) before a complete head arrived.
     EmptyRequest,
-    /// The head crossed [`MAX_HEADER_BYTES`] without a terminator.
+    /// The head crossed `MAX_HEADER_BYTES` without a terminator.
     HeaderTooLarge,
     /// The request line was not `METHOD target HTTP/1.x`.
     MalformedRequest,

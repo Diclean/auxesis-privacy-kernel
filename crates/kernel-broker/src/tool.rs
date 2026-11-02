@@ -273,23 +273,23 @@ fn real_target(path: &Path) -> Result<PathBuf, std::io::Error> {
 /// `fn class(&self) -> ToolClass { ToolClass::default() }`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ToolClass {
-    /// See [`Tool::requires_explicit_rule`].
+    /// See [`ToolClassExt::requires_explicit_rule`].
     pub requires_explicit_rule: bool,
-    /// See [`Tool::risk_is_corroborated`].
+    /// See [`ToolClassExt::risk_is_corroborated`].
     pub risk_is_corroborated: bool,
-    /// See [`Tool::output_trust`].
+    /// See [`ToolClassExt::output_trust`].
     pub output_trust: crate::Trust,
-    /// See [`Tool::execution_mode`].
+    /// See [`ToolClassExt::execution_mode`].
     pub execution_mode: crate::ExecutionMode,
-    /// See [`Tool::returns_private_data`].
+    /// See [`ToolClassExt::returns_private_data`].
     pub returns_private_data: bool,
-    /// See [`Tool::performs_web_egress`].
+    /// See [`ToolClassExt::performs_web_egress`].
     pub performs_web_egress: bool,
-    /// See [`Tool::egress_url_argument`].
+    /// See [`ToolClassExt::egress_url_argument`].
     pub egress_url_argument: bool,
-    /// See [`Tool::arguments_leave_machine`].
+    /// See [`ToolClassExt::arguments_leave_machine`].
     pub arguments_leave_machine: bool,
-    /// See [`Tool::skill_only`].
+    /// See [`ToolClassExt::skill_only`].
     pub skill_only: bool,
 }
 
@@ -429,10 +429,10 @@ pub trait ToolClassExt: sealed::Sealed + Tool {
     /// Trust level of this tool's output.
     ///
     /// Deny-by-default: a tool is trusted only when it **explicitly** declares
-    /// [`Trust::Trusted`] in its [`Tool::class`]. A tool that can reach outside
+    /// [`crate::Trust::Trusted`] in its [`Tool::class`]. A tool that can reach outside
     /// (fetch, connector, mail) or execute arbitrary code (`shell`) returns
     /// content the owner did not author, so its default is
-    /// [`Trust::Untrusted`]: its output taints the conversation and forces
+    /// [`crate::Trust::Untrusted`]: its output taints the conversation and forces
     /// approval for consequential calls. A new tool fails closed until someone
     /// classifies it. Pure local deterministic tools (`read_file` of a trusted
     /// path, `write_file` result text) declare `Trusted`.
@@ -528,13 +528,13 @@ mod sealed {
 
 /// A tool whose advertised text the application fixed at compile time.
 ///
-/// Only a native tool can be registered with [`ToolRegistry::register_native`].
+/// Only a native tool can be registered with [`crate::ToolRegistry::register_native`].
 /// Its three metadata methods return `'static` text, so the system prompt
 /// trusts that text without a scan. Nothing built at runtime satisfies the
 /// bound: a `String` field, a config value or a server's declaration cannot
 /// be borrowed for `'static` without an explicit leak. A tool whose text is
 /// built at runtime (MCP, plugins) implements only [`Tool`] and registers
-/// through [`ToolRegistry::register`], which gates its text before the model
+/// through [`crate::ToolRegistry::register`], which gates its text before the model
 /// sees it.
 ///
 /// A native tool with static metadata registers and runs as usual:

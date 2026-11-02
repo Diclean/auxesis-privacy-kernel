@@ -648,7 +648,7 @@ pub struct RefusedRedirectHop {
 pub struct FetchEgress {
     /// The turn's sensitive-turn facts: taint and private owner data. The
     /// `seen_origin` fact of [`EgressContext`] is recomputed per hop by
-    /// [`FetchEgress::redirect_context`].
+    /// `FetchEgress::redirect_context`.
     pub context: EgressContext,
     /// Origins (`scheme://host:port`) already fetched in this conversation. A
     /// hop lands on one of them (or stays on the origin the card covered)

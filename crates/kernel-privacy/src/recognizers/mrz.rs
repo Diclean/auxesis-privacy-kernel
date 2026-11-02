@@ -9,7 +9,7 @@
 //!   on sight, with at most one hyphen or dot between the letter prefix and the
 //!   digits; a single *space* is masked too for **every** 1–3 letter prefix and
 //!   7–9 digits, or when the de-spaced value passes the ICAO 7-3-1 check digit.
-//!   `ISO` and a short business-reference denylist ([`BUSINESS_PREFIXES`], e.g.
+//!   `ISO` and a short business-reference denylist (`BUSINESS_PREFIXES`, e.g.
 //!   `REF 1234567`) stay clear, and the cued `TAJ 123456788` keeps its `HU_TAJ`
 //!   label, because those prefixes are cues for other rules;
 //! * a passport cue (`passeport`, `passport`, `paspoort`, `útlevél`,

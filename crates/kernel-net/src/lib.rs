@@ -3,7 +3,7 @@
 //! This crate replaces the 22k-line HTML/CSS hidden-content model that used
 //! to live in `kernel-broker`. It has two levels:
 //!
-//! - **Simple path** ([`Fetcher::fetch`] with [`RenderMode::Simple`]):
+//! - **Simple path** (`Fetcher::fetch` with [`RenderMode::Simple`]):
 //!   `reqwest` + html5ever + a minimal readability-style main-content
 //!   extractor, bounded by the SSRF guard, redirect cap, body cap, parse cap
 //!   and output cap.

@@ -7,7 +7,7 @@
 //! included) over these views of the arguments:
 //!
 //! * the reconstructed view: every string and number value in document order,
-//!   joined by [`VIEW_SEPARATOR`], so an identifier split over several fields is
+//!   joined by `VIEW_SEPARATOR`, so an identifier split over several fields is
 //!   whole without two neighbouring values reading as one grouped number;
 //! * the in-order view: every key and value in document order, joined the same
 //!   way;
@@ -35,9 +35,9 @@
 //! asks, whatever its share of escapes (a lone `%40` left in an address).
 //!
 //! The views are bounded. A base64 or hex leaf whose decoded size would exceed
-//! [`MAX_DECODED_PER_LEAF`], a call whose decoded views exceed
-//! [`MAX_DECODED_PER_CALL`] in all, or a call whose leaves hold more than
-//! [`MAX_SCREENED_TEXT`] bytes cannot be screened in full. Such a call forces the
+//! `MAX_DECODED_PER_LEAF`, a call whose decoded views exceed
+//! `MAX_DECODED_PER_CALL` in all, or a call whose leaves hold more than
+//! `MAX_SCREENED_TEXT` bytes cannot be screened in full. Such a call forces the
 //! ask as well: fail toward masking, never a truncated scan that passes.
 //! Malformed encodings are ignored, never an error.
 //!

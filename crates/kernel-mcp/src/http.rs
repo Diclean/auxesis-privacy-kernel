@@ -167,7 +167,7 @@ impl HttpTransport {
     /// Build a transport pinned to `url`.
     ///
     /// The URL must be absolute with a host; the origin it resolves to becomes
-    /// the only origin this transport will ever send [`headers`](Self::headers)
+    /// the only origin this transport will ever send `headers`
     /// to. A non-`https` origin is refused unless its host is loopback, and
     /// `limits` is validated before the transport is built.
     pub fn new(url: &str, headers: HeaderMap, limits: Limits) -> Result<Self, McpError> {

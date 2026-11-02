@@ -196,7 +196,7 @@ fn label_detected(text: &str, include_secret: bool) -> Option<String> {
 /// The detector is the same set Private mode runs, so an e-mail, phone, IBAN,
 /// card, national ID, health term or secret typed as the first line never
 /// becomes a chat title. Names are left visible on purpose (owner rule).
-/// Detection failure yields [`TITLE_HIDDEN`], never the raw line. If the scan
+/// Detection failure yields `TITLE_HIDDEN`, never the raw line. If the scan
 /// cap would cut through a run with no whitespace, the whole run is dropped and
 /// an ellipsis marks the cut: a partial candidate is never detected as text.
 pub fn scrub_title(text: &str) -> String {
@@ -230,7 +230,7 @@ pub fn scrub_title(text: &str) -> String {
 /// detected non-name value gets its neutral label before the caller collapses
 /// lines or caps the result. Secret spans are left to the caller's established
 /// secret scrubber, which keeps its `<redacted>` marker. Detection failure
-/// yields [`DISPLAY_HIDDEN`].
+/// yields `DISPLAY_HIDDEN`.
 pub fn scrub_display_text(text: &str, max_bytes: usize) -> String {
     let clean = sanitize_external_text_keep_isolates(text, max_bytes);
     match label_detected(&clean, false) {
@@ -537,7 +537,7 @@ pub const REDACTION_ERROR_LINE: &str = "<redaction-error: line dropped>";
 
 /// [`redact_log_line`] for the log writers. A redaction bug must never crash
 /// the writer, and a line that cannot be redacted is replaced by
-/// [`REDACTION_ERROR_LINE`], never written raw. A caught panic reports only its
+/// `REDACTION_ERROR_LINE`, never written raw. A caught panic reports only its
 /// source location: the process hook is payload-free.
 pub fn redact_log_line_guarded(text: &str) -> String {
     guard_log_redaction(text, redact_log_line)

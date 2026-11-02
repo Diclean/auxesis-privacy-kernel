@@ -6,11 +6,13 @@ all-features = true
 
 [advisories]
 yanked = "deny"
-# `paste` 1.0.15 is unmaintained (RUSTSEC-2024-0436) and has no fixed release.
-# It reaches this graph only through `tokenizers 0.21.4`, a transitive dependency
+# RUSTSEC-2024-0436: `paste` 1.0.15 is unmaintained (no fixed release). It
+# reaches this graph only through `tokenizers 0.21.4`, a transitive dependency
 # of the optional `ner-gliner` feature. Updating tokenizers beyond 0.21.4 is a
-# separate dependency decision, so record the reason here rather than leave an
-# unfixable advisory failing the export.
+# separate dependency decision, so the advisory is ignored until 2027-06-30
+# rather than left failing every build. cargo-deny 0.20 has no absolute
+# per-ignore expiry, so the CI "advisory ignore expiry" step enforces the date.
+# Expires: 2027-06-30
 ignore = [
     { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained and has no fixed release; reached only via tokenizers 0.21.4 (gliner2-rs, optional ner-gliner feature), and a tokenizers major update is a separate decision" },
 ]

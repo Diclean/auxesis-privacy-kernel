@@ -371,7 +371,7 @@ impl AuditError {
 /// The audit trail behind the broker: one event per decision.
 ///
 /// The kernel does not own a store. The app implements this trait over its
-/// SQLite `events` table; [`MemoryAuditSink`] is the in-process test double.
+/// SQLite `events` table; `MemoryAuditSink` is the in-process test double.
 /// Every decision the broker makes — allow, deny, both ask outcomes, approver
 /// failures and edit substitutions — is logged as a `tool.decision` event
 /// carrying the metadata-only JSON payload. The returned id is the new row.
@@ -707,7 +707,7 @@ pub struct AuthorizeRequest<'a> {
     pub requires_explicit_rule: bool,
     /// The skill context of the call, when it runs inside a skill.
     pub skill: Option<&'a SkillRef>,
-    /// True when the tool declares [`crate::Tool::skill_only`].
+    /// True when the tool declares [`crate::ToolClassExt::skill_only`].
     pub skill_only: bool,
 }
 
@@ -721,7 +721,7 @@ pub struct AuthorizeRequest<'a> {
 /// `Arc<RwLock<_>>` so a tool registered after the broker was built is still
 /// covered.
 pub trait SkillOnlyLookup: Send + Sync {
-    /// True when `tool` declares [`crate::Tool::skill_only`] right now.
+    /// True when `tool` declares [`crate::ToolClassExt::skill_only`] right now.
     fn is_skill_only(&self, tool: &str) -> bool;
 }
 

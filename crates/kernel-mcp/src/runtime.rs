@@ -4,7 +4,7 @@
 //! discovers each one **in isolation**: a server that is unreachable, broken or
 //! times out is logged by id and a content-free reason, and every other server
 //! still comes up. Nothing about a failed server reaches a log as text — only
-//! its id and a [`McpError::kind`] label.
+//! its id and a `McpError::kind` label.
 //!
 //! # Mounting
 //!
@@ -15,7 +15,7 @@
 //! the existing broker, taint and audit paths apply unchanged:
 //!
 //! * risk comes from the server annotations only ([`McpToolDescriptor::risk`]);
-//! * every MCP tool sets [`Tool::requires_explicit_rule`], so a wildcard
+//! * every MCP tool sets [`kernel_broker::ToolClassExt::requires_explicit_rule`], so a wildcard
 //!   `allow tool = "*"` can never authorize it (server annotations are not
 //!   corroborated, so a `readOnlyHint` cannot widen that);
 //! * output is untrusted (`mcp__…` plus an explicit registry mark), so running

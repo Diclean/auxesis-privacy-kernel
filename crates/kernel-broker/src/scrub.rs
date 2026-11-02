@@ -1,6 +1,6 @@
 //! Exact-value redaction of the secrets this process *knows*.
 //!
-//! The heuristic layers in [`crate::text`] are shape-based: they recognise
+//! The heuristic layers in `crate::text` are shape-based: they recognise
 //! credential *names* and vendor prefixes, but a value with no name in front
 //! of it (a sentence, a tool argument, an encoded copy) is invisible to
 //! them. security-review round 5 showed that shape-driven patching is open-ended
@@ -21,7 +21,7 @@
 //!   scan over a whitespace/zero-width-condensed copy of the text (so a
 //!   value split across lines or stuffed with invisible characters still
 //!   matches); both scans and the range merge are linear in the text.
-//! - **Never logged, never formatted.** [`KnownSecret`] has a custom `Debug`
+//! - **Never logged, never formatted.** `KnownSecret` has a custom `Debug`
 //!   impl that prints `<redacted>` and zeroes its buffer on drop; nothing in
 //!   this module ever writes a value into a log line or an error message.
 //! - **Withheld from streaming output.** [`streaming_hold_bytes`] returns the
@@ -541,7 +541,7 @@ const HEURISTIC_NAME_SCAN: usize = 96;
 /// bytes, so a streaming emitter can release the prefix and later match the
 /// whole-buffer result exactly.
 ///
-/// The result is clamped to [`MIN_STREAM_WINDOW`]..=[`MAX_STREAM_WINDOW`];
+/// The result is clamped to `MIN_STREAM_WINDOW`..=`MAX_STREAM_WINDOW`;
 /// a registered value longer than the cap is outside the streaming window
 /// contract, but the whole-buffer pass (and therefore the final output) is
 /// unaffected.

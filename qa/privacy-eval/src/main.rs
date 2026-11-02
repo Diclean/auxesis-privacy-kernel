@@ -1531,7 +1531,8 @@ fn run_table(cases: &[Case], public: &PublicTerms) -> Result<ExitCode, String> {
                     );
                 }
             }
-            println!("held-out table: SKIPPED, nothing was measured");
+            println!("held-out table: SKIPPED, held-out bars not measured");
+            print_in_repo(cases, None)?;
             return Ok(ExitCode::SUCCESS);
         }
     };
@@ -1674,6 +1675,19 @@ fn run_table(cases: &[Case], public: &PublicTerms) -> Result<ExitCode, String> {
             );
         }
     }
+    print_in_repo(cases, Some(held_out_cases))?;
+    println!(
+        "held-out-2: {} cases, sha256 {hash_2} (verified), Tier C scored on [{}]",
+        cases_2.len(),
+        IN_SCOPE_LANGS.join(",")
+    );
+    Ok(ExitCode::SUCCESS)
+}
+
+/// The in-repo report: per-class table over the whole corpus, then the known
+/// contacts, K10, prose and HU checks. It reads no held-out file, so CI can
+/// run it on a checkout alone.
+fn print_in_repo(cases: &[Case], held_out_cases: Option<usize>) -> Result<(), String> {
     let private = measure_mode(cases, PrivacyMode::Private, "Private")?;
     let open = measure_mode(cases, PrivacyMode::Open, "Open")?;
     println!("\nper-class over the whole in-repo corpus (not the held-out split):");
@@ -1683,19 +1697,15 @@ fn run_table(cases: &[Case], public: &PublicTerms) -> Result<ExitCode, String> {
     print_prose();
     print_hu_check(cases);
     let languages: BTreeSet<&str> = cases.iter().map(|case| case.lang.as_str()).collect();
+    let held_out = held_out_cases.map_or_else(|| "set absent".to_owned(), |n| format!("{n} cases"));
     println!(
-        "corpus: {} cases, held-out {} cases, langs [{}], commit {}",
+        "corpus: {} cases, held-out {}, langs [{}], commit {}",
         cases.len(),
-        held_out_cases,
+        held_out,
         languages.into_iter().collect::<Vec<_>>().join(","),
         git_commit()
     );
-    println!(
-        "held-out-2: {} cases, sha256 {hash_2} (verified), Tier C scored on [{}]",
-        cases_2.len(),
-        IN_SCOPE_LANGS.join(",")
-    );
-    Ok(ExitCode::SUCCESS)
+    Ok(())
 }
 
 /// The K10 rows: the Standard recall of the fictional `k10-` cases, grouped by

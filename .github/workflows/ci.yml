@@ -5,7 +5,9 @@ on:
     branches: [main]
   pull_request:
 
-permissions: {}
+# Least privilege. The workflow uses no secrets, so a fork PR runs it unchanged.
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -18,30 +20,125 @@ jobs:
   check:
     name: fmt, clippy, test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       # rustup reads rust-toolchain.toml and installs the pinned version.
       - run: rustup show
+      # Proves formatting is canonical.
       - run: cargo fmt --all -- --check
+      # Proves every target builds without clippy warnings.
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # Debug tests: the test-util guard refuses release, and the debug-only
+      # assertions must run. Cargo.toml optimises dependencies in dev.
       - run: cargo test --workspace --locked
+      # Proves no reqwest client escaped the documented egress allowlist.
       - run: scripts/check-egress.sh
+
+  docs:
+    name: rustdoc (-D warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - run: rustup show
+      # Proves the public API documentation builds with every warning denied.
+      - run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   deny:
     name: cargo deny
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+      # Blocking: any error in advisories, bans, licences or sources fails.
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+      # cargo-deny 0.20 has no absolute per-ignore expiry, so enforce the date
+      # recorded beside the RUSTSEC-2024-0436 ignore in deny.toml.
+      - name: advisory ignore expiry
+        run: |
+          set -euo pipefail
+          expiry=$(sed -n 's/^# Expires: \([0-9-]*\)$/\1/p' deny.toml)
+          test -n "$expiry"
+          if [[ "$(date -u +%F)" > "$expiry" ]]; then
+            echo "::error::the deny.toml advisory ignore expired on $expiry; update or renew it"
+            exit 1
+          fi
+          echo "advisory ignore valid until $expiry"
+
+  privacy-eval:
+    name: privacy eval (in-repo corpus)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - run: rustup show
+      # Proves the committed corpus keeps today's per-class floors. No
+      # AUXESIS_EVAL_DIR: this reads only in-repo data, never the private
+      # held-out sets or any fetched corpus.
+      - name: run the in-repo eval
+        run: |
+          set -euo pipefail
+          cargo run -p privacy-eval --locked --release --no-default-features | tee privacy-eval.txt
+          {
+            echo '### Privacy eval: per-class table'
+            echo
+            echo '```'
+            sed -n '/^per-class over the whole in-repo corpus/,/^over-mask/p' privacy-eval.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Tier C floors
+        run: |
+          set -euo pipefail
+          # Floors: today's in-repo numbers, Private then Open (2026-11-02).
+          # A Tier C class below its floor, or a missing row, fails the job.
+          awk -F'|' '
+            BEGIN {
+              split("IBAN card ID secret health", order, " ")
+              split("100.00 100.00 100.00 100.00 100.00 97.56 100.00 100.00 84.37 84.37", floors, " ")
+            }
+            /^\| (IBAN|card|ID|secret|health) \| [0-9]+ \|/ {
+              cls = $2; gsub(/ /, "", cls)
+              p = $4; o = $5
+              gsub(/^ +| +$/, "", p); gsub(/^ +| +$/, "", o)
+              seen[cls] = 1
+              for (i = 1; i <= 5; i++) if (order[i] == cls) {
+                for (m = 1; m <= 2; m++) {
+                  label = (m == 1) ? "Private" : "Open"
+                  got = (m == 1) ? p : o
+                  want = floors[(i - 1) * 2 + m]
+                  if (got !~ /^[0-9]+\.[0-9]+ %$/) {
+                    printf "FAIL %s %s: %s (floor %s %%)\n", cls, label, got, want
+                    bad = 1
+                  } else {
+                    sub(/ %$/, "", got)
+                    if (got + 0 < want + 0) {
+                      printf "FAIL %s %s: %s %% < floor %s %%\n", cls, label, got, want
+                      bad = 1
+                    } else {
+                      printf "ok %s %s: %s %% >= %s %%\n", cls, label, got, want
+                    }
+                  }
+                }
+              }
+            }
+            END {
+              for (i = 1; i <= 5; i++) if (!seen[order[i]]) {
+                printf "FAIL %s: row missing\n", order[i]
+                bad = 1
+              }
+              exit bad
+            }
+          ' privacy-eval.txt
