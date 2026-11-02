@@ -167,8 +167,8 @@ fn common_health_forms_stay_linear() {
 }
 
 /// The differential inputs: the cases above, then the in-repo privacy-eval
-/// cases and prose lines. `true` marks a text with no health value, whose new
-/// masks count as over-masks.
+/// cases and prose lines. `true` marks a text with no health value and no gold
+/// date of birth, whose new masks count as over-masks.
 fn inputs() -> Vec<(String, bool)> {
     let mut out: Vec<(String, bool)> = CASES.iter().map(|c| (parse_case(c).0, false)).collect();
     out.extend(NEAR_MISSES.iter().map(|text| (text.to_string(), true)));
@@ -187,12 +187,15 @@ fn inputs() -> Vec<(String, bool)> {
                     continue;
                 }
                 let case: serde_json::Value = serde_json::from_str(line).expect("JSON");
-                let health = case["spans"].as_array().into_iter().flatten().any(|s| {
-                    s["type"]
-                        .as_str()
-                        .is_some_and(|t| t.eq_ignore_ascii_case("health"))
-                });
-                out.push((case["text"].as_str().expect("text").to_string(), !health));
+                let kind = |k: &str| {
+                    case["spans"].as_array().into_iter().flatten().any(|s| {
+                        s["type"]
+                            .as_str()
+                            .is_some_and(|t| t.eq_ignore_ascii_case(k))
+                    })
+                };
+                let clean = !kind("health") && !kind("date_of_birth");
+                out.push((case["text"].as_str().expect("text").to_string(), clean));
             }
         }
     }

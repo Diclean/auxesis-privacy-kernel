@@ -191,6 +191,9 @@ de	BLOOD	any	blutgruppe
 #
 # --- Afrikaans ---
 af	SECRET	any	wagwoord
+af	SECRET	punct	sleutel
+af	SECRET	any	api sleutel
+af	SECRET	any	toegangstoken
 af	ID	any	id nommer
 af	ID	any	identiteitsnommer
 af	ID	any	paspoort
@@ -202,6 +205,9 @@ af	BLOOD	any	bloedgroep
 #
 # --- Hungarian ---
 hu	SECRET	any	jelszo
+hu	SECRET	any	jelszavam
+hu	SECRET	punct	kulcs
+hu	SECRET	any	titkos kulcs
 hu	SECRET	any	pin kod
 hu	ID	any	szemelyi igazolvany
 hu	ID	any	szemelyi igazolvany szama
@@ -215,6 +221,9 @@ hu	BLOOD	any	vercsoport
 #
 # --- Slovene ---
 sl	SECRET	any	geslo
+sl	SECRET	punct	kljuc
+sl	SECRET	any	api kljuc
+sl	SECRET	punct	zeton
 sl	ID	any	osebna izkaznica
 sl	ID	any	potni list
 sl	ID	any	stevilka potnega lista
@@ -226,6 +235,10 @@ sl	BLOOD	any	krvna skupina
 # --- Chinese ---
 zh	SECRET	any	密码
 zh	SECRET	any	口令
+zh	SECRET	any	api密钥
+zh	SECRET	punct	密钥
+zh	SECRET	any	访问令牌
+zh	SECRET	punct	令牌
 zh	ID	any	身份证
 zh	ID	any	身份证号
 zh	ID	any	身份证号码

@@ -43,6 +43,23 @@ const LABELS: &[&str] = &[
     "ne le",
     "nee le",
     "ne(e) le",
+    "gebore",
+    "gebore op",
+    "geboortedatum",
+    "szuletett",
+    "szuletesi ido",
+    "szul",
+    "szul.",
+    "datum rojstva",
+    "rojen",
+    "rojena",
+    "roj.",
+    "出生日期",
+    "出生于",
+    "生于",
+    "生日是",
+    "生日",
+    "b.",
 ];
 
 /// Labels that are words of prose too: over a `,` or `;` with a blank after it
@@ -71,11 +88,15 @@ static LABEL_SET: LazyLock<AhoCorasick> = LazyLock::new(|| {
 });
 
 /// Month names, lower case: EN full and short, FR full and short (with or
-/// without accents; a dot after a short one is read by [`DATE`]).
+/// without accents; a dot after a short one is read by [`DATE`]), then the
+/// Afrikaans, Hungarian and Slovene months, each with its inflected form.
 const MONTHS: &str = "january|february|march|april|may|june|july|august|september|october|\
     november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec|janvier|février|fevrier|\
     mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre|janv|\
-    févr|fevr|avr|juil|déc";
+    févr|fevr|avr|juil|déc|januarie|februarie|maart|mei|junie|julie|augustus|oktober|desember|\
+    január|januar|február|februar|március|marcius|április|aprilis|május|majus|június|junius|\
+    július|julius|augusztus|szept|október|januarja|februarja|marec|marca|aprila|maja|junij|\
+    junija|julij|julija|avgust|avgusta|septembra|oktobra|novembra|decembra|maj";
 
 /// Numeric dates: day-month-year, year-month-day, and day, month and year with
 /// no mark between the last two (`12/031987`). A year-first day may run into
@@ -90,12 +111,14 @@ fn numeric_dates() -> String {
     )
 }
 
-/// A date at the start of the window: numeric, day-month-year, or month-day-year.
+/// A date at the start of the window: numeric, day-month-year, month-day-year,
+/// year-month-day with a written month (`1984. március 12.`), or a Chinese date
+/// (`1985年3月3日`).
 static DATE: LazyLock<Regex> = LazyLock::new(|| {
     let year = r"(?:\d{4}|\d{2})";
     let numeric = numeric_dates();
     Regex::new(&format!(
-        r"(?i)^(?:{numeric}|\d{{1,2}}(?:st|nd|rd|th|er|º)?\.? (?:{MONTHS})\.?,? {year}\b|(?:{MONTHS})\.? \d{{1,2}}(?:st|nd|rd|th)?,? {year}\b)"
+        r"(?i)^(?:{numeric}|\d{{4}}\s*年\s*\d{{1,2}}\s*月\s*\d{{1,2}}\s*日|\d{{1,2}}(?:st|nd|rd|th|er|º)?\.? (?:{MONTHS})\.?,? {year}\b|(?:{MONTHS})\.? \d{{1,2}}(?:st|nd|rd|th)?,? {year}\b|\d{{4}}\.?\s+(?:{MONTHS})\.?\s+\d{{1,2}}\.?)"
     ))
     .expect("date regex compiles")
 });
@@ -129,10 +152,13 @@ impl Recognizer for DobLabelRecognizer {
         let (folded, map) = squeeze(fold(text));
         let mut spans = Vec::new();
         for hit in LABEL_SET.find_iter(&folded) {
+            let label = LABELS[hit.pattern().as_usize()];
             let before = folded[..hit.start()].chars().next_back();
-            let label_end = LABELS[hit.pattern().as_usize()].ends_with('.');
+            let label_end = label.ends_with('.');
             let after = folded[hit.end()..].chars().next();
-            if before.is_some_and(char::is_alphanumeric)
+            // A Han character may precede a Chinese label with no blank.
+            let cjk = label.chars().next().is_some_and(is_cjk);
+            if before.is_some_and(|ch| char::is_alphanumeric(ch) && !(cjk && is_cjk(ch)))
                 || !label_end && after.is_some_and(char::is_alphabetic)
                 || glued(text, map[hit.start()], map[hit.end()])
             {
@@ -143,7 +169,7 @@ impl Recognizer for DobLabelRecognizer {
             };
             // Over a `,` or `;` with a blank after it, `the DOB, 12/03/2026
             // deadline` and `was born, 12 March 2024` are prose.
-            let prose = PROSE_LABELS.contains(&LABELS[hit.pattern().as_usize()]);
+            let prose = PROSE_LABELS.contains(&label);
             if spaced && !field_start(text, map[hit.start()], prose) {
                 continue;
             }
@@ -171,8 +197,50 @@ impl Recognizer for DobLabelRecognizer {
                 ));
             }
         }
+        spans.extend(year_then_day(text));
         spans
     }
+}
+
+static YEAR_THEN_DAY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\bn[ée]e?\s+en\s+(\d{4})\s*,?\s+le\s+").expect("year-then-day shape compiles")
+});
+static DAY_MONTH: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(
+        r"(?i)^\d{{1,2}}(?:st|nd|rd|th|er|º)?\.? (?:{MONTHS})\.?"
+    ))
+    .expect("day-month shape compiles")
+});
+fn year_then_day(text: &str) -> Vec<Span> {
+    let mut spans = Vec::new();
+    for captures in YEAR_THEN_DAY.captures_iter(text) {
+        let (Some(year), Some(whole)) = (captures.get(1), captures.get(0)) else {
+            continue;
+        };
+        let start = whole.end();
+        let window = &text[start..text.floor_char_boundary(start + DATE_WINDOW)];
+        let found = DATE
+            .find(window)
+            .filter(|date| calendar_date(date.as_str()))
+            .map(|date| date.end())
+            .or_else(|| DAY_MONTH.find(window).map(|date| date.end()));
+        if let Some(end) = found {
+            spans.push(Span::new(
+                EntityKind::DateOfBirth,
+                year.start(),
+                start + end,
+                1.0,
+                NAME,
+            ));
+        }
+    }
+    spans
+}
+fn is_cjk(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{3400}'..='\u{9FFF}' | '\u{F900}'..='\u{FAFF}' | '\u{20000}'..='\u{2FA1F}'
+    )
 }
 
 /// `folded` and its byte map with each run of blanks (space, tab, no-break
@@ -250,10 +318,18 @@ fn joined(mut run: impl Iterator<Item = char>, word: fn(char) -> bool) -> bool {
     next.is_some_and(word)
 }
 
-/// Whether a [`DATE`] match is a calendar date: numeric ([`numeric_date`]) or
-/// with a month name, its day within that month of that year (no 31 February,
-/// no 29 February 1900).
+/// Whether a [`DATE`] match is a calendar date: numeric, Chinese, or written.
 fn calendar_date(date: &str) -> bool {
+    if let Some(rest) = date.strip_suffix('日') {
+        let fields: Vec<&str> = rest.split(['年', '月']).collect();
+        if let [year, month, day] = fields[..] {
+            return valid_date(
+                year.parse().unwrap_or(0),
+                month.parse().unwrap_or(0),
+                day.parse().unwrap_or(0),
+            );
+        }
+    }
     if !date.chars().any(char::is_alphabetic) {
         return numeric_date(date);
     }
@@ -263,12 +339,18 @@ fn calendar_date(date: &str) -> bool {
         .filter(|word| !word.is_empty())
         .collect();
     let lead = |word: &&str| word.bytes().take_while(u8::is_ascii_digit).count();
-    // The first number is the day (`1er`, `3rd`), the second the year.
     let mut numbers = words.iter().filter(|w| lead(w) > 0);
-    let (day, year) = (numbers.next(), numbers.next());
+    let (first, second) = (numbers.next(), numbers.next());
+    // The four-digit field is the year (`3 March 1985`, `1984. március 12.`);
+    // the other number is the day.
+    let (day, year) = match (first, second) {
+        (Some(first), Some(second)) if lead(first) == 4 => (second, first),
+        (Some(first), Some(second)) => (first, second),
+        _ => return false,
+    };
     let month = words.iter().find_map(|w| month_number(w));
-    match (day, month, year) {
-        (Some(day), Some(month), Some(year)) if lead(day) <= 2 => {
+    match month {
+        Some(month) if lead(day) <= 2 => {
             let day = day[..lead(day)].parse().unwrap_or(0);
             valid_date(year.parse().unwrap_or(0), month, day)
         }
@@ -321,18 +403,22 @@ fn valid_date(y: u32, m: u32, d: u32) -> bool {
 /// The number of a month name of [`MONTHS`], lower case.
 fn month_number(word: &str) -> Option<u32> {
     Some(match word {
-        "january" | "jan" | "janvier" | "janv" => 1,
-        "february" | "feb" | "février" | "fevrier" | "févr" | "fevr" => 2,
-        "march" | "mar" | "mars" => 3,
-        "april" | "apr" | "avril" | "avr" => 4,
-        "may" | "mai" => 5,
-        "june" | "jun" | "juin" => 6,
-        "july" | "jul" | "juillet" | "juil" => 7,
-        "august" | "aug" | "août" | "aout" => 8,
-        "september" | "sept" | "sep" | "septembre" => 9,
-        "october" | "oct" | "octobre" => 10,
-        "november" | "nov" | "novembre" => 11,
-        "december" | "dec" | "décembre" | "decembre" | "déc" => 12,
+        "january" | "jan" | "janvier" | "janv" | "januarie" | "január" | "januar" | "januarja" => {
+            1
+        }
+        "february" | "feb" | "février" | "fevrier" | "févr" | "fevr" | "februarie" | "február"
+        | "februar" | "februarja" => 2,
+        "march" | "mar" | "mars" | "maart" | "március" | "marcius" | "marec" | "marca" => 3,
+        "april" | "apr" | "avril" | "avr" | "április" | "aprilis" | "aprila" => 4,
+        "may" | "mai" | "mei" | "május" | "majus" | "maj" | "maja" => 5,
+        "june" | "jun" | "juin" | "junie" | "június" | "junius" | "junij" | "junija" => 6,
+        "july" | "jul" | "juillet" | "juil" | "julie" | "július" | "julius" | "julij"
+        | "julija" => 7,
+        "august" | "aug" | "août" | "aout" | "augustus" | "augusztus" | "avgust" | "avgusta" => 8,
+        "september" | "sept" | "sep" | "septembre" | "septembra" | "szept" => 9,
+        "october" | "oct" | "octobre" | "oktober" | "október" | "oktobra" => 10,
+        "november" | "nov" | "novembre" | "novembra" => 11,
+        "december" | "dec" | "décembre" | "decembre" | "déc" | "desember" | "decembra" => 12,
         _ => return None,
     })
 }
