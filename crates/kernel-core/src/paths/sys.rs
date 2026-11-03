@@ -146,7 +146,7 @@ pub(super) fn file_id(path: &Path) -> Option<FileId> {
 }
 
 #[cfg(not(unix))]
-fn file_id(_path: &Path) -> Option<FileId> {
+pub(super) fn file_id(_path: &Path) -> Option<FileId> {
     None
 }
 
@@ -270,12 +270,12 @@ pub(super) fn fd_real_path(dir: &std::os::fd::OwnedFd) -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "linux")]
-fn fd_real_path(dir: &std::os::fd::OwnedFd) -> Option<PathBuf> {
+pub(super) fn fd_real_path(dir: &std::os::fd::OwnedFd) -> Option<PathBuf> {
     use std::os::fd::AsRawFd;
     std::fs::read_link(format!("/proc/self/fd/{}", dir.as_raw_fd())).ok()
 }
 
 #[cfg(all(unix, not(any(target_os = "macos", target_os = "linux"))))]
-fn fd_real_path(_dir: &std::os::fd::OwnedFd) -> Option<PathBuf> {
+pub(super) fn fd_real_path(_dir: &std::os::fd::OwnedFd) -> Option<PathBuf> {
     None
 }
