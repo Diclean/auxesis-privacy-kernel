@@ -305,4 +305,11 @@ mod tests {
         assert!(matches!(err, FetchError::BrowserUnavailable));
         assert_eq!(err.to_string(), "browser engine not installed yet — WS-B");
     }
+
+    #[tokio::test]
+    async fn wb_check_public_url_refuses_a_refused_host_shape() {
+        let url = reqwest::Url::parse("https://localhost/mcp").unwrap();
+        let err = check_public_url(&url).await.unwrap_err();
+        assert!(matches!(err, FetchError::RefusedHost { .. }), "{err}");
+    }
 }

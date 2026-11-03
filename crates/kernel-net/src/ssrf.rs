@@ -529,4 +529,96 @@ mod tests {
         assert_eq!(host, "localhost");
         assert!(ip.is_loopback());
     }
+
+    #[test]
+    fn wb_address_guard_v4_boundaries() {
+        // Arms of is_public_v4 not exercised by address_guard_blocks_reserved_ranges.
+        for text in [
+            "0.1.2.3",         // a == 0, "this network"
+            "192.88.99.1",     // 6to4 relay anycast arm (a == 192 && b == 88)
+            "198.19.0.1",      // benchmarking upper arm
+            "100.127.255.255", // CGNAT upper bound
+            "192.0.0.8",       // IETF protocol assignments (not documentation)
+        ] {
+            assert!(!is_public_address(ip(text)), "{text} must be blocked");
+        }
+        // Just outside the blocked ranges stays public.
+        for text in [
+            "100.63.255.255",
+            "100.128.0.0",
+            "198.17.0.1",
+            "223.255.255.255",
+        ] {
+            assert!(is_public_address(ip(text)), "{text} must be allowed");
+        }
+    }
+
+    #[test]
+    fn wb_address_guard_v6_reserved_forms() {
+        for text in [
+            "fec0::1",    // site-local (deprecated)
+            "100::1",     // discard-only 100::/64
+            "64:ff9b::1", // NAT64 well-known prefix
+            "2002::1",    // 6to4
+            "2001::1",    // Teredo 2001::/32
+        ] {
+            assert!(!is_public_address(ip(text)), "{text} must be blocked");
+        }
+        // An IPv4-mapped PUBLIC address is reachable through its v6 spelling.
+        assert!(is_public_address(ip("::ffff:8.8.8.8")));
+    }
+
+    #[test]
+    #[ignore = "KNET-WB-2: NAT64 local-use 64:ff9b:1::/48 and ORCHID/ORCHIDv2 2001:10::/28, 2001:20::/28 are reserved but is_public_v6 treats them as globally routable — see PR"]
+    fn wb_address_guard_v6_local_use_ranges_are_reserved() {
+        for text in ["64:ff9b:1::1", "2001:10::1", "2001:20::1"] {
+            assert!(
+                !is_public_address(ip(text)),
+                "{text} is reserved, not globally routable"
+            );
+        }
+    }
+
+    #[test]
+    fn wb_refused_host_shapes_are_case_insensitive() {
+        for host in ["LOCALHOST", "Foo.LocalHost", "x.LAN.", "Printer.Lan"] {
+            assert!(refuses_host_shape(host), "{host} must be refused");
+        }
+        for host in ["localhos", "localhostx", "example.com"] {
+            assert!(!refuses_host_shape(host), "{host} must be allowed");
+        }
+    }
+
+    #[tokio::test]
+    async fn wb_resolve_refuses_a_hostless_url_without_network() {
+        let url = Url::parse("mailto:a@b.example").unwrap();
+        assert!(url.host_str().is_none());
+        let err = resolve_checked(AddressPolicy::PublicOnly, &url)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, FetchError::Dns { ref message, .. } if message.contains("no host")),
+            "{err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn wb_resolve_refuses_a_portless_scheme_without_network() {
+        let url = Url::parse("foo://example.com/").unwrap();
+        assert!(url.port_or_known_default().is_none());
+        let err = resolve_checked(AddressPolicy::PublicOnly, &url)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, FetchError::Dns { ref message, .. } if message.contains("no known port")),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn wb_pinned_client_refuses_an_unparseable_url() {
+        let client = build_client("example.com", ip("8.8.8.8")).expect("client");
+        let err = client.get("http://").unwrap_err();
+        assert!(matches!(err, FetchError::InvalidUrl(_)), "{err}");
+    }
 }

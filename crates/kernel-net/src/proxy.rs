@@ -690,4 +690,239 @@ mod tests {
         echo_a.abort();
         echo_b.abort();
     }
+
+    #[test]
+    fn wb_refusal_labels_are_stable_and_only_big_heads_get_431() {
+        let all = [
+            ProxyRefusal::EmptyRequest,
+            ProxyRefusal::HeaderTooLarge,
+            ProxyRefusal::MalformedRequest,
+            ProxyRefusal::NotConnect,
+            ProxyRefusal::MalformedTarget,
+            ProxyRefusal::HostNotAllowed,
+            ProxyRefusal::PortNotAllowed,
+            ProxyRefusal::RefusedHostShape,
+            ProxyRefusal::DnsFailure,
+            ProxyRefusal::BlockedAddress,
+            ProxyRefusal::ConnectFailed,
+            ProxyRefusal::Io,
+        ];
+        for refusal in all {
+            let label = refusal.reason();
+            assert!(
+                !label.is_empty() && label.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
+                "{label}"
+            );
+            if refusal == ProxyRefusal::HeaderTooLarge {
+                assert!(refusal.status().starts_with("431"), "{}", refusal.status());
+            } else {
+                assert!(refusal.status().starts_with("403"), "{}", refusal.status());
+            }
+        }
+    }
+
+    #[test]
+    fn wb_dotted_request_host_is_not_the_allowlisted_host() {
+        let state = ProxyState {
+            allow: BTreeSet::from([("example.test".to_string(), 443)]),
+            resolver: Resolver::System(AddressPolicy::PublicOnly),
+        };
+        // Fail closed: a trailing dot on the request side is a different
+        // spelling, never a silent match.
+        assert_eq!(
+            state.authorize("example.test.", 443),
+            Err(ProxyRefusal::HostNotAllowed)
+        );
+    }
+
+    #[tokio::test]
+    async fn wb_allowlist_entries_are_normalised_at_spawn() {
+        let (echo_port, echo) = echo_server().await;
+        let (proxy, _) = spawn_for_tests(
+            vec![("Echo.Test.", echo_port)],
+            vec![("echo.test", IpAddr::from([127, 0, 0, 1]))],
+            AddressPolicy::AllowLoopback,
+        )
+        .await;
+        let mut client = TcpStream::connect(("127.0.0.1", proxy.port()))
+            .await
+            .expect("connect proxy");
+        client
+            .write_all(format!("CONNECT echo.test:{echo_port} HTTP/1.1\r\n\r\n").as_bytes())
+            .await
+            .expect("write");
+        let response = read_response(&mut client).await;
+        assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+        proxy.shutdown().await;
+        echo.abort();
+    }
+
+    #[tokio::test]
+    async fn wb_literal_loopback_target_is_blocked_by_the_address_policy() {
+        let (proxy, _) = spawn_for_tests(
+            vec![("127.0.0.1", 80), ("::1", 80)],
+            vec![],
+            AddressPolicy::PublicOnly,
+        )
+        .await;
+        for target in ["127.0.0.1:80", "[::1]:80"] {
+            let mut client = TcpStream::connect(("127.0.0.1", proxy.port()))
+                .await
+                .expect("connect proxy");
+            client
+                .write_all(format!("CONNECT {target} HTTP/1.1\r\n\r\n").as_bytes())
+                .await
+                .expect("write");
+            let response = read_response(&mut client).await;
+            assert!(response.starts_with("HTTP/1.1 403"), "{target}: {response}");
+            assert!(response.contains("blocked_address"), "{target}: {response}");
+        }
+        proxy.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn wb_unreachable_validated_address_is_connect_failed() {
+        // Reserve then release a loopback port so nothing listens on it.
+        let probe = TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .expect("probe bind");
+        let dead_port = probe.local_addr().expect("probe addr").port();
+        drop(probe);
+        let (proxy, _) = spawn_for_tests(
+            vec![("dead.test", dead_port)],
+            vec![("dead.test", IpAddr::from([127, 0, 0, 1]))],
+            AddressPolicy::AllowLoopback,
+        )
+        .await;
+        let mut client = TcpStream::connect(("127.0.0.1", proxy.port()))
+            .await
+            .expect("connect proxy");
+        client
+            .write_all(format!("CONNECT dead.test:{dead_port} HTTP/1.1\r\n\r\n").as_bytes())
+            .await
+            .expect("write");
+        let response = read_response(&mut client).await;
+        assert!(response.starts_with("HTTP/1.1 403"), "{response}");
+        assert!(response.contains("connect_failed"), "{response}");
+        proxy.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn wb_malformed_request_line_is_refused() {
+        let (proxy, lookups) = spawn_for_tests(
+            vec![("allowed.test", 80)],
+            vec![],
+            AddressPolicy::PublicOnly,
+        )
+        .await;
+        for head in [
+            "CONNECT\r\n\r\n",
+            "CONNECT allowed.test:80 FTP/1.0\r\n\r\n",
+            "CONNECT allowed.test:80 HTTP/1.1 extra\r\n\r\n",
+        ] {
+            let mut client = TcpStream::connect(("127.0.0.1", proxy.port()))
+                .await
+                .expect("connect proxy");
+            client.write_all(head.as_bytes()).await.expect("write");
+            let response = read_response(&mut client).await;
+            assert!(response.starts_with("HTTP/1.1 403"), "{head}: {response}");
+            assert!(response.contains("malformed_request"), "{head}: {response}");
+        }
+        assert!(
+            lookups.lock().expect("lookups").is_empty(),
+            "a malformed request line must not be resolved"
+        );
+        proxy.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn wb_closed_before_any_byte_is_empty_request() {
+        let (proxy, _) = spawn_for_tests(
+            vec![("allowed.test", 80)],
+            vec![],
+            AddressPolicy::PublicOnly,
+        )
+        .await;
+        let mut client = TcpStream::connect(("127.0.0.1", proxy.port()))
+            .await
+            .expect("connect proxy");
+        client.shutdown().await.expect("shutdown write side");
+        let mut response = Vec::new();
+        let _ =
+            tokio::time::timeout(Duration::from_secs(5), client.read_to_end(&mut response)).await;
+        let response = String::from_utf8_lossy(&response);
+        assert!(response.contains("empty_request"), "{response}");
+        assert!(
+            !response.contains("200 Connection Established"),
+            "{response}"
+        );
+        proxy.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn wb_head_without_terminator_is_431() {
+        let (proxy, _) = spawn_for_tests(
+            vec![("allowed.test", 80)],
+            vec![],
+            AddressPolicy::PublicOnly,
+        )
+        .await;
+        let mut client = TcpStream::connect(("127.0.0.1", proxy.port()))
+            .await
+            .expect("connect proxy");
+        let mut request = b"CONNECT allowed.test:80 HTTP/1.1\r\nX-Pad: ".to_vec();
+        // No \r\n\r\n at all: the buffer fills to the cap.
+        request.extend(std::iter::repeat_n(b'a', MAX_HEADER_BYTES));
+        client.write_all(&request).await.expect("write");
+        let response = read_response(&mut client).await;
+        assert!(response.starts_with("HTTP/1.1 431"), "{response}");
+        assert!(response.contains("header_too_large"), "{response}");
+        proxy.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn wb_pipelined_bytes_behind_the_connect_head_are_tunnel_data() {
+        let (echo_port, echo) = echo_server().await;
+        let (proxy, _) = spawn_for_tests(
+            vec![("echo.test", echo_port)],
+            vec![("echo.test", IpAddr::from([127, 0, 0, 1]))],
+            AddressPolicy::AllowLoopback,
+        )
+        .await;
+        let mut client = TcpStream::connect(("127.0.0.1", proxy.port()))
+            .await
+            .expect("connect proxy");
+        client
+            .write_all(format!("CONNECT echo.test:{echo_port} HTTP/1.1\r\n\r\nping").as_bytes())
+            .await
+            .expect("write");
+        let response = read_response(&mut client).await;
+        assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+        let mut echoed = [0u8; 4];
+        client.read_exact(&mut echoed).await.expect("read tunnel");
+        assert_eq!(&echoed, b"ping");
+        proxy.shutdown().await;
+        echo.abort();
+    }
+
+    #[tokio::test]
+    async fn wb_userinfo_target_is_not_an_allowlisted_host() {
+        let (proxy, lookups) =
+            spawn_for_tests(vec![("echo.test", 443)], vec![], AddressPolicy::PublicOnly).await;
+        let mut client = TcpStream::connect(("127.0.0.1", proxy.port()))
+            .await
+            .expect("connect proxy");
+        client
+            .write_all(b"CONNECT user@echo.test:443 HTTP/1.1\r\n\r\n")
+            .await
+            .expect("write");
+        let response = read_response(&mut client).await;
+        assert!(response.starts_with("HTTP/1.1 403"), "{response}");
+        assert!(response.contains("host_not_allowed"), "{response}");
+        assert!(
+            lookups.lock().expect("lookups").is_empty(),
+            "a refused host must not be resolved"
+        );
+        proxy.shutdown().await;
+    }
 }
