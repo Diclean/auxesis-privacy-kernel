@@ -633,11 +633,11 @@ fn the_rules_scan_in_linear_time() {
     }
 }
 
-/// The fastest of three runs of every rule over `text`: a loaded machine must
-/// not decide a bound.
+/// The fastest of nine runs of every rule over `text`: a loaded machine must
+/// not decide a bound (shared CI runners stall for a few hundred microseconds).
 fn fastest(text: &str) -> std::time::Duration {
     let rules = rules();
-    (0..3)
+    (0..9)
         .map(|_| {
             let started = std::time::Instant::now();
             for rule in &rules {
