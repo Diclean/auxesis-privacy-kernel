@@ -110,6 +110,13 @@ const SHAPES: &[(&str, usize)] = &[
     (r"AIza[0-9A-Za-z_\-]*", 39),
     // JSON Web Tokens: a base64url header and payload, then an optional signature.
     (r"eyJ[A-Za-z0-9_\-]*(?:\.[A-Za-z0-9_\-]*)*", 12),
+    // New Relic user keys, Docker personal tokens, GitLab runner tokens, the Mailgun
+    // private key, and DigitalOcean OAuth tokens.
+    (r"NRAK-[A-Za-z0-9]*", 32),
+    (r"dckr_pat_[A-Za-z0-9_\-]*", 30),
+    (r"glrt-[A-Za-z0-9_\-]*", 20),
+    (r"key-[A-Za-z0-9]*", 36),
+    (r"doo_v1_[a-f0-9]*", 64),
 ];
 
 /// Finds API keys and tokens by their issuer shape.
@@ -242,7 +249,8 @@ impl SecretRecognizer {
             let (from, to) = original(value.start, value.end);
             spans.push(Span::new(EntityKind::Secret, from, to, SCORE, NAME));
         }
-        // The DSN shape needs `://`, so a text without it skips the scan.
+        // The DSN shape needs `://`, so a text without it skips that scan; a
+        // scheme-less userinfo is read by its own shape.
         if haystack.contains("://") {
             for captures in DSN_USERINFO_RE.captures_iter(haystack) {
                 let (Some(user), Some(password)) = (captures.get(1), captures.get(2)) else {
@@ -254,6 +262,27 @@ impl SecretRecognizer {
                     user.start()
                 };
                 let (from, to) = original(start, password.end());
+                spans.push(Span::new(EntityKind::Secret, from, to, SCORE, NAME));
+            }
+        }
+        for captures in DSN_NO_SCHEME_RE.captures_iter(haystack) {
+            let (Some(user), Some(password)) = (captures.get(1), captures.get(2)) else {
+                continue;
+            };
+            let (from, to) = original(user.start(), password.end());
+            spans.push(Span::new(EntityKind::Secret, from, to, SCORE, NAME));
+        }
+        for captures in AWS_PAIR_RE.captures_iter(haystack) {
+            if let Some(secret) = captures.get(1) {
+                // A 40-character prefix of a longer run is no key.
+                if haystack[secret.end()..]
+                    .chars()
+                    .next()
+                    .is_some_and(is_value_char)
+                {
+                    continue;
+                }
+                let (from, to) = original(secret.start(), secret.end());
                 spans.push(Span::new(EntityKind::Secret, from, to, SCORE, NAME));
             }
         }
@@ -2334,6 +2363,22 @@ pub fn value_too_long(text: &str) -> bool {
 static DSN_USERINFO_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)\b[a-z][a-z0-9+.\-]*://([^\s/@:"'<>]*):([^\s/@"'<>]+)@"#)
         .expect("DSN userinfo shape compiles")
+});
+
+/// A `user:password@host/path` without its scheme (`DATABASE_URL=ada:pass@db/x`).
+/// The host needs a path or port, so `mailto:alice@example.com` stays clear.
+static DSN_NO_SCHEME_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?:^|[\s"'=,;(])([A-Za-z0-9._~%+\-]{1,64}):([^\s/@"'<>]{6,})@[A-Za-z0-9.\-]+[:/]"#,
+    )
+    .expect("scheme-less DSN shape compiles")
+});
+
+/// An AWS access key ID and the 40-character secret beside it, on the same line
+/// or the next. Only the secret is the span; the ID has its own shape.
+static AWS_PAIR_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:AKIA|ASIA)[0-9A-Z]{16}[^A-Za-z0-9+/=]{0,8}([A-Za-z0-9/+=]{40})")
+        .expect("AWS pair shape compiles")
 });
 
 /// The value of an `Authorization:` header with a Bearer or Basic credential.

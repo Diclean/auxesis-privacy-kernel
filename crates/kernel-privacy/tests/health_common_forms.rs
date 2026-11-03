@@ -166,12 +166,24 @@ fn common_health_forms_stay_linear() {
     assert!(large <= small * 20, "10x input took {large:?} vs {small:?}");
 }
 
+/// One differential input: the text, whether it holds no health value, and
+/// its gold date-of-birth byte ranges.
+type Input = (String, bool, Vec<(usize, usize)>);
+
 /// The differential inputs: the cases above, then the in-repo privacy-eval
 /// cases and prose lines. `true` marks a text with no health value, whose new
-/// masks count as over-masks.
-fn inputs() -> Vec<(String, bool)> {
-    let mut out: Vec<(String, bool)> = CASES.iter().map(|c| (parse_case(c).0, false)).collect();
-    out.extend(NEAR_MISSES.iter().map(|text| (text.to_string(), true)));
+/// masks count as over-masks; the byte ranges are its gold dates of birth, the
+/// only places such a text may gain a new mask.
+fn inputs() -> Vec<Input> {
+    let mut out: Vec<Input> = CASES
+        .iter()
+        .map(|c| (parse_case(c).0, false, Vec::new()))
+        .collect();
+    out.extend(
+        NEAR_MISSES
+            .iter()
+            .map(|text| (text.to_string(), true, Vec::new())),
+    );
     let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../qa/privacy-eval");
     for dir in ["cases", "prose"] {
         let mut files: Vec<_> = std::fs::read_dir(format!("{root}/{dir}"))
@@ -183,16 +195,35 @@ fn inputs() -> Vec<(String, bool)> {
             let raw = std::fs::read_to_string(file).expect("readable");
             for line in raw.lines().filter(|l| !l.trim().is_empty()) {
                 if dir == "prose" {
-                    out.push((line.to_string(), true));
+                    out.push((line.to_string(), true, Vec::new()));
                     continue;
                 }
                 let case: serde_json::Value = serde_json::from_str(line).expect("JSON");
-                let health = case["spans"].as_array().into_iter().flatten().any(|s| {
-                    s["type"]
-                        .as_str()
-                        .is_some_and(|t| t.eq_ignore_ascii_case("health"))
-                });
-                out.push((case["text"].as_str().expect("text").to_string(), !health));
+                let kind = |k: &str| {
+                    case["spans"].as_array().into_iter().flatten().any(|s| {
+                        s["type"]
+                            .as_str()
+                            .is_some_and(|t| t.eq_ignore_ascii_case(k))
+                    })
+                };
+                let text = case["text"].as_str().expect("text").to_string();
+                // Gold offsets are code points; masks are byte ranges.
+                let byte = |cp: usize| text.char_indices().nth(cp).map_or(text.len(), |(b, _)| b);
+                let dob = case["spans"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|s| {
+                        s["type"]
+                            .as_str()
+                            .is_some_and(|t| t.eq_ignore_ascii_case("date_of_birth"))
+                    })
+                    .map(|s| {
+                        let at = |k: &str| byte(s[k].as_u64().expect("offset") as usize);
+                        (at("start"), at("end"))
+                    })
+                    .collect();
+                out.push((text.clone(), !kind("health"), dob));
             }
         }
     }
@@ -214,8 +245,10 @@ fn parse(record: &str) -> Option<Vec<(usize, usize)>> {
 }
 
 /// The input count and an FNV-1a hash of every input.
-fn header(inputs: &[(String, bool)]) -> String {
-    let bytes = inputs.iter().flat_map(|(text, _)| text.bytes().chain([0]));
+fn header(inputs: &[Input]) -> String {
+    let bytes = inputs
+        .iter()
+        .flat_map(|(text, _, _)| text.bytes().chain([0]));
     let hash = bytes.fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
         (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3)
     });
@@ -227,7 +260,7 @@ fn header(inputs: &[(String, bool)]) -> String {
 fn freeze() {
     let inputs = inputs();
     let record = |text: &String| MODES.map(|mode| record(masked(mode, text))).join("|");
-    let records: Vec<String> = inputs.iter().map(|(text, _)| record(text)).collect();
+    let records: Vec<String> = inputs.iter().map(|(text, _, _)| record(text)).collect();
     let lines: Vec<String> = records.chunks(100).map(|c| c.join(";") + ";").collect();
     println!(
         "FIXTURE-BEGIN\n{}\n{}\nFIXTURE-END",
@@ -246,7 +279,7 @@ fn strict_superset_of_main_with_overmask_count() {
     let records: Vec<&str> = body.trim().split_terminator(';').map(str::trim).collect();
     assert_eq!(records.len(), inputs.len());
     let (mut lost, mut refused, mut over, mut gained) = ([0usize; 2], 0, [0usize; 2], [0usize; 2]);
-    for ((text, clean), record) in inputs.iter().zip(records) {
+    for ((text, clean, dob), record) in inputs.iter().zip(records) {
         for (index, main) in record.split('|').map(parse).enumerate() {
             let now = masked(MODES[index], text);
             if now.is_none() {
@@ -264,9 +297,11 @@ fn strict_superset_of_main_with_overmask_count() {
                 // A region main already masked may widen (GATE-REGISTRY-GAP-1:
                 // Private hides the label Open removes); only a region that
                 // overlaps none of main's is a new mask.
-                let new_region = now
-                    .iter()
-                    .any(|&(s, e)| !main.iter().any(|&(ms, me)| ms < e && s < me));
+                // A new region inside a gold date of birth is an intended mask.
+                let new_region = now.iter().any(|&(s, e)| {
+                    !main.iter().any(|&(ms, me)| ms < e && s < me)
+                        && !dob.iter().any(|&(ds, de)| ds <= s && e <= de)
+                });
                 over[index] += usize::from(*clean && new_region);
                 if *clean && new_region {
                     eprintln!("over-mask {:?} {text:.80?}: now {now:?}", MODES[index]);
