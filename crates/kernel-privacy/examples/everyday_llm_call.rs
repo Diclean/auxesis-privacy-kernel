@@ -5,7 +5,7 @@
 //!     cargo run -p kernel-privacy --example everyday_llm_call
 
 use kernel_core::privacy::{admit, Context, Decision, Destination, PathId, PrivacyMode};
-use kernel_privacy::{Gate, PLACEHOLDER_CLOSE, PLACEHOLDER_OPEN};
+use kernel_privacy::{restore, Gate, UnknownPolicy};
 
 fn main() {
     let text = "Hi, this is Alice from ACME. My IBAN is GB82 WEST 1234 5698 7654 32 \
@@ -31,16 +31,11 @@ fn main() {
     let fake_model = |prompt: &str| format!("About your invoice: {prompt}");
     let answer = fake_model(safe.as_str());
 
-    // 3. The gate hands out `(token, value)` pairs, not a restore object. Fold
-    //    the public placeholders back, as the crate's own tests do: this is the
-    //    local rehydration step, and the values never go to the model.
+    // 3. The gate hands out `(token, value)` pairs on this machine. `restore`
+    //    puts the values back locally: they never went to the model, and the
+    //    restored text is for the person who asked, never for the model.
     let minted = gate.take_minted();
-    let restored = minted.iter().fold(answer, |text, (token, value)| {
-        text.replace(
-            &format!("{PLACEHOLDER_OPEN}{token}{PLACEHOLDER_CLOSE}"),
-            value,
-        )
-    });
+    let restored = restore(&answer, &minted, UnknownPolicy::Keep);
     println!("back to you:  {restored}");
 
     // Names stay readable; the account and e-mail do not. The round trip is

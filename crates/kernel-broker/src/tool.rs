@@ -449,11 +449,12 @@ pub trait ToolClassExt: sealed::Sealed + Tool {
     /// How this tool will execute, for the broker's unsandboxed bar.
     ///
     /// `Sandboxed` for every tool that has no sandbox escape hatch; the
-    /// `shell` tool derives it from its [`ShellSandbox`] profile and declares
-    /// `Unsandboxed` exactly when [`launch`] would run without a sandbox. The
-    /// default is the conservative answer for tools that do not run commands at
-    /// all; the registry still fails closed for names it cannot resolve
-    /// ([`crate::ToolRegistry::execution_mode`]).
+    /// `shell` tool derives it from its [`ShellSandbox`] profile: `Unsandboxed`
+    /// exactly when [`launch`] would run without a sandbox, `Networked` when
+    /// the sandbox has every socket open (`[shell] network = true`). Both
+    /// force an ask. The default is the conservative answer for tools that do
+    /// not run commands at all; the registry still fails closed for names it
+    /// cannot resolve ([`crate::ToolRegistry::execution_mode`]).
     ///
     /// [`ShellSandbox`]: crate::ShellSandbox
     /// [`launch`]: crate::sandbox::launch

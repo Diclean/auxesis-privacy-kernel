@@ -404,6 +404,37 @@ impl fmt::Debug for Anonymizer {
     }
 }
 
+/// Put the real values back into an answer with a gate's minted pairs.
+///
+/// `minted` is the `(token, value)` list from
+/// [`Gate::take_minted`](crate::safetext::Gate::take_minted). The parser is the
+/// one [`Anonymizer::restore`] uses: a doubled `⟦⟦` becomes one literal `⟦`, a
+/// known `⟦KIND_…⟧` becomes its value, and an unknown or malformed delimited
+/// token follows `unknown` ([`UnknownPolicy::Keep`] leaves it visible,
+/// [`UnknownPolicy::Redact`] writes [`UNKNOWN_REFERENCE`]). A marker with no
+/// closing delimiter is ordinary text. Undelimited token-like text is never
+/// touched.
+///
+/// This runs locally and returns text for the person who asked: never send the
+/// result back to the model.
+///
+/// The gate reports one value per token, not every occurrence's spelling, so a
+/// value the model wrote in a different spelling restores to the value the gate
+/// reported. The pairs themselves are never printed.
+#[must_use]
+pub fn restore(answer: &str, minted: &[(String, String)], unknown: UnknownPolicy) -> String {
+    // Reuse the one parser that already escapes openers and reads delimited
+    // tokens left to right, so this helper cannot drift from `restore`'s
+    // unknown-token and malformed-marker rules.
+    let mut pairs = TokenMap::default();
+    for (token, value) in minted {
+        if !token.is_empty() {
+            pairs.push_entry(token.clone(), value.clone());
+        }
+    }
+    Anonymizer::restore(answer, &pairs, unknown).text
+}
+
 /// Append `clear` to `out`, doubling every literal opener.
 ///
 /// This is the only rewrite [`Anonymizer::restore`] reverses: `⟦` becomes

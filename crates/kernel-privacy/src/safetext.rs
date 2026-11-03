@@ -66,6 +66,7 @@
 //! closed set of fixed strings written in this file, which no crate outside
 //! `kernel-privacy` can name.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt;
 use std::panic::{self, AssertUnwindSafe};
@@ -1120,7 +1121,7 @@ impl Gate {
         }
         let blanked = blank_minted(text, &tokens);
         let (stripped, segments) = strip_tokens(text, &tokens);
-        for view in [&blanked, &stripped] {
+        for view in [blanked.as_ref(), stripped.as_str()] {
             if crate::recognizers::secrets::value_too_long(view) {
                 return Err(GateError::Detect(DetectError::TooLong));
             }
@@ -1207,7 +1208,7 @@ impl Gate {
         let (mut spans, covered) = self.detector.detect_covered(&view)?;
         let mut extra = export_spans(&view);
         extra.extend(take_widened(&mut spans));
-        if self.policy == GrantPolicy::Passthrough && view != text {
+        if self.policy == GrantPolicy::Passthrough && view.as_ref() != text {
             // The blanked view holds no token, so it never sees one that splices
             // a word: that run fails closed on the text itself, as the registry
             // and the tokenising gate read it (GATE-REGISTRY-GAP-1).
@@ -2093,7 +2094,10 @@ fn is_stand_in_only(hit: &str) -> bool {
 /// heuristics, which then read the words that follow a token as names
 /// (`…⟦TOKEN⟧): Find places matching a name` gave `name` as a person) and refused
 /// text the first pass had already masked correctly.
-fn clear_parts(masked: &str) -> String {
+fn clear_parts(masked: &str) -> Cow<'_, str> {
+    if !masked.contains(MASKED_STAND_IN) && !masked.contains(PLACEHOLDER_OPEN) {
+        return Cow::Borrowed(masked);
+    }
     let mut clear = String::with_capacity(masked.len());
     let mut chars = masked.chars().peekable();
     while let Some(ch) = chars.next() {
@@ -2118,7 +2122,7 @@ fn clear_parts(masked: &str) -> String {
             }
         }
     }
-    clear
+    Cow::Owned(clear)
 }
 
 /// A standalone token marker issued by this session.
@@ -2201,9 +2205,12 @@ fn token_ranges(text: &str, minted: &BTreeSet<String>) -> Vec<TokenRange> {
     found
 }
 
-/// `text` with every issued token replaced by blanks of the same byte length.
-/// All other marker text stays intact for detection.
-fn blank_minted(text: &str, tokens: &[TokenRange]) -> String {
+/// `text` with every issued token replaced by blanks of the same byte length;
+/// with no token it is borrowed, since the clear text already is the view.
+fn blank_minted<'a>(text: &'a str, tokens: &[TokenRange]) -> Cow<'a, str> {
+    if tokens.is_empty() {
+        return Cow::Borrowed(text);
+    }
     let mut out = String::with_capacity(text.len());
     let mut from = 0;
     for token in tokens {
@@ -2215,7 +2222,7 @@ fn blank_minted(text: &str, tokens: &[TokenRange]) -> String {
         from = token.end;
     }
     out.push_str(&text[from..]);
-    out
+    Cow::Owned(out)
 }
 
 /// The kept stretches of a stripped text: `(offset in the view, offset in the

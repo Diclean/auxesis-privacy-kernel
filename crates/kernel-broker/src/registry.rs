@@ -338,15 +338,16 @@ impl ToolRegistry {
             .collect()
     }
 
-    /// How the tool `name` will execute, for the broker's unsandboxed bar.
+    /// How the tool `name` will execute, for the broker's execution-mode bar.
     ///
     /// A registered tool reports its own mode (`shell` derives it from the
     /// `[shell]` profile it was built with; everything else is `Sandboxed`).
     /// **Fail closed:** a name the registry cannot resolve is
     /// [`ExecutionMode::Unsandboxed`], so an unclassified call can never be
     /// auto-run by an `allow` rule. The engine passes this to
-    /// [`Broker::authorize`], which raises every unsandboxed
-    /// call to an ask on the first call, before any taint mark exists.
+    /// [`Broker::authorize`], which raises every unsandboxed or
+    /// network-enabled call to an ask on the first call, before any taint mark
+    /// exists.
     pub fn execution_mode(&self, name: &str) -> ExecutionMode {
         match self.get(name) {
             Some(tool) => tool.execution_mode(),
