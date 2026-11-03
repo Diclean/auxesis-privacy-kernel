@@ -15,7 +15,9 @@
 //!   paths common toolchains need to start (Homebrew's OpenSSL config and CA
 //!   bundle, Homebrew's own `Library/Homebrew` code so `brew --version`/`list`/
 //!   `info` work, system Ruby's gems tree) — never a whole `etc` or `Library`
-//!   directory;
+//!   directory. The full-Xcode grant is a **shell tool** affordance: the
+//!   stdio (MCP) sandbox in [`StdioSandbox`] never carries it, so an MCP
+//!   server gets exactly the profile it had before the Xcode grant existed;
 //! - **read**: the same system trees, the dyld cache and timezone data under
 //!   `/private/var/db`, a handful of `/etc` files common commands need
 //!   (`hosts`, `resolv.conf`, `localtime`, `services`, `protocols`, `ssl`),
@@ -62,6 +64,8 @@
 use crate::ToolError;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Output, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 use thiserror::Error;
@@ -578,6 +582,72 @@ fn active_developer_dir() -> Option<PathBuf> {
     )
 }
 
+/// The developer directory of this process, resolved once.
+///
+/// The lookup forks `/usr/bin/xcode-select` (and `/usr/bin/plutil` for the
+/// bundle id), so it runs at most once per process: the first shell profile
+/// pays for it, every later one reuses the answer. Switching the selected
+/// Xcode needs a daemon restart to take effect.
+static DEVELOPER_DIR: DeveloperDirCache = DeveloperDirCache::new();
+
+/// A one-shot cache for the developer directory.
+struct DeveloperDirCache {
+    value: OnceLock<Option<PathBuf>>,
+    lookups: AtomicUsize,
+}
+
+impl DeveloperDirCache {
+    const fn new() -> Self {
+        Self {
+            value: OnceLock::new(),
+            lookups: AtomicUsize::new(0),
+        }
+    }
+
+    /// The cached value. `lookup` runs on the first call only; every later
+    /// call is served from the cache.
+    fn get(&self, lookup: impl FnOnce() -> Option<PathBuf>) -> Option<&Path> {
+        self.value
+            .get_or_init(|| {
+                self.lookups.fetch_add(1, Ordering::Relaxed);
+                lookup()
+            })
+            .as_deref()
+    }
+
+    /// How many times the lookup ran: `0` before the first call, `1` after.
+    #[cfg(test)]
+    fn lookups(&self) -> usize {
+        self.lookups.load(Ordering::Relaxed)
+    }
+}
+
+/// The developer directory this process grants the shell tool.
+///
+/// Resolved once per process (see [`DEVELOPER_DIR`]): the lookup forks
+/// `xcode-select`, so it must not run on every profile build. The answer
+/// cannot change under a running daemon anyway — switching the selected
+/// Xcode needs a daemon restart.
+fn cached_developer_dir() -> Option<&'static Path> {
+    DEVELOPER_DIR.get(active_developer_dir)
+}
+
+/// Whether a profile may carry the Xcode developer-directory grant.
+///
+/// The grant exists for the shell tool: `/usr/bin/git` and every other
+/// `xcrun` shim load `libxcrun` from the selected developer directory, so a
+/// full Xcode needs a read + exec grant of its own. The stdio (MCP) sandbox
+/// must never carry it: an MCP server has no shim to load, and the grant
+/// opens a whole developer directory (toolchain, SDKs, private data) for
+/// read and exec inside a profile that is otherwise tight.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum DeveloperDirGrant {
+    /// The grant is allowed: the shell tool's profile.
+    Allow,
+    /// No developer-directory grant at all: the stdio (MCP) sandbox.
+    Deny,
+}
+
 /// The bundle directories of a canonical developer directory.
 struct XcodeBundle {
     app: PathBuf,
@@ -676,7 +746,7 @@ fn developer_dir_rules(developer_dir: &Path) -> Option<String> {
     ))
 }
 
-/// Build the deny-by-default Seatbelt profile for one call.
+/// Build the deny-by-default Seatbelt profile for one shell call.
 ///
 /// `home` is the *real* home of the daemon user (canonical), used for the
 /// explicit sensitive-path denies. Everything not allowed here is denied by
@@ -689,29 +759,48 @@ fn developer_dir_rules(developer_dir: &Path) -> Option<String> {
 /// authenticity and ownership checks in `resolve_developer_dir`. When it is
 /// a full Xcode, that directory gets the same read+exec grant as the Command
 /// Line Tools; every other value adds no rule.
+///
+/// This is the **shell tool's** profile. The stdio (MCP) sandbox builds its
+/// own profile and never carries the developer-directory grant.
 pub fn seatbelt_profile(
     workspace: &Path,
     temp: &Path,
     home: Option<&Path>,
     network: bool,
 ) -> Result<String, LaunchError> {
-    let developer_dir = active_developer_dir();
-    seatbelt_profile_with_developer_dir(workspace, temp, home, network, developer_dir.as_deref())
+    let developer_dir = cached_developer_dir();
+    seatbelt_profile_with_developer_dir(
+        workspace,
+        temp,
+        home,
+        network,
+        developer_dir,
+        DeveloperDirGrant::Allow,
+    )
 }
 
 /// [`seatbelt_profile`] with the developer directory passed in: production
 /// callers use the resolved value, tests pin it.
+///
+/// `grant` decides whether the developer directory may be added at all. The
+/// stdio (MCP) sandbox passes [`DeveloperDirGrant::Deny`], so its profile
+/// stays exactly what it was before the Xcode grant existed.
 fn seatbelt_profile_with_developer_dir(
     workspace: &Path,
     temp: &Path,
     home: Option<&Path>,
     network: bool,
     developer_dir: Option<&Path>,
+    grant: DeveloperDirGrant,
 ) -> Result<String, LaunchError> {
     // The grant is read-only. A workspace overlapping it would turn it
     // writable through the unconditional workspace allow, so skip the grant
     // exactly as if no Xcode were selected.
-    let developer_dir = developer_dir.filter(|dir| !overlaps(workspace, dir));
+    let developer_dir = match grant {
+        DeveloperDirGrant::Allow => developer_dir.filter(|dir| !overlaps(workspace, dir)),
+        // No grant, not even the read + exec one the shell tool needs.
+        DeveloperDirGrant::Deny => None,
+    };
     let sensitive = home
         .map(|home| home_overlap(workspace, home).is_some())
         .unwrap_or(false)
@@ -1363,6 +1452,23 @@ impl StdioSandbox {
         network: bool,
         auxesis_home: Option<&Path>,
     ) -> Result<Self, LaunchError> {
+        // No developer directory: the MCP sandbox never carries the Xcode
+        // grant, so it must not look Xcode up either.
+        Self::build_with_developer_dir(program, network, auxesis_home, None)
+    }
+
+    /// The shared body, with the developer directory the process has selected.
+    ///
+    /// The directory is passed in so the test can prove the MCP profile never
+    /// carries the Xcode grant — not even when a full Xcode is selected.
+    /// Production passes `None`: the stdio sandbox must not look Xcode up at
+    /// all.
+    fn build_with_developer_dir(
+        program: &Path,
+        network: bool,
+        auxesis_home: Option<&Path>,
+        developer_dir: Option<&Path>,
+    ) -> Result<Self, LaunchError> {
         let temp = tempfile::Builder::new().prefix("aux-mcp-").tempdir()?;
         #[cfg(unix)]
         {
@@ -1371,7 +1477,17 @@ impl StdioSandbox {
         }
         let temp_path = temp.path().canonicalize()?;
         let home = real_home();
-        let mut profile = seatbelt_profile(&temp_path, &temp_path, home.as_deref(), network)?;
+        let mut profile = seatbelt_profile_with_developer_dir(
+            &temp_path,
+            &temp_path,
+            home.as_deref(),
+            network,
+            developer_dir,
+            // The Xcode grant is a shell-tool affordance: an MCP stdio
+            // server never runs an `xcrun` shim, so it never gets the
+            // developer directory.
+            DeveloperDirGrant::Deny,
+        )?;
         if let Some(dir) = program.parent() {
             let dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
             if dir != Path::new("/") && !dir.as_os_str().is_empty() {
@@ -1437,6 +1553,46 @@ mod stdio_sandbox_tests {
         assert_eq!(
             command.as_std().get_program(),
             std::ffi::OsStr::new(SANDBOX_EXEC)
+        );
+    }
+
+    #[test]
+    fn stdio_profile_never_carries_the_xcode_grant() {
+        // The Xcode grant is a shell-tool affordance. The MCP sandbox must
+        // stay exactly what it was before the grant existed, even when a
+        // full Xcode is selected.
+        let developer_dir = Path::new("/Applications/Xcode_16.4.app/Contents/Developer");
+        let program = std::env::current_exe().expect("current exe");
+        let sandbox =
+            StdioSandbox::build_with_developer_dir(&program, false, None, Some(developer_dir))
+                .expect("sandbox");
+
+        assert!(
+            !sandbox.profile.contains("full Xcode selected"),
+            "the MCP sandbox must never get the Xcode grant: {}",
+            sandbox.profile
+        );
+        assert!(
+            !sandbox.profile.contains(developer_dir.to_str().unwrap()),
+            "the MCP sandbox must never name the developer directory: {}",
+            sandbox.profile
+        );
+
+        // It is the pre-Xcode profile, byte for byte, plus the MCP rules.
+        let temp = sandbox.temp_path().canonicalize().unwrap();
+        let base = seatbelt_profile_with_developer_dir(
+            &temp,
+            &temp,
+            real_home().as_deref(),
+            false,
+            None,
+            DeveloperDirGrant::Deny,
+        )
+        .unwrap();
+        assert!(
+            sandbox.profile.starts_with(&base),
+            "the MCP profile must be the pre-Xcode profile plus its own rules: {}",
+            sandbox.profile
         );
     }
 
@@ -1850,6 +2006,7 @@ mod tests {
             Some(Path::new("/Users/tester")),
             false,
             developer_dir,
+            DeveloperDirGrant::Allow,
         )
         .unwrap()
     }
@@ -2041,6 +2198,7 @@ mod tests {
             None,
             false,
             None,
+            DeveloperDirGrant::Allow,
         )
         .unwrap();
         let profile = seatbelt_profile_with_developer_dir(
@@ -2049,9 +2207,80 @@ mod tests {
             None,
             false,
             Some(developer_dir),
+            DeveloperDirGrant::Allow,
         )
         .unwrap();
         assert_eq!(profile, base);
+    }
+
+    #[test]
+    fn the_shell_profile_keeps_the_xcode_grant() {
+        // The shell tool is the one caller that gets the Xcode grant: its
+        // `xcrun` shims load `libxcrun` from the selected developer directory.
+        let developer_dir = Path::new("/Applications/Xcode_16.4.app/Contents/Developer");
+        let profile = seatbelt_profile_with_developer_dir(
+            Path::new("/tmp/ws"),
+            Path::new("/tmp/tmp"),
+            Some(Path::new("/Users/tester")),
+            false,
+            Some(developer_dir),
+            DeveloperDirGrant::Allow,
+        )
+        .unwrap();
+        assert!(
+            profile.contains("full Xcode selected"),
+            "the shell profile must keep the Xcode grant: {profile}"
+        );
+        assert!(
+            profile.contains(&format!(
+                "(allow file-read* (subpath \"{dir}\"))",
+                dir = developer_dir.display()
+            )),
+            "the shell profile must keep the read grant: {profile}"
+        );
+        assert!(
+            profile.contains(&format!(
+                "(allow process-exec* (subpath \"{dir}\"))",
+                dir = developer_dir.display()
+            )),
+            "the shell profile must keep the exec grant: {profile}"
+        );
+    }
+
+    #[test]
+    fn the_developer_dir_is_looked_up_once_per_process() {
+        // The lookup forks `xcode-select`, so it must run at most once per
+        // process, however many profiles are built.
+        let cache = DeveloperDirCache::new();
+        assert_eq!(cache.lookups(), 0, "nothing runs before the first call");
+        let selected = PathBuf::from("/Applications/Xcode_16.4.app/Contents/Developer");
+        for _ in 0..3 {
+            assert_eq!(
+                cache.get(|| Some(selected.clone())),
+                Some(selected.as_path()),
+                "the cached value must be the one the lookup returned"
+            );
+        }
+        assert_eq!(cache.lookups(), 1, "the lookup must run exactly once");
+    }
+
+    #[test]
+    fn the_process_cache_looks_the_developer_dir_up_at_most_once() {
+        // The production cache: whatever the host has selected, the first
+        // call resolves it and every later call is served from the cache.
+        let first = cached_developer_dir().map(Path::to_path_buf);
+        assert_eq!(
+            DEVELOPER_DIR.lookups(),
+            1,
+            "the first call must resolve the developer directory exactly once"
+        );
+        let second = cached_developer_dir().map(Path::to_path_buf);
+        assert_eq!(first, second, "the process cache must serve one value");
+        assert_eq!(
+            DEVELOPER_DIR.lookups(),
+            1,
+            "a warm cache must never look Xcode up again"
+        );
     }
 
     #[test]
