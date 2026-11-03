@@ -14,7 +14,7 @@ yanked = "deny"
 # per-ignore expiry, so the CI "advisory ignore expiry" step enforces the date.
 # Expires: 2027-06-30
 ignore = [
-    { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained and has no fixed release; reached only via tokenizers 0.21.4 (gliner2-rs, optional ner-gliner feature), and a tokenizers major update is a separate decision" },
+    { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained and has no fixed release; reached only via tokenizers 0.21.4 (auxesis-gliner2, optional ner-gliner feature), and a tokenizers major update is a separate decision" },
 ]
 
 [licenses]

@@ -2,7 +2,7 @@
 //! send it through a fake call, then put the real values back into the answer.
 //! No network, no API key. Invented values.
 //!
-//!     cargo run -p kernel-privacy --example everyday_llm_call
+//!     cargo run -p auxesis-kernel-privacy --example everyday_llm_call
 
 use kernel_core::privacy::{admit, Context, Decision, Destination, PathId, PrivacyMode};
 use kernel_privacy::{restore, Gate, UnknownPolicy};

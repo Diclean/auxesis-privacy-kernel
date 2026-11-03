@@ -464,7 +464,7 @@ mod tests {
     // ------------------------------------------------------------------
     // Real `sandbox-exec` checks. Ignored by default because they run the
     // platform sandbox; run them explicitly on macOS with
-    // `cargo test -p kernel-mcp -- --ignored --nocapture`.
+    // `cargo test -p auxesis-kernel-mcp -- --ignored --nocapture`.
     // ------------------------------------------------------------------
 
     /// Run `program` under `profile`, returning its exit status and stderr.

@@ -8,7 +8,7 @@
 //!
 //! ```console
 //! AUX_GLINER_MODEL_DIR=~/.auxesis/models/gliner2-pii \
-//! cargo test -p kernel-privacy --features ner-gliner --test second_pass_model -- --nocapture
+//! cargo test -p auxesis-kernel-privacy --features ner-gliner --test second_pass_model -- --nocapture
 //! ```
 
 use std::path::PathBuf;

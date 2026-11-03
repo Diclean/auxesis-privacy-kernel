@@ -17,7 +17,7 @@ use std::process::Command;
 
 /// Exact `(package name, workspace-relative target source path)`.
 const EXEMPT_TEST_ONLY_BINS: &[(&str, &str)] = &[(
-    "kernel-mcp",
+    "auxesis-kernel-mcp",
     "crates/kernel-mcp/tests/support/fake_mcp_server.rs",
 )];
 
@@ -206,7 +206,7 @@ fn the_fake_server_exemption_is_exact_package_and_path() {
         root,
     );
     assert_eq!(real, "crates/kernel-mcp/tests/support/fake_mcp_server.rs");
-    assert!(is_exempt_bin("kernel-mcp", &real));
+    assert!(is_exempt_bin("auxesis-kernel-mcp", &real));
 
     // Same package, same file name, different directory: NOT exempt.
     let fixture = workspace_relative(
@@ -215,11 +215,11 @@ fn the_fake_server_exemption_is_exact_package_and_path() {
     );
     assert_eq!(fixture, "qa/fixture/tests/support/fake_mcp_server.rs");
     assert!(
-        !is_exempt_bin("kernel-mcp", &fixture),
+        !is_exempt_bin("auxesis-kernel-mcp", &fixture),
         "a suffix match must not be exempt"
     );
     assert!(!is_exempt_bin(
-        "kernel-mcp",
+        "auxesis-kernel-mcp",
         "crates/kernel-mcp/qa/tests/support/fake_mcp_server.rs"
     ));
 
@@ -228,7 +228,7 @@ fn the_fake_server_exemption_is_exact_package_and_path() {
 
     // A crate-relative path is NOT the workspace-relative exemption.
     assert!(!is_exempt_bin(
-        "kernel-mcp",
+        "auxesis-kernel-mcp",
         "tests/support/fake_mcp_server.rs"
     ));
 }

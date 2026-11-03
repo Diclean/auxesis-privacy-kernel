@@ -1,5 +1,6 @@
 //! Core building blocks for Auxesis: filesystem layout, configuration,
 //! shared types, jobs, budgets, and the kill switch.
+#![doc = include_str!("../README.md")]
 
 pub mod budget;
 pub mod config;

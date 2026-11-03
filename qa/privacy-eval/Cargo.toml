@@ -9,8 +9,8 @@ publish = false
 [dependencies]
 # Scores the detectors against the JSONL corpus in `cases/`. It is its own
 # package so the `kernel-privacy` library stays free of the benchmark driver.
-kernel-core = { path = "../../crates/kernel-core" }
-kernel-privacy = { path = "../../crates/kernel-privacy" }
+kernel-core = { package = "auxesis-kernel-core", path = "../../crates/kernel-core" }
+kernel-privacy = { package = "auxesis-kernel-privacy", path = "../../crates/kernel-privacy" }
 serde.workspace = true
 serde_json = "1"
 # Checks the hash header of the frozen Tier C set (`heldout-2.jsonl`); the

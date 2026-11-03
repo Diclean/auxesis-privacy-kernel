@@ -50,6 +50,7 @@
 //! [`discovery`] dedupes the list into a [`ToolCatalog`] and caches it in memory
 //! with a TTL. Every name and description here is untrusted, model-visible
 //! input: it is data, never an instruction.
+#![doc = include_str!("../README.md")]
 
 // `test-util` widens this crate's constructors for dependents' tests (for
 // example `StdioTransport::new_for_tests`, the only public unsandboxed

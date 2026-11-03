@@ -20,7 +20,7 @@ added to an allowlisted file is still flagged.
 | `crates/kernel-mcp/src/runtime.rs::build_client` | no reqwest constructor | MCP endpoint | — | — | — | The MCP transport factory; its reqwest clients are `http.rs::new` and `http.rs::new_checked` above. Matched only by the `build_client(` name in the check. |
 | `crates/kernel-mcp/src/runtime.rs::discover_server` | calls `runtime.rs::build_client` | — | — | — | — | Caller of the MCP transport factory. Matched only by the `build_client(` name in the check. |
 
-`kernel-net` exports the SSRF-pinned factory as public API (`build_client`,
+`auxesis-kernel-net` exports the SSRF-pinned factory as public API (`build_client`,
 `resolve_checked`, `AddressPolicy`): the app's L1 fetch runtime calls
 `resolve_checked` to validate the host and every DNS answer, then `build_client`
 to pin the connection to the one validated address. A private or loopback

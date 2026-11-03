@@ -1,10 +1,21 @@
 [package]
-name = "kernel-privacy"
+name = "auxesis-kernel-privacy"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+license-file.workspace = true
 authors.workspace = true
-publish = false
+repository.workspace = true
+rust-version.workspace = true
+readme = "README.md"
+description = "Deterministic detection and restorable tokenisation of sensitive values in text that leaves the machine."
+keywords = ["pii", "redaction", "privacy", "anonymisation", "masking"]
+categories = ["security", "text-processing"]
+exclude = ["tests/**"]
+
+[lib]
+# Package rename only: the library stays kernel_privacy for every `use` site.
+name = "kernel_privacy"
 
 [features]
 default = []
@@ -25,7 +36,7 @@ aho-corasick = "1"
 # Verified home handle for the vault. Every vault write goes through its
 # directory descriptor, the write-gateway rule for paths under the home.
 # Also used by the `[privacy] mask_first_names` contract test.
-kernel-core = { path = "../kernel-core" }
+kernel-core = { package = "auxesis-kernel-core", path = "../kernel-core", version = "0.1.0" }
 # Keyed pseudonyms for the anonymizer: a per-session HMAC-SHA-256 of the
 # normalised value, never a plain hash.
 hmac = "0.12"
@@ -43,7 +54,7 @@ unicode-normalization = "0.1"
 zeroize = "1"
 # The GLiNER2 runner (crates/gliner2): ONNX Runtime through `ort` with
 # `load-dynamic`, so the build needs no network and no ONNX Runtime library.
-gliner2-rs = { path = "../gliner2", optional = true }
+gliner2-rs = { package = "auxesis-gliner2", path = "../gliner2", version = "0.1.0", optional = true }
 # Encrypted session vault: AES-256-GCM seals each session's
 # token map, and `getrandom` supplies the key and nonces. Both already sit in the
 # lock through other crates, so this adds no new implementation to the tree.

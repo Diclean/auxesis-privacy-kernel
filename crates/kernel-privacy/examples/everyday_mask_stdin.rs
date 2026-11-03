@@ -3,7 +3,7 @@
 //! are dropped at the end, so this is for paste-only use; restoring needs them
 //! and is shown in `everyday_llm_call`.
 //!
-//!     cargo run -p kernel-privacy --example everyday_mask_stdin < document.txt
+//!     cargo run -p auxesis-kernel-privacy --example everyday_mask_stdin < document.txt
 
 use std::io::{self, Read};
 

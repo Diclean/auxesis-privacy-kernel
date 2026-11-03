@@ -109,6 +109,131 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "auxesis-gliner2"
+version = "0.1.0"
+dependencies = [
+ "ort",
+ "regex",
+ "serde_json",
+ "tokenizers",
+]
+
+[[package]]
+name = "auxesis-kernel-broker"
+version = "0.1.0"
+dependencies = [
+ "aho-corasick",
+ "async-trait",
+ "auxesis-kernel-broker",
+ "auxesis-kernel-core",
+ "auxesis-kernel-net",
+ "auxesis-kernel-privacy",
+ "base64 0.23.1",
+ "libc",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "unicode-normalization",
+ "wiremock",
+ "zeroize",
+]
+
+[[package]]
+name = "auxesis-kernel-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "chrono-tz",
+ "core-foundation",
+ "core-foundation-sys",
+ "libc",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "toml",
+ "tracing",
+ "unicode-normalization",
+ "url",
+]
+
+[[package]]
+name = "auxesis-kernel-mcp"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "auxesis-kernel-broker",
+ "auxesis-kernel-core",
+ "auxesis-kernel-mcp",
+ "auxesis-kernel-net",
+ "auxesis-kernel-privacy",
+ "axum",
+ "blake3",
+ "futures-util",
+ "libc",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "toml",
+ "toml_edit",
+ "tracing",
+]
+
+[[package]]
+name = "auxesis-kernel-net"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "auxesis-kernel-core",
+ "html5ever",
+ "libc",
+ "log",
+ "markup5ever_rcdom",
+ "proptest",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "wiremock",
+]
+
+[[package]]
+name = "auxesis-kernel-privacy"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "aho-corasick",
+ "auxesis-gliner2",
+ "auxesis-kernel-core",
+ "getrandom 0.2.17",
+ "hmac",
+ "proptest",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "toml",
+ "unicode-normalization",
+ "zeroize",
+]
+
+[[package]]
 name = "aws-lc-rs"
 version = "1.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -798,16 +923,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gliner2-rs"
-version = "0.1.0"
-dependencies = [
- "ort",
- "regex",
- "serde_json",
- "tokenizers",
-]
-
-[[package]]
 name = "h2"
 version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1223,121 +1338,6 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "kernel-broker"
-version = "0.1.0"
-dependencies = [
- "aho-corasick",
- "async-trait",
- "base64 0.23.1",
- "kernel-broker",
- "kernel-core",
- "kernel-net",
- "kernel-privacy",
- "libc",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
- "unicode-normalization",
- "wiremock",
- "zeroize",
-]
-
-[[package]]
-name = "kernel-core"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "chrono-tz",
- "core-foundation",
- "core-foundation-sys",
- "libc",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "toml",
- "tracing",
- "unicode-normalization",
- "url",
-]
-
-[[package]]
-name = "kernel-mcp"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "axum",
- "blake3",
- "futures-util",
- "kernel-broker",
- "kernel-core",
- "kernel-mcp",
- "kernel-net",
- "kernel-privacy",
- "libc",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
- "tokio",
- "toml",
- "toml_edit",
- "tracing",
-]
-
-[[package]]
-name = "kernel-net"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "html5ever",
- "kernel-core",
- "libc",
- "log",
- "markup5ever_rcdom",
- "proptest",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "wiremock",
-]
-
-[[package]]
-name = "kernel-privacy"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "aho-corasick",
- "getrandom 0.2.17",
- "gliner2-rs",
- "hmac",
- "kernel-core",
- "proptest",
- "regex",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
- "toml",
- "unicode-normalization",
- "zeroize",
 ]
 
 [[package]]
@@ -1765,8 +1765,8 @@ checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 name = "privacy-eval"
 version = "0.1.0"
 dependencies = [
- "kernel-core",
- "kernel-privacy",
+ "auxesis-kernel-core",
+ "auxesis-kernel-privacy",
  "serde",
  "serde_json",
  "sha2",

@@ -2,7 +2,7 @@
 //! then handle the only type a sender should accept, `SafeText`. Invented
 //! values.
 //!
-//!     cargo run -p kernel-privacy --example quickstart_gate
+//!     cargo run -p auxesis-kernel-privacy --example quickstart_gate
 
 use kernel_core::privacy::{admit, Context, Decision, Destination, PathId, PrivacyMode};
 use kernel_privacy::Gate;

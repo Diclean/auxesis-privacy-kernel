@@ -18,7 +18,7 @@
 //! Run:
 //! ```console
 //! AUX_PUBLIC_EVAL_DIR=/tmp/pub AUX_PUBLIC_EVAL_JSON=/tmp/report.json \
-//!   cargo run -p kernel-privacy --example public_eval --release
+//!   cargo run -p auxesis-kernel-privacy --example public_eval --release
 //! ```
 
 use std::collections::BTreeMap;

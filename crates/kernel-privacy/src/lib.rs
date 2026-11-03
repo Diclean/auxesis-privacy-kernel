@@ -24,7 +24,7 @@
 //! value. The unverified rules (FR NIR, FR SIRET, passport MRZ) are mounted
 //! too: since this crate is a masker, an unverified checksum-valid value is
 //! still masked, labelled `NATIONAL_ID` at a lower score.
-
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
 // `test-util` widens this crate's constructors for dependents' tests (for

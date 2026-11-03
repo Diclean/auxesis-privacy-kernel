@@ -19,7 +19,7 @@
 //! ```console
 //! AUX_REPO_ROOT=/path/to/checkout \
 //! AUX_GLINER_MODEL_DIR=/path/to/export AUX_GLINER_ORT_DYLIB=/path/to/libonnxruntime.so \
-//! cargo run --release -p kernel-privacy --features ner-gliner --example contacts_eval
+//! cargo run --release -p auxesis-kernel-privacy --features ner-gliner --example contacts_eval
 //! ```
 //!
 //! Without `--features ner-gliner` the GLiNER rows are left out.

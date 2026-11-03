@@ -17,6 +17,9 @@ version = "0.1.0"
 edition = "2021"
 authors = ["The Auxesis kernel authors"]
 license = "Apache-2.0"
+# Copied into each published package, so the licence text travels with the code.
+license-file = "LICENSE"
+repository = "https://github.com/Diclean/auxesis-privacy-kernel"
 rust-version = "1.99"
 
 [workspace.dependencies]
@@ -34,7 +37,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [workspace.lints.rust]
 # Crates that opt in with `[lints] workspace = true` may not use `unsafe`.
-# kernel-core and kernel-broker call libc and do not opt in.
+# auxesis-kernel-core and auxesis-kernel-broker call libc and do not opt in.
 unsafe_code = "forbid"
 
 [profile.dev]
@@ -46,5 +49,5 @@ debug = "line-tables-only"
 [profile.dev.package."*"]
 opt-level = 2
 
-[profile.dev.package.kernel-privacy]
+[profile.dev.package.auxesis-kernel-privacy]
 opt-level = 2
