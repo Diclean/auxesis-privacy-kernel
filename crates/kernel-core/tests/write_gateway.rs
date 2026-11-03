@@ -61,6 +61,48 @@ fn rust_sources(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// True when `path` (under `<crate>/src`) belongs to a module that its parent
+/// declares as `#[cfg(test)] mod <name>;`: a test module split out into its own
+/// file (`x/tests.rs`, `x/tests/topic.rs`). A file only counts as test code when
+/// the declaration says so, never because of its name or folder alone.
+fn in_cfg_test_module(src: &Path, path: &Path) -> bool {
+    let Ok(relative) = path.strip_prefix(src) else {
+        return false;
+    };
+    let parts: Vec<String> = relative
+        .iter()
+        .map(|part| part.to_string_lossy().into_owned())
+        .collect();
+    for depth in 0..parts.len() {
+        let name = parts[depth].trim_end_matches(".rs");
+        if name == "mod" {
+            continue;
+        }
+        let dir = parts[..depth]
+            .iter()
+            .fold(src.to_path_buf(), |dir, part| dir.join(part));
+        let parents = if depth == 0 {
+            vec![src.join("lib.rs"), src.join("main.rs")]
+        } else {
+            vec![dir.with_extension("rs"), dir.join("mod.rs")]
+        };
+        let declaration = format!("mod {name};");
+        let gated = parents.iter().any(|parent| {
+            let Ok(text) = std::fs::read_to_string(parent) else {
+                return false;
+            };
+            let lines: Vec<&str> = text.lines().map(str::trim).collect();
+            lines.iter().enumerate().any(|(index, line)| {
+                *line == declaration && index > 0 && lines[index - 1] == "#[cfg(test)]"
+            })
+        });
+        if gated {
+            return true;
+        }
+    }
+    false
+}
+
 /// `path | api-pattern | justification` entries, `#` comments allowed.
 fn allowlist(root: &Path) -> Vec<(String, String, String)> {
     let text = std::fs::read_to_string(root.join("qa/sandbox-gateway-allowlist.txt"))
@@ -85,7 +127,16 @@ fn home_access_and_raw_fs_calls_are_gateway_routed_or_allowlisted() {
     let entries = allowlist(&root);
     let mut sources = Vec::new();
     for member in std::fs::read_dir(root.join("crates")).unwrap().flatten() {
-        rust_sources(&member.path().join("src"), &mut sources);
+        let src = member.path().join("src");
+        let mut found = Vec::new();
+        rust_sources(&src, &mut found);
+        // A test module split into its own file is test code, like an inline
+        // `mod tests` block below the cut.
+        sources.extend(
+            found
+                .into_iter()
+                .filter(|path| !in_cfg_test_module(&src, path)),
+        );
     }
     sources.sort();
 
@@ -157,4 +208,30 @@ fn home_access_and_raw_fs_calls_are_gateway_routed_or_allowlisted() {
          qa/sandbox-gateway-allowlist.txt:\n{}",
         hits.into_iter().collect::<Vec<_>>().join("\n")
     );
+}
+
+/// Only a module its parent gates with `#[cfg(test)]` is skipped: the same file
+/// names under an ungated declaration stay in the scan.
+#[test]
+fn only_cfg_test_modules_leave_the_scan() {
+    let src = std::env::temp_dir().join(format!("write-gateway-{}", std::process::id()));
+    let write = |relative: &str, text: &str| {
+        let path = src.join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write("lib.rs", "mod tools;\n#[cfg(test)]\nmod tests;\n");
+    write("tests.rs", "mod topic;\n");
+    write("tests/topic.rs", "");
+    write("tools.rs", "mod tests;\n#[cfg(test)]\nmod checks;\n");
+    write("tools/tests.rs", "");
+    write("tools/checks.rs", "");
+
+    assert!(in_cfg_test_module(&src, &src.join("tests.rs")));
+    assert!(in_cfg_test_module(&src, &src.join("tests/topic.rs")));
+    assert!(in_cfg_test_module(&src, &src.join("tools/checks.rs")));
+    assert!(!in_cfg_test_module(&src, &src.join("tools.rs")));
+    assert!(!in_cfg_test_module(&src, &src.join("tools/tests.rs")));
+    assert!(!in_cfg_test_module(&src, &src.join("lib.rs")));
+    std::fs::remove_dir_all(&src).unwrap();
 }
