@@ -163,9 +163,15 @@ fn bank_files_scale_linearly() {
         .collect();
     let time = |n: usize| {
         let text = unit.repeat(n);
-        let started = std::time::Instant::now();
-        gate(PrivacyMode::Private).text(&text).expect("issued");
-        started.elapsed().as_secs_f64()
+        (0..3)
+            .map(|_| {
+                let started = std::time::Instant::now();
+                gate(PrivacyMode::Private).text(&text).expect("issued");
+                started.elapsed()
+            })
+            .min()
+            .expect("three runs")
+            .as_secs_f64()
     };
     time(25);
     let (small, large) = (time(100), time(400));

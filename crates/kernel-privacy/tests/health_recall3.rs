@@ -217,9 +217,18 @@ fn medication_dose_extension_scales_linearly() {
         for size in [16 * 1024, 64 * 1024, 256 * 1024, 1024 * 1024] {
             let sentence = "Refill metformin 500 mg tomorrow. ";
             let input = sentence.repeat(size / sentence.len() + 1);
-            let start = Instant::now();
-            let (output, _) = issue(mode, &input).expect("large allowed health text");
-            let elapsed = start.elapsed();
+            let mut output = None;
+            let elapsed = (0..3)
+                .map(|_| {
+                    let start = Instant::now();
+                    let (out, _) = issue(mode, &input).expect("large allowed health text");
+                    let elapsed = start.elapsed();
+                    output = Some(out);
+                    elapsed
+                })
+                .min()
+                .expect("three runs");
+            let output = output.expect("three runs");
             if let Some(prior) = previous {
                 let ratio = elapsed.as_secs_f64() / prior.as_secs_f64();
                 eprintln!(
