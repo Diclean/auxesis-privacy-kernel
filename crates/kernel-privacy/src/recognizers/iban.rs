@@ -95,7 +95,8 @@ impl Recognizer for IbanRecognizer {
     }
 }
 
-/// A line or group break may also fall inside the country/check-digit prefix.
+/// A line or group break may also fall inside the country/check-digit prefix,
+/// even when the value is glued to letters on both sides (`xyGB\n82…ok`).
 fn spaced_anchor_candidates(text: &str) -> Vec<(usize, usize, f32)> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();
@@ -138,13 +139,45 @@ fn spaced_anchor_candidates(text: &str) -> Vec<(usize, usize, f32)> {
             continue;
         };
         let end = consume_alnum(text, start, expected);
+        // A break exactly between the country code and the check digits is
+        // what makes a glued `LLdd` run an IBAN rather than a word fragment.
+        // The value still has to pass the country length and mod-97 below, and
+        // keep its printed grouping, so `Road\n41395 Glenfallow` never matches.
+        let broken_after_country =
+            !bytes[start + 2].is_ascii_alphanumeric() && grouped_after_break(text, start, end);
         if valid_iban(&text[start..end])
-            && (!ambiguous || !bytes.get(end).is_some_and(u8::is_ascii_alphanumeric))
+            && (!ambiguous
+                || broken_after_country
+                || !bytes.get(end).is_some_and(u8::is_ascii_alphanumeric))
         {
             out.push((start, end, SCORE));
         }
     }
     out
+}
+
+/// Whether a value whose prefix break sits between the country code and the
+/// check digits keeps IBAN grouping afterwards: the wrap is the only separator,
+/// or every later separator follows a full group of four. The scan is bounded
+/// by `end`, which holds at most the country length plus separators.
+fn grouped_after_break(text: &str, start: usize, end: usize) -> bool {
+    let bytes = text.as_bytes();
+    let (mut index, mut count) = (start, 0);
+    while index < end {
+        if bytes[index].is_ascii_alphanumeric() {
+            count += 1;
+            index += 1;
+        } else if index == start + 2 {
+            // The prefix break: the check digits follow the country code.
+            index += 1;
+        } else if count % 4 == 0 {
+            // A printed group break after a full four-character group.
+            index += 1;
+        } else {
+            return false;
+        }
+    }
+    true
 }
 
 /// Only registered-country, checksum-valid matches are added inside a guess.
