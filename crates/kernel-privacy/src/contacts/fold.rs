@@ -7,6 +7,7 @@
 //! it came from, so a match in the folded string maps back to an exact byte
 //! span of the original text.
 
+use kernel_core::text::is_invisible;
 use unicode_normalization::char::is_combining_mark;
 use unicode_normalization::UnicodeNormalization;
 
@@ -589,30 +590,42 @@ pub(crate) fn homoglyph(c: char) -> Option<char> {
     })
 }
 
-/// Every Unicode `Default_Ignorable_Code_Point`, plus the Hangul fillers: the
-/// characters that are invisible for matching. This is the one definition the
-/// folder and the name-region scanner share.
+/// The characters the folder and the name-region scanner treat as invisible
+/// for matching.
+///
+/// The ranges live once, in [`kernel_core::text::is_invisible`]. That table is
+/// the union of this old set and the sanitizer's, so recover this set by
+/// subtracting the characters the sanitizer calls invisible but the folder has
+/// always treated as word breaks (the Unicode spaces, the Braille blank, the
+/// Arabic number signs, ...). Keeping them as breaks is what makes
+/// `Jean\u{2800}Dupont` fold to two words, so the folded output stays
+/// byte-for-byte what it was.
 pub(crate) fn is_default_ignorable(c: char) -> bool {
+    is_invisible(c) && !is_break_only(c)
+}
+
+/// The union's members that are not `Default_Ignorable_Code_Point` and that
+/// the folder treats as word breaks, not as characters to skip.
+fn is_break_only(c: char) -> bool {
     matches!(
         c,
-        '\u{00AD}'
-            | '\u{034F}'
-            | '\u{061C}'
-            | '\u{0640}'
-            | '\u{115F}'..='\u{1160}'
-            | '\u{17B4}'..='\u{17B5}'
-            | '\u{180B}'..='\u{180F}'
-            | '\u{200B}'..='\u{200F}'
-            | '\u{202A}'..='\u{202E}'
-            | '\u{2060}'..='\u{206F}'
-            | '\u{3164}'
-            | '\u{FE00}'..='\u{FE0F}'
-            | '\u{FEFF}'
-            | '\u{FFA0}'
-            | '\u{FFF0}'..='\u{FFF8}'
-            | '\u{1BCA0}'..='\u{1BCA3}'
-            | '\u{1D173}'..='\u{1D17A}'
-            | '\u{E0000}'..='\u{E0FFF}'
+        '\u{00A0}'
+            | '\u{0600}'..='\u{0605}'
+            | '\u{06DD}'
+            | '\u{070F}'
+            | '\u{0890}'..='\u{0891}'
+            | '\u{08E2}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'..='\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{2800}'
+            | '\u{3000}'
+            | '\u{FFF9}'..='\u{FFFB}'
+            | '\u{110BD}'
+            | '\u{110CD}'
+            | '\u{13430}'..='\u{1343F}'
     )
 }
 
@@ -704,5 +717,45 @@ mod tests {
         let found = folded.text().find("éx").expect("folded");
         let (start, end) = folded.source(found, found + "éx".len());
         assert_eq!(&text[start..end], "E\u{301}x");
+    }
+
+    #[test]
+    fn default_ignorable_is_exactly_the_old_table() {
+        // The old predicate, kept as the oracle. The shared table in
+        // `kernel_core::text` is its union with the sanitizer's; subtracting
+        // the break-only members must recover this set on every code point.
+        fn old_table(c: char) -> bool {
+            matches!(
+                c,
+                '\u{00AD}'
+                    | '\u{034F}'
+                    | '\u{061C}'
+                    | '\u{0640}'
+                    | '\u{115F}'..='\u{1160}'
+                    | '\u{17B4}'..='\u{17B5}'
+                    | '\u{180B}'..='\u{180F}'
+                    | '\u{200B}'..='\u{200F}'
+                    | '\u{202A}'..='\u{202E}'
+                    | '\u{2060}'..='\u{206F}'
+                    | '\u{3164}'
+                    | '\u{FE00}'..='\u{FE0F}'
+                    | '\u{FEFF}'
+                    | '\u{FFA0}'
+                    | '\u{FFF0}'..='\u{FFF8}'
+                    | '\u{1BCA0}'..='\u{1BCA3}'
+                    | '\u{1D173}'..='\u{1D17A}'
+                    | '\u{E0000}'..='\u{E0FFF}'
+            )
+        }
+        for cp in 0u32..=0x10FFFF {
+            let Some(c) = char::from_u32(cp) else {
+                continue;
+            };
+            assert_eq!(
+                is_default_ignorable(c),
+                old_table(c),
+                "U+{cp:04X} changed for the folder"
+            );
+        }
     }
 }

@@ -2117,35 +2117,6 @@ pub fn sandbox_write_path(path: &Path, data: &[u8], mode: u32) -> Option<std::io
     Some(handle.write_atomic(rel, data, mode))
 }
 
-/// Like [`sandbox_write_path`] but `create_new` semantics (`Ok(false)` when
-/// the target exists).
-pub fn sandbox_write_new_path(
-    path: &Path,
-    data: &[u8],
-    mode: u32,
-) -> Option<std::io::Result<bool>> {
-    let home = auxesis_home();
-    let rel = path.strip_prefix(&home).ok()?;
-    let handle = match SandboxHome::open(&home) {
-        Ok(handle) => handle,
-        Err(err) => return Some(Err(err)),
-    };
-    Some(handle.write_new(rel, data, mode))
-}
-
-/// Route a delete at `path` through the verified home gateway when the path
-/// lives under the current Auxesis home; `Ok(false)` when it does not exist.
-pub fn sandbox_remove_path(path: &Path) -> Option<std::io::Result<bool>> {
-    let home = auxesis_home();
-    let rel = path.strip_prefix(&home).ok()?;
-    let handle = match SandboxHome::open_existing(&home) {
-        Ok(handle) => handle,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Some(Ok(false)),
-        Err(err) => return Some(Err(err)),
-    };
-    Some(handle.remove_file(rel))
-}
-
 /// Path of the main configuration file.
 pub fn config_path(home: &Path) -> PathBuf {
     home.join("config.toml")

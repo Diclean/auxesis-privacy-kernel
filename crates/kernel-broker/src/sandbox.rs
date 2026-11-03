@@ -898,19 +898,6 @@ pub fn launch(
     launch_with_limits(command_line, workspace, sandbox, timeout, MAX_FILE_BYTES, 0)
 }
 
-/// [`launch`] with an explicit `RLIMIT_FSIZE` cap for everything the command
-/// tree writes. The ACP terminal broker passes the read cap (256 KiB) so an
-/// agent terminal cannot grow its capture files (or any file) without bound.
-pub fn launch_with_file_cap(
-    command_line: &str,
-    workspace: &Path,
-    sandbox: &ShellSandbox,
-    timeout: Duration,
-    max_file_bytes: u64,
-) -> Result<Launched, LaunchError> {
-    launch_with_limits(command_line, workspace, sandbox, timeout, max_file_bytes, 0)
-}
-
 /// [`launch`] with explicit caps: `max_file_bytes` (`RLIMIT_FSIZE`) and, when
 /// `max_processes > 0`, an `RLIMIT_NPROC` headroom above the current user
 /// process count. The ACP terminal broker uses both.

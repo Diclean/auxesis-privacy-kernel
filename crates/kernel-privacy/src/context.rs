@@ -37,12 +37,6 @@ impl ContextEnhancer {
         self
     }
 
-    /// Override the score boost.
-    pub fn with_boost(mut self, boost: f32) -> Self {
-        self.boost = boost;
-        self
-    }
-
     /// Replace the cue list for one kind.
     pub fn with_cues(mut self, kind: EntityKind, cues: &'static [&'static str]) -> Self {
         self.cues.retain(|(existing, _)| *existing != kind);

@@ -17,48 +17,64 @@ fn is_noncharacter(c: char) -> bool {
     cp >= 0xFFFE && (cp & 0xFFFE) == 0xFFFE
 }
 
-/// Characters that are invisible, format-only, or terminal control, and can
-/// be used to spoof what a human or model sees.
-fn is_invisible(c: char) -> bool {
-    c.is_control()
-        || is_noncharacter(c)
-        || matches!(
-            c,
-            '\u{00A0}' // no-break space
+/// Characters that are invisible or format-only, and can be used to spoof
+/// what a human or model sees.
+///
+/// This is the one invisible-character table in the kernel. It is the union of
+/// the two tables it replaces: the sanitizer's (exotic spaces, bidi controls,
+/// fillers, tags) and the contact folder's `Default_Ignorable_Code_Point` set
+/// (which additionally holds the Arabic tatweel, U+0640). Every character
+/// either old table matched is still matched: the union never drops a range.
+///
+/// Control characters and noncharacters are deliberately not part of this
+/// table: they are separate predicates (`char::is_control` and
+/// `is_noncharacter`) that the sanitizer applies on top. U+0640 is in the
+/// table for matching, but it is a visible elongation the sanitizer has
+/// always kept.
+pub fn is_invisible(c: char) -> bool {
+    matches!(
+        c,
+        '\u{00A0}' // no-break space
             | '\u{00AD}' // soft hyphen
             | '\u{034F}' // combining grapheme joiner
             | '\u{0600}'..='\u{0605}' // Arabic number signs
             | '\u{061C}' // Arabic letter mark
+            | '\u{0640}' // Arabic tatweel (matching only, see above)
             | '\u{06DD}' | '\u{070F}' | '\u{0890}'..='\u{0891}' | '\u{08E2}'
             | '\u{115F}'..='\u{1160}' // Hangul fillers
             | '\u{1680}' // Ogham space mark
             | '\u{17B4}'..='\u{17B5}' // Khmer inherent vowels
             | '\u{180B}'..='\u{180F}' // Mongolian selectors + vowel separator
             | '\u{2000}'..='\u{200F}' // exotic spaces + zero-width joiners/bidi
-            | '\u{2028}'..='\u{202E}' // line/paragraph separators + bidi overrides
-            | '\u{202F}' | '\u{205F}' // narrow/no-break spaces
-            | '\u{2060}'..='\u{206F}' // word joiner, invisible operators, bidi isolates
+            | '\u{2028}'..='\u{202F}' // separators + bidi overrides + narrow space
+            | '\u{205F}'..='\u{206F}' // no-break space + word joiner/isolates
             | '\u{2800}' // blank braille pattern
             | '\u{3000}' // ideographic space
             | '\u{3164}' // Hangul filler
             | '\u{FE00}'..='\u{FE0F}' // variation selectors
             | '\u{FEFF}' // BOM / zero-width no-break space
             | '\u{FFA0}' // halfwidth Hangul filler
-            | '\u{FFF0}'..='\u{FFF8}' // unassigned/DI
-            | '\u{FFF9}'..='\u{FFFB}' // interlinear annotations
+            | '\u{FFF0}'..='\u{FFFB}' // unassigned/DI + interlinear annotations
             | '\u{110BD}' | '\u{110CD}' // Kaithi number signs
             | '\u{13430}'..='\u{1343F}' // Egyptian format controls
             | '\u{1BCA0}'..='\u{1BCA3}' // shorthand format controls
             | '\u{1D173}'..='\u{1D17A}' // musical format controls
             | '\u{E0000}'..='\u{E0FFF}' // tags, VS supplement, DI reserved
-        )
+    )
+}
+
+/// Whether the sanitizer drops `c`: the shared table, minus the one entry only
+/// the matchers need (the Arabic tatweel), plus the terminal controls and
+/// noncharacters it has always removed.
+fn is_stripped(c: char) -> bool {
+    (is_invisible(c) && c != '\u{0640}') || c.is_control() || is_noncharacter(c)
 }
 
 /// Strip control and invisible characters, keeping only `\n` and `\t`.
 pub fn sanitize_text(input: &str) -> String {
     input
         .chars()
-        .filter(|c| !is_invisible(*c) || *c == '\n' || *c == '\t')
+        .filter(|c| !is_stripped(*c) || *c == '\n' || *c == '\t')
         .collect()
 }
 
@@ -76,7 +92,7 @@ fn is_bidi_isolate(c: char) -> bool {
 pub fn sanitize_text_keep_bidi_isolates(input: &str) -> String {
     input
         .chars()
-        .filter(|c| !is_invisible(*c) || *c == '\n' || *c == '\t' || is_bidi_isolate(*c))
+        .filter(|c| !is_stripped(*c) || *c == '\n' || *c == '\t' || is_bidi_isolate(*c))
         .collect()
 }
 
@@ -169,10 +185,10 @@ mod tests {
     }
 
     #[test]
-    fn every_named_invisible_codepoint_is_stripped() {
+    fn every_stripped_codepoint_is_removed() {
         for cp in 0u32..=0x10FFFF {
             if let Some(c) = char::from_u32(cp) {
-                if is_invisible(c) && c != '\n' && c != '\t' {
+                if is_stripped(c) && c != '\n' && c != '\t' {
                     assert!(
                         sanitize_text(&c.to_string()).is_empty(),
                         "U+{cp:04X} survived sanitize_text"
@@ -180,6 +196,97 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn invisible_table_is_the_union_of_the_two_old_tables() {
+        // The two tables as they were before the merge, kept here as the
+        // oracle. The sanitizer's control/noncharacter predicates were separate
+        // from its range table; the last assertion puts them back so the
+        // sanitizer's exact old predicate is pinned too.
+        fn old_sanitizer_table(c: char) -> bool {
+            matches!(
+                c,
+                '\u{00A0}'
+                    | '\u{00AD}'
+                    | '\u{034F}'
+                    | '\u{0600}'..='\u{0605}'
+                    | '\u{061C}'
+                    | '\u{06DD}'
+                    | '\u{070F}'
+                    | '\u{0890}'..='\u{0891}'
+                    | '\u{08E2}'
+                    | '\u{115F}'..='\u{1160}'
+                    | '\u{1680}'
+                    | '\u{17B4}'..='\u{17B5}'
+                    | '\u{180B}'..='\u{180F}'
+                    | '\u{2000}'..='\u{200F}'
+                    | '\u{2028}'..='\u{202E}'
+                    | '\u{202F}'
+                    | '\u{205F}'
+                    | '\u{2060}'..='\u{206F}'
+                    | '\u{2800}'
+                    | '\u{3000}'
+                    | '\u{3164}'
+                    | '\u{FE00}'..='\u{FE0F}'
+                    | '\u{FEFF}'
+                    | '\u{FFA0}'
+                    | '\u{FFF0}'..='\u{FFF8}'
+                    | '\u{FFF9}'..='\u{FFFB}'
+                    | '\u{110BD}'
+                    | '\u{110CD}'
+                    | '\u{13430}'..='\u{1343F}'
+                    | '\u{1BCA0}'..='\u{1BCA3}'
+                    | '\u{1D173}'..='\u{1D17A}'
+                    | '\u{E0000}'..='\u{E0FFF}'
+            )
+        }
+        fn old_folder_table(c: char) -> bool {
+            matches!(
+                c,
+                '\u{00AD}'
+                    | '\u{034F}'
+                    | '\u{061C}'
+                    | '\u{0640}'
+                    | '\u{115F}'..='\u{1160}'
+                    | '\u{17B4}'..='\u{17B5}'
+                    | '\u{180B}'..='\u{180F}'
+                    | '\u{200B}'..='\u{200F}'
+                    | '\u{202A}'..='\u{202E}'
+                    | '\u{2060}'..='\u{206F}'
+                    | '\u{3164}'
+                    | '\u{FE00}'..='\u{FE0F}'
+                    | '\u{FEFF}'
+                    | '\u{FFA0}'
+                    | '\u{FFF0}'..='\u{FFF8}'
+                    | '\u{1BCA0}'..='\u{1BCA3}'
+                    | '\u{1D173}'..='\u{1D17A}'
+                    | '\u{E0000}'..='\u{E0FFF}'
+            )
+        }
+
+        for cp in 0u32..=0x10FFFF {
+            let Some(c) = char::from_u32(cp) else {
+                continue;
+            };
+            assert_eq!(
+                is_invisible(c),
+                old_sanitizer_table(c) || old_folder_table(c),
+                "U+{cp:04X}: the shared table must be exactly the union"
+            );
+            let old_sanitizer = old_sanitizer_table(c) || c.is_control() || is_noncharacter(c);
+            assert_eq!(
+                is_stripped(c),
+                old_sanitizer,
+                "U+{cp:04X}: the sanitizer predicate changed"
+            );
+        }
+
+        // The one union-only member is kept by the sanitizer on purpose: it is
+        // an Arabic elongation, not a zero-width character.
+        assert!(is_invisible('\u{0640}'));
+        assert!(!is_stripped('\u{0640}'));
+        assert_eq!(sanitize_text("a\u{0640}b"), "a\u{0640}b");
     }
 
     #[test]
@@ -218,7 +325,7 @@ mod tests {
             assert!(
                 !clean
                     .chars()
-                    .any(|c| is_invisible(c) && c != '\n' && c != '\t'),
+                    .any(|c| is_stripped(c) && c != '\n' && c != '\t'),
                 "{} still contains invisible characters",
                 path.display()
             );
