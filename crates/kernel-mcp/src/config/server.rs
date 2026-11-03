@@ -129,7 +129,17 @@ impl McpServerConfig {
     /// SHA-256 of the binary at the canonical path. No secret → no binding
     /// (fail closed, item 5): there is no unkeyed/plain-hash acceptance.
     pub fn confirmation_binding(&self, secret: &[u8]) -> Option<String> {
-        confirmation_digest(secret, self)
+        confirmation_digest(secret, self, None)
+    }
+
+    /// The same binding, but over a binary SHA-256 the caller already
+    /// verified (a catalog pin) instead of re-reading the file. Re-reading
+    /// would let a file swapped between the check and the binding get the
+    /// swapped binary approved; with the published hash bound in, the spawn
+    /// re-check (which hashes the file it is about to run) only passes for
+    /// exactly the catalog's binary.
+    pub fn confirmation_binding_for_sha(&self, secret: &[u8], sha256: &str) -> Option<String> {
+        confirmation_digest(secret, self, Some(sha256))
     }
 
     /// Whether the owner's confirmation is present **and** still matches this
