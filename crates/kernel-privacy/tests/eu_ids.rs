@@ -34,6 +34,8 @@ use kernel_privacy::recognizers::eu_ids::{
 };
 use kernel_privacy::{EntityKind, Recognizer, Span};
 
+mod common;
+
 /// Every spelling of every class: the text, the value inside it and the class
 /// it belongs to. The spellings are the ones the leak-finder mutates: a
 /// glued prefix and suffix, lower case, full-width digits and the four
@@ -633,20 +635,16 @@ fn the_rules_scan_in_linear_time() {
     }
 }
 
-/// The fastest of nine runs of every rule over `text`: a loaded machine must
-/// not decide a bound (shared CI runners stall for a few hundred microseconds).
+/// The fastest of nine runs of every rule over `text`, after one warm-up: a
+/// loaded machine must not decide a bound (shared CI runners stall for a few
+/// hundred milliseconds).
 fn fastest(text: &str) -> std::time::Duration {
     let rules = rules();
-    (0..9)
-        .map(|_| {
-            let started = std::time::Instant::now();
-            for rule in &rules {
-                let _ = rule.analyze(text);
-            }
-            started.elapsed()
-        })
-        .min()
-        .unwrap_or_default()
+    common::fastest(|| {
+        for rule in &rules {
+            let _ = rule.analyze(text);
+        }
+    })
 }
 
 /// The full-width spelling of a value reads like the plain one.

@@ -12,6 +12,8 @@ mod norm1 {
 }
 use norm1::{covered, masked, MODES};
 
+mod common;
+
 /// Values a password column holds, short dictionary words included.
 const VALUES: [&str; 5] = ["Tr0ub4dor&3x", "secret", "sunshine", "hunter2", "4821"];
 
@@ -261,7 +263,7 @@ fn lookalikes_stay_clear_in_open() {
 /// header runs the gate's second residue rounds in Private.
 #[test]
 fn ragged_tables_scan_in_linear_time() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     let unit = "1,Cherry6!,Oslo\n2,x\n\n3,\"a,b\",c,d,e,f\n4,pw,Rome,\n---,---,---\n5\n";
     for head in [
         "id,password,city\n",
@@ -283,14 +285,9 @@ fn ragged_tables_scan_in_linear_time() {
         };
         for &mode in modes {
             let best = |t: &str| {
-                (0..3)
-                    .map(|_| {
-                        let start = Instant::now();
-                        let _ = masked(mode, t);
-                        start.elapsed()
-                    })
-                    .min()
-                    .expect("three runs")
+                common::fastest(|| {
+                    let _ = masked(mode, t);
+                })
             };
             let (small, large) = (best(&text(104_858)), best(&text(1_048_576)));
             eprintln!("{mode:?} {head:?}: 100 KiB {small:?}, 1 MiB {large:?}");

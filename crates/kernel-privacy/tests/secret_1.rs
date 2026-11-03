@@ -6,7 +6,7 @@
 //! (`data/exact_mask.rs`). All values are invented (the leak-finder's fictional
 //! strings; the AWS key is the AWS documentation example).
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use kernel_core::privacy::PrivacyMode;
 
@@ -15,6 +15,8 @@ mod norm1 {
     include!("data/norm1_cases.rs");
 }
 use norm1::{covered, masked, MODES};
+
+mod common;
 
 /// `(text, value that must be hidden, clear words that must stay)`.
 fn positives() -> Vec<(&'static str, &'static str, &'static [&'static str])> {
@@ -389,18 +391,17 @@ fn table(rows: usize) -> String {
 }
 
 fn time(text: &str) -> Duration {
-    let start = Instant::now();
-    let _ = masked(PrivacyMode::Private, text).expect("issued");
-    start.elapsed()
+    common::fastest(|| {
+        let _ = masked(PrivacyMode::Private, text).expect("issued");
+    })
 }
 
-/// 10× the rows costs at most 20× the time (best of three).
+/// 10× the rows costs at most 20× the time (fastest of nine after one warm-up).
 #[test]
 fn secret_column_scan_is_linear() {
     let small = table(1_000);
     let large = table(10_000);
-    let best = |t: &str| (0..3).map(|_| time(t)).min().expect("three runs");
-    let (s, l) = (best(&small), best(&large));
+    let (s, l) = (time(&small), time(&large));
     assert!(
         l <= s * 20 + Duration::from_millis(50),
         "1k rows {s:?}, 10k rows {l:?}"

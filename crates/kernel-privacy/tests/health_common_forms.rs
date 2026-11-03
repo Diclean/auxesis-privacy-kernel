@@ -2,13 +2,15 @@
 //! or notes are hidden in both modes, and near-miss words keep their text.
 //! Every sentence is invented. In each case a `[value]` must be hidden.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 #[allow(dead_code)]
 mod norm1 {
     include!("data/norm1_cases.rs");
 }
 use norm1::{covered, issue, masked, MODES};
+
+mod common;
 
 /// Main's hidden ranges for [`inputs`], frozen by [`freeze`] on origin/main.
 const FIXTURE: &str = include_str!("data/health_common_forms_main.txt");
@@ -157,9 +159,9 @@ fn common_health_forms_stay_linear() {
     let unit: String = CASES.iter().map(|case| parse_case(case).0 + " ").collect();
     let time = |n: usize| {
         let text = unit.repeat(n);
-        let started = Instant::now();
-        issue(MODES[0], &text).expect("allowed");
-        started.elapsed()
+        common::fastest(|| {
+            issue(MODES[0], &text).expect("allowed");
+        })
     };
     let small = time(2).max(Duration::from_millis(1));
     let large = time(20);

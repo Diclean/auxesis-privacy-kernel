@@ -7,6 +7,8 @@ use std::sync::Arc;
 use kernel_core::privacy::{admit, Context, Decision, Destination, Grant, PathId, PrivacyMode};
 use kernel_privacy::{Gate, NameDictionary};
 
+mod common;
+
 fn grant() -> Grant {
     grant_in(PrivacyMode::Private)
 }
@@ -558,10 +560,11 @@ fn a_mebibyte_of_forged_tokens_is_linear() {
         let text = "⟦EMAIL_FFFFFFFFFFFF⟧ ".repeat(copies);
         let minted = Arc::new(["EMAIL_0A1B2C3D4E5F".to_string()].into_iter().collect());
         let mut gate = Gate::for_session_tokens(&grant(), minted).expect("session gate");
-        let start = std::time::Instant::now();
         let (safe, _) = gate.text(&text).expect("issued");
         assert!(safe.as_str().contains("⟦⟦EMAIL_FFFFFFFFFFFF⟧"));
-        start.elapsed()
+        common::fastest(|| {
+            let _ = gate.text(&text).expect("issued");
+        })
     };
     let (quarter, full) = (time(43_690 / 4), time(43_690));
     eprintln!("forged tokens: 256 KiB {quarter:?}, 1 MiB {full:?}");

@@ -14,6 +14,8 @@ mod norm1 {
 }
 use norm1::{covered, masked, MODES};
 
+mod common;
+
 /// `(text, values that must be hidden, clear words that must stay)`.
 fn positives() -> Vec<(String, Vec<String>, Vec<&'static str>)> {
     let rule = "=:-".repeat(104);
@@ -522,11 +524,11 @@ fn tail(columns: usize) -> String {
 /// The whole gate on 1 MiB costs at most 20× what it costs on 1/10 of it.
 #[test]
 fn the_gate_scales_linearly_on_a_wide_secret_table() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     let time = |text: &str| {
-        let start = Instant::now();
-        let _ = masked(PrivacyMode::Open, text).expect("issued");
-        start.elapsed()
+        common::fastest(|| {
+            let _ = masked(PrivacyMode::Open, text).expect("issued");
+        })
     };
     let (small, large) = (tail(6_554), tail(65_536));
     assert!(large.len() >= 1 << 20);

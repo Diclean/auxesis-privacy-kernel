@@ -7,7 +7,7 @@
 //! `Gate::for_grant`, in Private and Open, with Private restoring the exact
 //! original bytes. All values are invented.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use kernel_core::privacy::PrivacyMode;
 
@@ -16,6 +16,8 @@ mod cases {
     include!("data/norm1_cases.rs");
 }
 use cases::{covered, issue, masked, CYRILLIC_PROSE, MODES, ZH_PROSE};
+
+mod common;
 
 /// Rounds of decode and fold the composition runs, the cap the tests hold it to.
 const ROUNDS: usize = 3;
@@ -211,17 +213,13 @@ fn escapes_nested_past_the_pass_cap_stay_masked() {
     private_round_trip(&text);
 }
 
-/// The fastest of three gate runs over `unit` repeated `reps` times.
+/// The fastest of nine gate runs over `unit` repeated `reps` times, after one
+/// warm-up.
 fn fastest(unit: &str, reps: usize) -> Duration {
     let text = unit.repeat(reps);
-    (0..3)
-        .map(|_| {
-            let start = Instant::now();
-            let _ = issue(PrivacyMode::Private, &text);
-            start.elapsed()
-        })
-        .min()
-        .expect("three runs")
+    common::fastest(|| {
+        let _ = issue(PrivacyMode::Private, &text);
+    })
 }
 
 /// The same nesting, one value per line at two sizes: the composition is a

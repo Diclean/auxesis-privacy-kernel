@@ -11,6 +11,8 @@ mod norm1 {
 }
 use norm1::{covered, masked, MODES};
 
+mod common;
+
 /// Each mode that leaves `text[start..end]` clear, or refuses `text`.
 fn clear_in(text: &str, start: usize, end: usize) -> Vec<String> {
     MODES
@@ -87,7 +89,7 @@ fn filler_rows_scan_in_linear_time() {
 }
 
 fn linear(unit: &str) {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     let text = |bytes: usize| {
         format!(
             "id,password,city\n{}7,Tr0ub4dor&3x,Paris",
@@ -95,14 +97,9 @@ fn linear(unit: &str) {
         )
     };
     let best = |t: &str| {
-        (0..3)
-            .map(|_| {
-                let start = Instant::now();
-                let _ = masked(PrivacyMode::Open, t);
-                start.elapsed()
-            })
-            .min()
-            .expect("three runs")
+        common::fastest(|| {
+            let _ = masked(PrivacyMode::Open, t);
+        })
     };
     let (small, large) = (best(&text(104_858)), best(&text(1_048_576)));
     assert!(
