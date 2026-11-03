@@ -6,9 +6,30 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-11-03
+### Added
 
-First release. Not yet published to crates.io.
+- Secret shapes for New Relic, Docker, GitLab runner, Mailgun and DigitalOcean
+  tokens, AWS key pairs and scheme-less `user:pass@host` links; key and
+  password labels in Afrikaans, Hungarian, Slovenian and Chinese.
+- Labelled dates of birth in those languages, Chinese `年月日` dates,
+  `né(e) en … le …` and genealogical `b. …`.
+- `gate.restore()` helper, plain-text views and a scrub registry.
+- crates.io metadata and per-crate READMEs; packages are named `auxesis-*`
+  (library names unchanged). Nothing is published yet.
+
+### Changed
+
+- CI on GitHub runs the full kernel gate: fmt, clippy, tests on macOS and
+  Linux, rustdoc, cargo deny and the in-repo privacy eval.
+- Tests run in release, where the linear-time bars apply.
+
+### Fixed
+
+- An IBAN glued to text on both sides, or wrapped over two lines, is hidden.
+
+## [0.1.0] - 2026-11-01
+
+First public release.
 
 ### Added
 
