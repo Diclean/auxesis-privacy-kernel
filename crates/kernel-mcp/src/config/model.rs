@@ -65,6 +65,11 @@ pub struct McpServerConfig {
     /// never been confirmed by the daemon, whatever `stdio_confirmed` says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stdio_confirmation: Option<String>,
+    /// M6-2: the owner's approval of the whole install preview, keyed by the
+    /// daemon token. `None` means never approved; an enabled server without a
+    /// matching record never starts (one-approval install).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval: Option<String>,
     /// Whether the server needs network access. A sandboxed stdio child gets
     /// sockets only when this is set; the default denies all sockets.
     #[serde(default)]

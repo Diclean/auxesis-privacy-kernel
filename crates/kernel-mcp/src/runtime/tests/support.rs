@@ -9,6 +9,7 @@ pub(super) fn stdio_server(id: &str, command: &str) -> McpServerConfig {
         data_class: crate::McpDataClass::Sensitive,
         stdio_confirmed: false,
         stdio_confirmation: None,
+        approval: None,
         network: false,
         transport: McpTransport::Stdio,
         url: None,

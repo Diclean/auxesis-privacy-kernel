@@ -72,6 +72,9 @@ pub enum McpServerState {
     /// An uncurated `stdio` server whose exact launch has not been confirmed by
     /// the owner. It is quarantined (never spawned) until it is.
     NeedsConfirmation,
+    /// M6-2: an enabled server whose install preview has not been approved (or
+    /// whose approval no longer matches the preview). Never spawned.
+    NeedsApproval,
     /// The entry is unusable (a hard-refused launch, a catalog mismatch, a
     /// legacy shape). It is quarantined one by one; other servers still load.
     Quarantined,
@@ -86,6 +89,7 @@ impl McpServerState {
             Self::Ready => "ready",
             Self::Disabled => "disabled",
             Self::NeedsConfirmation => "needs_confirmation",
+            Self::NeedsApproval => "needs_approval",
             Self::Quarantined => "quarantined",
             Self::Failed => "failed",
         }
@@ -109,6 +113,14 @@ impl McpServerRefusal {
     pub fn needs_confirmation(reason: &'static str) -> Self {
         Self {
             state: McpServerState::NeedsConfirmation,
+            reason,
+        }
+    }
+
+    /// An enabled server that needs the M6-2 one-approval install.
+    pub fn needs_approval(reason: &'static str) -> Self {
+        Self {
+            state: McpServerState::NeedsApproval,
             reason,
         }
     }
