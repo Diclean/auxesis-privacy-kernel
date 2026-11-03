@@ -162,6 +162,9 @@ fn sync_server_fields(table: &mut Table, current: &McpServerConfig, desired: &Mc
             desired.stdio_confirmation.as_deref(),
         );
     }
+    if current.approval != desired.approval {
+        set_optional_string(table, "approval", desired.approval.as_deref());
+    }
     if current.network != desired.network {
         table.insert("network", toml_edit::value(desired.network));
     }
@@ -245,6 +248,9 @@ pub(super) fn server_to_table(server: &McpServerConfig) -> Table {
     if let Some(confirmation) = &server.stdio_confirmation {
         table.insert("stdio_confirmation", toml_edit::value(confirmation.clone()));
     }
+    if let Some(approval) = &server.approval {
+        table.insert("approval", toml_edit::value(approval.clone()));
+    }
     table.insert("network", toml_edit::value(server.network));
     table.insert(
         "transport",
@@ -281,6 +287,7 @@ mod tests {
             data_class: McpDataClass::Sensitive,
             stdio_confirmed: false,
             stdio_confirmation: None,
+            approval: None,
             network: false,
             transport: McpTransport::Http,
             url: Some("https://added.invalid/mcp".to_owned()),

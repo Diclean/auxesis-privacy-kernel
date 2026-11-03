@@ -12,6 +12,7 @@ const SERVER_ENTRY_KEYS: &[&str] = &[
     "data_class",
     "stdio_confirmed",
     "stdio_confirmation",
+    "approval",
     "network",
     "transport",
     "url",

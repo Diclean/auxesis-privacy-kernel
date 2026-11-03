@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use super::digest::{hash_count, hash_field, hash_flag};
 use super::{McpDataClass, McpServerConfig};
 
 /// Bind one confirmation to one exact launch **and** to a daemon-held secret.
@@ -29,48 +30,47 @@ pub(super) fn confirmation_digest(
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_else(|_| command.to_owned());
     let mut hasher = blake3::Hasher::new_keyed(blake3::hash(secret).as_bytes());
-    hasher.update(canonical.as_bytes());
-    hasher.update(&[0u8]);
+    // v2: tagged, length-prefixed and counted, exactly like the approval
+    // digest, so an args/env swap (or a tool moving between agents) invalidates
+    // the confirmation instead of reusing the old bytes.
+    hasher.update(b"mcp-confirmation-v2\0");
+    hash_field(&mut hasher, b"command:", &canonical);
+    hash_count(&mut hasher, b"args:", server.args.len());
     for arg in &server.args {
-        hasher.update(arg.as_bytes());
-        hasher.update(&[0u8]);
+        hash_field(&mut hasher, b"arg:", arg);
     }
-    hasher.update(&[1u8]);
     let mut names: Vec<&str> = server.env.iter().map(String::as_str).collect();
     names.sort_unstable();
     names.dedup();
+    hash_count(&mut hasher, b"env:", names.len());
     for name in names {
-        hasher.update(name.as_bytes());
-        hasher.update(&[0u8]);
+        hash_field(&mut hasher, b"env-name:", name);
     }
-    hasher.update(&[2u8]);
-    hasher.update(if server.network { b"net=1" } else { b"net=0" });
-    hasher.update(&[0u8]);
-    hasher.update(match server.data_class {
-        McpDataClass::Public => &b"class=public"[..],
-        McpDataClass::Sensitive => &b"class=sensitive"[..],
-    });
-    hasher.update(&[0u8]);
-    hasher.update(server.transport.as_str().as_bytes());
-    hasher.update(&[0u8]);
+    hash_flag(&mut hasher, b"network:", server.network);
+    hash_field(
+        &mut hasher,
+        b"class:",
+        match server.data_class {
+            McpDataClass::Public => "public",
+            McpDataClass::Sensitive => "sensitive",
+        },
+    );
+    hash_field(&mut hasher, b"transport:", server.transport.as_str());
     // Item 7: the per-agent tools allowlist is part of the confirmed launch. A
     // `BTreeMap` iterates in key order, so the digest is deterministic.
-    hasher.update(&[3u8]);
+    hash_count(&mut hasher, b"agents:", server.agents.len());
     for (agent, tools) in &server.agents {
-        hasher.update(agent.as_bytes());
-        hasher.update(&[0u8]);
+        hash_field(&mut hasher, b"agent:", agent);
+        hash_count(&mut hasher, b"agent-tools:", tools.len());
         for tool in tools {
-            hasher.update(tool.as_bytes());
-            hasher.update(&[0u8]);
+            hash_field(&mut hasher, b"tool:", tool);
         }
-        hasher.update(&[1u8]);
     }
-    hasher.update(&[4u8]);
     let sha = match verified_sha {
         Some(sha) => sha.to_ascii_lowercase(),
         None => binary_sha256(Path::new(&canonical)),
     };
-    hasher.update(sha.as_bytes());
+    hash_field(&mut hasher, b"sha256:", &sha);
     Some(hasher.finalize().to_hex().to_string())
 }
 
@@ -114,6 +114,7 @@ mod tests {
             data_class: McpDataClass::Sensitive,
             stdio_confirmed: true,
             stdio_confirmation: None,
+            approval: None,
             network: false,
             transport: McpTransport::Stdio,
             url: None,

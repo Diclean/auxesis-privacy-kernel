@@ -27,11 +27,14 @@
 //! responsibility: `model` holds the config types and their read/write API,
 //! `document` extracts `[[server]]` entries, `rewrite` edits the parsed
 //! document in place, `server` and `confirmation` validate one server,
-//! `echo` and `secrets` own secret detection and safe refusal text, and
-//! `policy` and `container` own the stdio launch policy.
+//! `approval` and `digest` own the keyed install-approval binding, `echo` and
+//! `secrets` own secret detection and safe refusal text, and `policy` and
+//! `container` own the stdio launch policy.
 
+mod approval;
 mod confirmation;
 mod container;
+mod digest;
 mod document;
 mod echo;
 mod model;

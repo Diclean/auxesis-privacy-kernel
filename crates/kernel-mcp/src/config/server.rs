@@ -1,5 +1,6 @@
 //! Per-server validation: ids, env names, URLs and launch refusals.
 
+use super::approval::approval_digest;
 use super::confirmation::confirmation_digest;
 use super::echo::shown;
 use super::policy::{evaluate_stdio_policy, StdioPolicy};
@@ -158,6 +159,27 @@ impl McpServerConfig {
         };
         self.stdio_confirmed && self.confirmation_binding(secret).as_deref() == Some(stored)
     }
+
+    /// The M6-2 install approval for this exact preview under `secret`.
+    ///
+    /// `catalog_pin` is the curated `catalog_hash` for a catalog entry; a
+    /// catalog server without a pin gets no binding (fail closed). Like the
+    /// confirmation, an empty secret yields `None`.
+    pub fn approval_binding(&self, secret: &[u8], catalog_pin: Option<&str>) -> Option<String> {
+        approval_digest(secret, self, catalog_pin)
+    }
+
+    /// Whether the owner approved **this** install: a keyed digest over the
+    /// id, catalog id and pin, transport, endpoint or launch, data class,
+    /// network and every agent→tool allowlist. A hand-edited `enabled = true`
+    /// never passes; the lifecycle fields are deliberately not hashed, so the
+    /// same hash the preview returned is still valid for the approve call.
+    pub fn is_approved_with(&self, secret: &[u8], catalog_pin: Option<&str>) -> bool {
+        let Some(stored) = self.approval.as_deref() else {
+            return false;
+        };
+        self.approval_binding(secret, catalog_pin).as_deref() == Some(stored)
+    }
 }
 
 /// `[a-z0-9-]{1,32}`.
@@ -236,7 +258,9 @@ pub fn is_loopback_host(host: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::config::test_util::shared::args;
-    use crate::config::{evaluate_stdio_policy, McpConfig, McpDataClass};
+    use crate::config::{
+        evaluate_stdio_policy, McpConfig, McpDataClass, McpServerConfig, McpTransport,
+    };
 
     #[test]
     fn legacy_server_defaults_sensitive_and_plain_binary_is_allowed_but_high_risk_free() {
@@ -333,5 +357,60 @@ mod tests {
         )
         .unwrap();
         assert!(parsed.server[0].check().is_err());
+    }
+
+    #[test]
+    fn approval_and_confirmation_digests_separate_args_from_env() {
+        // Review P2: `args=["X"], env=[]` and `args=[], env=["X"]` must not
+        // collide. The env name is a legal declared name, so without the fix a
+        // hand edit moves a `.env` value into the child's argv (or the reverse)
+        // while the old approval still validates.
+        let mut server = McpServerConfig {
+            id: "plain".into(),
+            catalog_id: None,
+            data_class: McpDataClass::Sensitive,
+            stdio_confirmed: false,
+            stdio_confirmation: None,
+            approval: None,
+            network: false,
+            transport: McpTransport::Stdio,
+            url: None,
+            command: Some("/bin/echo".into()),
+            args: vec!["X".into()],
+            env: vec![],
+            enabled: false,
+            agents: Default::default(),
+        };
+        let secret = b"daemon-token";
+        let mut moved = server.clone();
+        moved.args = vec![];
+        moved.env = vec!["X".into()];
+        assert_ne!(
+            server.approval_binding(secret, None),
+            moved.approval_binding(secret, None),
+            "moving an item between args and env must change the approval digest"
+        );
+        assert_ne!(
+            server.confirmation_binding(secret),
+            moved.confirmation_binding(secret),
+            "moving an item between args and env must change the confirmation digest"
+        );
+        // The same lists in the same field still bind identically.
+        assert_eq!(
+            server.approval_binding(secret, None),
+            server.clone().approval_binding(secret, None)
+        );
+        // A tool cannot be moved between agents without changing the digest.
+        server.agents.insert("main".into(), vec!["read".into()]);
+        server.agents.insert("aux".into(), vec!["write".into()]);
+        let mut same_tools_one_agent = server.clone();
+        same_tools_one_agent.agents.clear();
+        same_tools_one_agent
+            .agents
+            .insert("main".into(), vec!["read".into(), "write".into()]);
+        assert_ne!(
+            server.approval_binding(secret, None),
+            same_tools_one_agent.approval_binding(secret, None)
+        );
     }
 }
