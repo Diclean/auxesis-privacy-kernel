@@ -134,10 +134,13 @@ not on crates.io yet, so add them from Git:
 
 ```toml
 [dependencies]
-kernel-privacy = { git = "https://github.com/Diclean/auxesis-privacy-kernel", tag = "v0.1.0" }
-kernel-core = { git = "https://github.com/Diclean/auxesis-privacy-kernel", tag = "v0.1.0" }
+auxesis-kernel-privacy = { git = "https://github.com/Diclean/auxesis-privacy-kernel", tag = "v0.1.0" }
+auxesis-kernel-core = { git = "https://github.com/Diclean/auxesis-privacy-kernel", tag = "v0.1.0" }
 getrandom = "0.2"
 ```
+
+The packages carry the `auxesis-` prefix and keep their short library names, so
+the examples below still `use kernel_privacy::…` and `use kernel_core::…`.
 
 ### 1. Tokenise a string, then restore the reply
 
@@ -200,8 +203,8 @@ value it can detect, you get an error and nothing to send.
 Both examples are in this repository and run as they are:
 
 ```sh
-cargo run -p kernel-privacy --example quickstart_mask
-cargo run -p kernel-privacy --example quickstart_gate
+cargo run -p auxesis-kernel-privacy --example quickstart_mask
+cargo run -p auxesis-kernel-privacy --example quickstart_gate
 ```
 
 ## Everyday use
@@ -287,7 +290,7 @@ print!("{}", safe.as_str());
 ```
 
 ```sh
-cargo run -p kernel-privacy --example everyday_mask_stdin < document.txt
+cargo run -p auxesis-kernel-privacy --example everyday_mask_stdin < document.txt
 ```
 
 The token map is thrown away, so this output is for pasting, not for restoring
@@ -311,19 +314,23 @@ leaves the machine; the measured recall table shows how much it catches.
 
 ## What is in this repository
 
-| Crate | What it does |
+| Package | What it does |
 | --- | --- |
-| `kernel-privacy` | The detectors, tokens, the gate (`SafeText`) and an encrypted token vault. Start here. |
-| `kernel-core` | The policy: privacy modes, the list of paths out (`PathId`), `admit()` and `Grant`. |
-| `kernel-broker` | Rules for tool calls, taint tracking for untrusted content, log scrubbing, audit events. |
-| `kernel-net` | The one HTTP client factory, with an SSRF guard and DNS pinning. |
-| `kernel-mcp` | A client for MCP tool servers (stdio and HTTP), with sandbox profiles. |
-| `gliner2-rs` | Optional. Runs a local GLiNER2 entity model through ONNX Runtime. Off by default and not used by the default build; see its README. |
+| `auxesis-kernel-privacy` | The detectors, tokens, the gate (`SafeText`) and an encrypted token vault. Start here. |
+| `auxesis-kernel-core` | The policy: privacy modes, the list of paths out (`PathId`), `admit()` and `Grant`. |
+| `auxesis-kernel-broker` | Rules for tool calls, taint tracking for untrusted content, log scrubbing, audit events. |
+| `auxesis-kernel-net` | The one HTTP client factory, with an SSRF guard and DNS pinning. |
+| `auxesis-kernel-mcp` | A client for MCP tool servers (stdio and HTTP), with sandbox profiles. |
+| `auxesis-gliner2` | Optional. Runs a local GLiNER2 entity model through ONNX Runtime. Off by default and not used by the default build; see its README. |
 | `qa/privacy-eval` | Scores the detectors against a labelled, invented corpus. |
 
-`kernel-broker`, `kernel-net` and `kernel-mcp` serve the Auxesis daemon and are
-tied to macOS more closely. Most users only need `kernel-privacy` and
-`kernel-core`.
+The package names carry the `auxesis-` prefix; the libraries keep their short
+names, `kernel_privacy`, `kernel_core`, `kernel_broker`, `kernel_net`,
+`kernel_mcp` and `gliner2_rs`.
+
+`auxesis-kernel-broker`, `auxesis-kernel-net` and `auxesis-kernel-mcp` serve the
+Auxesis daemon and are tied to macOS more closely. Most users only need
+`auxesis-kernel-privacy` and `auxesis-kernel-core`.
 
 The prompt-injection corpus that the tests read and the private held-out sets
 are not part of this repository.
@@ -332,7 +339,7 @@ are not part of this repository.
 
 ```sh
 cargo test --workspace --locked          # all tests
-cargo test -p kernel-privacy --locked    # just the detectors
+cargo test -p auxesis-kernel-privacy --locked  # just the detectors
 cargo clippy --workspace --all-targets --locked -- -D warnings
 scripts/check-egress.sh                  # every HTTP client is listed in docs/egress.md
 cargo run -p privacy-eval --release --locked

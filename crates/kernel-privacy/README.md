@@ -1,4 +1,4 @@
-# kernel-privacy
+# auxesis-kernel-privacy
 
 Finds sensitive values in text and swaps each one for a restorable token, so a
 cloud model sees `⟦IBAN_…⟧` instead of the account number. Detection is local
@@ -7,6 +7,16 @@ and deterministic: no model, no network call, no telemetry.
 It covers bank accounts, cards, national ID numbers, health terms, secrets,
 e-mail addresses, phone numbers, dates of birth and more. Names stay clear by
 design; the repository README reports the measured limits.
+
+## Install
+
+```toml
+[dependencies]
+auxesis-kernel-privacy = "0.1.0"
+getrandom = "0.2"
+```
+
+The package is `auxesis-kernel-privacy`; the library name stays `kernel_privacy`.
 
 ```rust
 use kernel_privacy::{Anonymizer, Registry, UnknownPolicy};

@@ -25,12 +25,12 @@ close the defect it fixes.
 
 This policy covers the crates in this repository and the `qa/` harness:
 
-- `kernel-core`: configuration, `admit()` and `Grant`, `SafeText`, budgets, STOP;
-- `kernel-privacy`: detectors, tokens, the vault, the contacts index;
-- `kernel-broker`: rules, taint, scrubbing, the audit event types;
-- `kernel-net`: the one HTTP client factory, SSRF checks, DNS pinning;
-- `kernel-mcp`: the MCP client, sandbox profiles, tool identity pinning;
-- `gliner2-rs`: the optional local entity model runner;
+- `auxesis-kernel-core`: configuration, `admit()` and `Grant`, `SafeText`, budgets, STOP;
+- `auxesis-kernel-privacy`: detectors, tokens, the vault, the contacts index;
+- `auxesis-kernel-broker`: rules, taint, scrubbing, the audit event types;
+- `auxesis-kernel-net`: the one HTTP client factory, SSRF checks, DNS pinning;
+- `auxesis-kernel-mcp`: the MCP client, sandbox profiles, tool identity pinning;
+- `auxesis-gliner2`: the optional local entity model runner;
 - `qa/privacy-eval`: the evaluation harness and its public cases (the private held-out set and attack corpus are not published).
 
 The daemon, the CLI and the macOS app live in another repository and are out of

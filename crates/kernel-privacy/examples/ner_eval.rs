@@ -20,7 +20,7 @@
 //! ```console
 //! AUX_GLINER_MODEL_DIR=/path/to/export \
 //! AUX_GLINER_ORT_DYLIB=/path/to/libonnxruntime.so \
-//! cargo run -p kernel-privacy --features ner-gliner --example ner_eval
+//! cargo run -p auxesis-kernel-privacy --features ner-gliner --example ner_eval
 //! ```
 //!
 //! Options: `AUX_GLINER_ONNX` (`fp32` | `int8`, default `fp32`),

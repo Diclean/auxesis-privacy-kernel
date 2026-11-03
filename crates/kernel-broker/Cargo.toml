@@ -1,5 +1,5 @@
 [package]
-name = "kernel-broker"
+name = "auxesis-kernel-broker"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,11 +13,15 @@ keywords = ["permissions", "sandbox", "audit", "taint"]
 categories = ["security", "development-tools"]
 exclude = ["tests/**"]
 
+[lib]
+# Package rename only: the library stays kernel_broker for every `use` site.
+name = "kernel_broker"
+
 [dependencies]
-kernel-core = { path = "../kernel-core", version = "0.1.0" }
-kernel-net = { path = "../kernel-net", version = "0.1.0" }
+kernel-core = { package = "auxesis-kernel-core", path = "../kernel-core", version = "0.1.0" }
+kernel-net = { package = "auxesis-kernel-net", path = "../kernel-net", version = "0.1.0" }
 # Owner-identifier guard on outbound text (owner_ids.rs): the recognisers only.
-kernel-privacy = { path = "../kernel-privacy", version = "0.1.0" }
+kernel-privacy = { package = "auxesis-kernel-privacy", path = "../kernel-privacy", version = "0.1.0" }
 aho-corasick = "1"
 async-trait = "0.1"
 base64 = "0.23"
@@ -53,11 +57,11 @@ test-util = []
 [dev-dependencies]
 # Enable `MemoryAuditSink` for this crate's own integration tests (the
 # `test-util` feature; `cfg(test)` does not cross a crate boundary).
-kernel-broker = { path = ".", features = ["test-util"] }
+kernel-broker = { package = "auxesis-kernel-broker", path = ".", features = ["test-util"] }
 # Re-state the `kernel-net` edge with its loopback test feature so this
 # crate's own tests can reach a loopback `wiremock` server. A dev-dependency
 # edge is never enabled for production builds.
-kernel-net = { path = "../kernel-net", features = ["testing"] }
+kernel-net = { package = "auxesis-kernel-net", path = "../kernel-net", features = ["testing"] }
 rusqlite.workspace = true
 tempfile.workspace = true
 wiremock = "0.6"

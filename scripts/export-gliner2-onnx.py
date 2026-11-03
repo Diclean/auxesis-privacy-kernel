@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export the GLiNER2-PII span path to ONNX (fp32) for `kernel-privacy` (feature `ner-gliner`).
+"""Export the GLiNER2-PII span path to ONNX (fp32) for `auxesis-kernel-privacy` (feature `ner-gliner`).
 
 gliner2 2.1.0 ships no ONNX exporter, so this script writes one. It runs on the
 build server, in the pinned venv, never on a laptop:

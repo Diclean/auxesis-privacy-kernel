@@ -1,8 +1,17 @@
-# gliner2-rs
+# auxesis-gliner2
 
 Zero-shot entity extraction with [GLiNER2](https://github.com/fastino-ai/GLiNER2)
 over ONNX Runtime. You name the labels; you get back the spans of the text that
 match them, with byte offsets, a label and a score.
+
+## Install
+
+```toml
+[dependencies]
+auxesis-gliner2 = "0.1.0"
+```
+
+The package is `auxesis-gliner2`; the library name stays `gliner2_rs`.
 
 ```rust,no_run
 use gliner2_rs::{Gliner2, Options};

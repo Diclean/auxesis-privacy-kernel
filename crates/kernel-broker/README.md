@@ -1,4 +1,4 @@
-# kernel-broker
+# auxesis-kernel-broker
 
 Decides whether a tool call may run, and keeps a record of the decision. Rules
 are ordered `allow` / `ask` / `deny` per agent; every decision can be audited,
@@ -6,6 +6,15 @@ and untrusted content is tracked so it cannot quietly become an instruction.
 
 It also holds the redaction helpers used on logs and previews, so a secret in a
 tool argument does not end up in a line pasted into a ticket.
+
+## Install
+
+```toml
+[dependencies]
+auxesis-kernel-broker = "0.1.0"
+```
+
+The package is `auxesis-kernel-broker`; the library name stays `kernel_broker`.
 
 ```rust
 use kernel_broker::{is_secret_shaped, redact_secrets};

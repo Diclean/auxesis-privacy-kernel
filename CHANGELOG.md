@@ -12,20 +12,20 @@ First release. Not yet published to crates.io.
 
 ### Added
 
-- `kernel-core`: privacy modes, the table of paths out, `admit()` and the
-  `Grant` only it can mint, plus configuration, budgets, jobs and the
+- `auxesis-kernel-core`: privacy modes, the table of paths out, `admit()` and
+  the `Grant` only it can mint, plus configuration, budgets, jobs and the
   filesystem gateways.
-- `kernel-privacy`: deterministic detectors for bank accounts, payment cards,
-  national ID numbers, health terms, secrets, e-mail addresses, phone numbers,
-  dates of birth and more; keyed tokens, restore, the fail-closed `Gate`, an
-  encrypted session vault and a contacts index.
-- `kernel-broker`: ordered tool rules, approval requests, taint tracking for
-  untrusted content, log redaction and audit events.
-- `kernel-net`: one HTTP client factory with an SSRF guard, DNS pinning,
+- `auxesis-kernel-privacy`: deterministic detectors for bank accounts, payment
+  cards, national ID numbers, health terms, secrets, e-mail addresses, phone
+  numbers, dates of birth and more; keyed tokens, restore, the fail-closed
+  `Gate`, an encrypted session vault and a contacts index.
+- `auxesis-kernel-broker`: ordered tool rules, approval requests, taint tracking
+  for untrusted content, log redaction and audit events.
+- `auxesis-kernel-net`: one HTTP client factory with an SSRF guard, DNS pinning,
   redirect re-checks, size and time caps, and an egress allow-list.
-- `kernel-mcp`: a bounded JSON-RPC 2.0 / MCP client for stdio and HTTP tool
-  servers, with sandbox profiles and tool identity pinning.
-- `gliner2-rs`: an optional local GLiNER2 entity runner over ONNX Runtime,
+- `auxesis-kernel-mcp`: a bounded JSON-RPC 2.0 / MCP client for stdio and HTTP
+  tool servers, with sandbox profiles and tool identity pinning.
+- `auxesis-gliner2`: an optional local GLiNER2 entity runner over ONNX Runtime,
   loaded at run time and off by default.
 - `privacy-eval`: the offline harness that scores the detectors against an
   invented, labelled corpus.
@@ -34,6 +34,9 @@ First release. Not yet published to crates.io.
 
 ### Notes
 
+- Packages carry the `auxesis-` prefix; the library names stay `kernel_core`,
+  `kernel_privacy`, `kernel_broker`, `kernel_net`, `kernel_mcp` and
+  `gliner2_rs`, so `use kernel_privacy::…` is unchanged.
 - Person and company names are not masked, by design. Postal addresses and
   dates of birth are only partly detected; the repository README reports the
   measured recall and the known gaps.

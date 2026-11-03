@@ -7,7 +7,7 @@
 //! ```console
 //! AUX_GLINER2_MODEL_DIR=/path/to/export \
 //! AUX_GLINER2_ORT_DYLIB=/path/to/libonnxruntime.so.1.20.0 \
-//! cargo test -p gliner2-rs --test parity -- --ignored --nocapture
+//! cargo test -p auxesis-gliner2 --test parity -- --ignored --nocapture
 //! ```
 
 use std::collections::BTreeSet;

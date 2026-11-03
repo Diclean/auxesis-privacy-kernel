@@ -13,7 +13,7 @@
 //! ```console
 //! AUX_GLINER_MODEL_DIR=/path/to/export/gliner2_privacy_pii_multi \
 //! AUX_GLINER_ORT_DYLIB=/path/to/libonnxruntime.so.1.20.0 \
-//! cargo test -p kernel-privacy --features ner-gliner --test ner_parity -- --ignored --nocapture
+//! cargo test -p auxesis-kernel-privacy --features ner-gliner --test ner_parity -- --ignored --nocapture
 //! ```
 
 use std::collections::BTreeSet;

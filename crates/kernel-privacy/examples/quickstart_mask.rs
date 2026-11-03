@@ -1,7 +1,7 @@
 //! Quickstart 1: find the sensitive values in a string, replace them with
 //! tokens, then put the real values back into the answer. Invented values.
 //!
-//!     cargo run -p kernel-privacy --example quickstart_mask
+//!     cargo run -p auxesis-kernel-privacy --example quickstart_mask
 
 use kernel_privacy::{Anonymizer, Registry, UnknownPolicy};
 

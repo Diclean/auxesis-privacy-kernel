@@ -1,5 +1,5 @@
 [package]
-name = "kernel-core"
+name = "auxesis-kernel-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,6 +12,10 @@ description = "Privacy modes, egress paths, grants and shared plumbing for the A
 keywords = ["privacy", "egress", "policy", "pii"]
 categories = ["security", "config"]
 exclude = ["tests/**"]
+
+[lib]
+# Package rename only: the library stays kernel_core for every `use` site.
+name = "kernel_core"
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

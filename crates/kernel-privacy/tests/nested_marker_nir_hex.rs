@@ -5,7 +5,7 @@
 //! The differential runs every input through `Gate::for_grant` in both modes
 //! against `data/fin4_main.txt`, frozen from origin/main: no byte main masks
 //! may be left clear and no text may be refused. Refreeze on main only:
-//! `cargo test -p kernel-privacy --test nested_marker_nir_hex -- --ignored
+//! `cargo test -p auxesis-kernel-privacy --test nested_marker_nir_hex -- --ignored
 //! freeze --nocapture`. All values are invented; `sk~` reads `sk-` at run time.
 //!
 //! `fin4_main.txt` is a full refreeze from main with the exact reader

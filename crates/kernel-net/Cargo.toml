@@ -1,5 +1,5 @@
 [package]
-name = "kernel-net"
+name = "auxesis-kernel-net"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,9 +13,13 @@ keywords = ["http-client", "ssrf", "egress", "privacy"]
 categories = ["network-programming", "security"]
 exclude = ["tests/**"]
 
+[lib]
+# Package rename only: the library stays kernel_net for every `use` site.
+name = "kernel_net"
+
 [dependencies]
 async-trait = "0.1"
-kernel-core = { path = "../kernel-core", version = "0.1.0" }
+kernel-core = { package = "auxesis-kernel-core", path = "../kernel-core", version = "0.1.0" }
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
