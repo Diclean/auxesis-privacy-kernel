@@ -16,8 +16,11 @@ default-members = ["crates/kernel-privacy"]
 version = "0.1.0"
 edition = "2021"
 authors = ["The Auxesis kernel authors"]
-license = "Apache-2.0"
-# Copied into each published package, so the licence text travels with the code.
+license = "PolyForm-Noncommercial-1.0.0"
+# The SPDX expression above is the licence cargo-deny and crates.io read. The
+# `license-file` line below adds the verbatim text to every published
+# package: cargo copies it into the .crate, so the terms travel with the
+# code. Both lines are inherited by every crate of this workspace.
 license-file = "LICENSE"
 repository = "https://github.com/Diclean/auxesis-privacy-kernel"
 rust-version = "1.99"

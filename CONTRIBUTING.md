@@ -37,5 +37,8 @@ Do not report them in a public issue or pull request. See [SECURITY.md](SECURITY
 
 ## License
 
-By contributing you agree that your work is licensed under the Apache License 2.0,
-the license of this repository.
+Contributions are accepted under the license of this repository, the PolyForm
+Noncommercial License 1.0.0. By sending a contribution you grant the copyright
+holder the right to license that contribution commercially as well, on the same
+terms it can license the rest of the project. See [COMMERCIAL.md](COMMERCIAL.md)
+for what counts as commercial use.
