@@ -5,6 +5,7 @@
 # the kernel-core gateway first.
 
 crates/kernel-broker/src/sandbox.rs | "HOME" | shell-sandbox child environment and profile construction (the real home is read only through the kernel-core gateway), not a daemon home write
-crates/kernel-mcp/src/stdio.rs | "HOME" | static denylist of env names a config may never declare, plus the sandboxed stdio child's private HOME; never a home read
+crates/kernel-mcp/src/stdio/command.rs | "HOME" | static denylist of env names a config may never declare; never a home read
+crates/kernel-mcp/src/stdio/transport.rs | "HOME" | the sandboxed stdio child's private HOME (a temp dir); never a home read
 crates/kernel-mcp/src/runtime/tests/sandbox.rs | fs::write( | test fixture: fake server binaries in a temp dir (a #[cfg(test)] module split out of runtime.rs)
 crates/kernel-mcp/src/runtime/tests/sandbox.rs | fs::remove_file( | test fixture: swaps a symlink inside a temp dir (a #[cfg(test)] module split out of runtime.rs)
