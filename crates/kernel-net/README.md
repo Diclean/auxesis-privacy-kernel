@@ -27,4 +27,5 @@ assert!(is_public_address("1.1.1.1".parse().expect("IP address")));
 
 ## Licence
 
-Apache-2.0. See the repository `LICENSE` and `NOTICE`.
+PolyForm-Noncommercial-1.0.0. See the repository `LICENSE`, `NOTICE` and
+`COMMERCIAL.md`.

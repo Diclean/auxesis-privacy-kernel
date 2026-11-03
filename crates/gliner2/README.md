@@ -35,4 +35,5 @@ are in the repository.
 
 ## Licence
 
-Apache-2.0. The model is a separate work under its own licence.
+PolyForm-Noncommercial-1.0.0, the workspace licence. The model is a separate
+work under its own licence (above).
