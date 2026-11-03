@@ -17,6 +17,9 @@ version = "0.1.0"
 edition = "2021"
 authors = ["The Auxesis kernel authors"]
 license = "Apache-2.0"
+# Copied into each published package, so the licence text travels with the code.
+license-file = "LICENSE"
+repository = "https://github.com/Diclean/auxesis-privacy-kernel"
 rust-version = "1.99"
 
 [workspace.dependencies]

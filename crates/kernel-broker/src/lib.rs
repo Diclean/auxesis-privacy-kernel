@@ -15,6 +15,7 @@
 //! broker and its audit trail are the wall for `shell`; file tools are
 //! confined to the agent workspace, and text helpers strip invisible characters
 //! from external content.
+#![doc = include_str!("../README.md")]
 
 // `test-util` widens this crate's constructors for dependents' tests (for
 // example `ShellSandbox::with_test_sandbox_exec`). A release build that turns

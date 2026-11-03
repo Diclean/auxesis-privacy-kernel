@@ -21,6 +21,7 @@
 //! This crate has no `unsafe` code of its own. ONNX Runtime is loaded at run
 //! time from the shared library named by [`Options::ort_dylib`] or
 //! `ORT_DYLIB_PATH`, so building it needs no network access.
+#![doc = include_str!("../README.md")]
 
 use std::fmt;
 use std::path::{Path, PathBuf};

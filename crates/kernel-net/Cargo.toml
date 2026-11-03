@@ -3,12 +3,19 @@ name = "kernel-net"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+license-file.workspace = true
 authors.workspace = true
-publish = false
+repository.workspace = true
+rust-version.workspace = true
+readme = "README.md"
+description = "The one HTTP client factory, with an SSRF guard, DNS pinning and an egress allow-list, for the Auxesis privacy kernel."
+keywords = ["http-client", "ssrf", "egress", "privacy"]
+categories = ["network-programming", "security"]
+exclude = ["tests/**"]
 
 [dependencies]
 async-trait = "0.1"
-kernel-core = { path = "../kernel-core" }
+kernel-core = { path = "../kernel-core", version = "0.1.0" }
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }

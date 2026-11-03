@@ -3,14 +3,21 @@ name = "kernel-broker"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+license-file.workspace = true
 authors.workspace = true
-publish = false
+repository.workspace = true
+rust-version.workspace = true
+readme = "README.md"
+description = "Tool permission broker with taint tracking, log redaction and an audit trail for the Auxesis privacy kernel."
+keywords = ["permissions", "sandbox", "audit", "taint"]
+categories = ["security", "development-tools"]
+exclude = ["tests/**"]
 
 [dependencies]
-kernel-core = { path = "../kernel-core" }
-kernel-net = { path = "../kernel-net" }
+kernel-core = { path = "../kernel-core", version = "0.1.0" }
+kernel-net = { path = "../kernel-net", version = "0.1.0" }
 # Owner-identifier guard on outbound text (owner_ids.rs): the recognisers only.
-kernel-privacy = { path = "../kernel-privacy" }
+kernel-privacy = { path = "../kernel-privacy", version = "0.1.0" }
 aho-corasick = "1"
 async-trait = "0.1"
 base64 = "0.23"

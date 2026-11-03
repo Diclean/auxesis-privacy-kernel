@@ -25,6 +25,7 @@
 //! where Chromium's `innerText` is the only correct oracle. The SSRF guard,
 //! redirect re-checks and size/time caps **do** remain a boundary and are
 //! enforced on every request.
+#![doc = include_str!("../README.md")]
 
 mod policy;
 mod proxy;

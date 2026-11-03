@@ -3,10 +3,15 @@ name = "gliner2-rs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+license-file.workspace = true
 authors.workspace = true
-publish = false
-description = "GLiNER2 zero-shot span extraction over ONNX Runtime, with byte offsets"
+repository.workspace = true
+rust-version.workspace = true
 readme = "README.md"
+description = "GLiNER2 zero-shot span extraction over ONNX Runtime, with byte offsets into the text."
+keywords = ["gliner", "ner", "onnx", "entity-extraction"]
+categories = ["artificial-intelligence", "text-processing"]
+exclude = ["tests/**"]
 
 [dependencies]
 # ONNX Runtime bindings. `load-dynamic` resolves the ONNX Runtime 1.20 shared
