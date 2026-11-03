@@ -2,6 +2,8 @@
 
 use kernel_privacy::Registry;
 
+use super::common;
+
 /// Normal prose per language (one sentence per line), with no health content.
 const PROSE: [(&str, &str); 3] = [
     (
@@ -56,9 +58,12 @@ fn one_megabyte_of_mixed_text_analyses_in_bounded_time() {
     let unit = "Elle a une consultation le 12 mars, sa tension est normale. Le patient souffre de diabète et prend de l'insuline. Contact: 138-1234-5678, token sk-proj-FAKEKEY0123456789abcdefGHIJKL. Ana je kupila raketo. 他有糖尿病。\n";
     let text = unit.repeat(1_000_000 / unit.len() + 1);
     let registry = Registry::new();
-    let started = std::time::Instant::now();
     let spans = registry.analyze(&text);
-    let elapsed = started.elapsed();
+    // The fastest of nine runs, after one warm-up: the budget is on the work,
+    // not on the scheduler.
+    let elapsed = common::fastest(|| {
+        let _ = registry.analyze(&text);
+    });
     eprintln!(
         "PERF analyze {} bytes -> {} spans in {:?}",
         text.len(),
@@ -87,9 +92,12 @@ fn wrapped_key_inputs_of_one_megabyte_are_linear() {
     ];
     let registry = Registry::new();
     for (name, text) in inputs {
-        let started = std::time::Instant::now();
         let spans = registry.analyze(&text);
-        let elapsed = started.elapsed();
+        // The fastest of nine runs, after one warm-up: the bar is on the
+        // work, not on the scheduler.
+        let elapsed = common::fastest(|| {
+            let _ = registry.analyze(&text);
+        });
         eprintln!(
             "PERF {name}: {} bytes, {} spans, {elapsed:?}",
             text.len(),

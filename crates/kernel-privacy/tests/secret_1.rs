@@ -16,7 +16,12 @@ mod norm1 {
 }
 use norm1::{covered, masked, MODES};
 
-mod common;
+mod timing {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../test-support/timing.rs"
+    ));
+}
 
 /// `(text, value that must be hidden, clear words that must stay)`.
 fn positives() -> Vec<(&'static str, &'static str, &'static [&'static str])> {
@@ -390,18 +395,21 @@ fn table(rows: usize) -> String {
     text
 }
 
+/// One run of the Private gate over `text`: the time of the work itself.
 fn time(text: &str) -> Duration {
-    common::fastest(|| {
-        let _ = masked(PrivacyMode::Private, text).expect("issued");
-    })
+    let started = std::time::Instant::now();
+    let _ = masked(PrivacyMode::Private, text).expect("issued");
+    started.elapsed()
 }
 
-/// 10× the rows costs at most 20× the time (fastest of nine after one warm-up).
+/// 10× the rows costs at most 20× the time (both sides timed over windows of
+/// the same length, so a machine that stalls a run in proportion to its
+/// length slows both sides down alike).
 #[test]
 fn secret_column_scan_is_linear() {
     let small = table(1_000);
     let large = table(10_000);
-    let (s, l) = (time(&small), time(&large));
+    let (s, l) = timing::best_pair(|| time(&small), || time(&large));
     assert!(
         l <= s * 20 + Duration::from_millis(50),
         "1k rows {s:?}, 10k rows {l:?}"

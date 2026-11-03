@@ -7,9 +7,18 @@ mod timing {
     ));
 }
 
-/// 10× the input costs at most 20× the time on every scan path (fastest of
-/// nine after one warm-up): a cookie header, cookie pairs, label lines, a
-/// same-line passphrase, CSV rows, open quotes in CSV rows and AWS ids.
+/// One run of the scan over `text`: the time of the work itself.
+fn time(text: &str) -> std::time::Duration {
+    let started = std::time::Instant::now();
+    let _ = lines_scan(text);
+    started.elapsed()
+}
+
+/// 10× the input costs at most 20× the time on every scan path (both sides
+/// timed over windows of the same length, so a machine that stalls a run in
+/// proportion to its length slows both sides down alike): a cookie header,
+/// cookie pairs, label lines, a same-line passphrase, CSV rows, open quotes
+/// in CSV rows and AWS ids.
 #[test]
 fn every_path_scales_linearly() {
     use std::time::Duration;
@@ -31,24 +40,15 @@ fn every_path_scales_linearly() {
         )
     };
     let (s, l) = (tail(160_000), tail(1_600_000));
-    let small = timing::fastest(|| {
-        let _ = lines_scan(&s);
-    });
-    let large = timing::fastest(|| {
-        let _ = lines_scan(&l);
-    });
+    let (small, large) = timing::best_pair(|| time(&s), || time(&l));
     assert!(
         large <= small * 20 + Duration::from_millis(50),
         "csv tail: 160 KB {small:?}, 1.6 MB {large:?}"
     );
     for (name, head, unit) in paths {
         let text = |bytes: usize| head.to_string() + &unit.repeat(bytes / unit.len());
-        let best = |t: &str| {
-            timing::fastest(|| {
-                let _ = lines_scan(t);
-            })
-        };
-        let (s, l) = (best(&text(160_000)), best(&text(1_600_000)));
+        let (s, l) = (text(160_000), text(1_600_000));
+        let (s, l) = timing::best_pair(|| time(&s), || time(&l));
         assert!(
             l <= s * 20 + Duration::from_millis(50),
             "{name}: 160 KB {s:?}, 1.6 MB {l:?}"

@@ -1,8 +1,15 @@
 //! Decoding stays linear: the cost bounds, on debug and release budgets.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::super::DecodedText;
+
+mod timing {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../test-support/timing.rs"
+    ));
+}
 
 /// The decode pass must stay linear: the range lookup is a cursor, not a
 /// scan of every URL, and the entity scan is bounded before it looks for the
@@ -33,9 +40,12 @@ fn many_escapes_and_urls_decode_within_the_budget() {
     }
     assert_eq!(text.matches('%').count(), 50_000);
     assert_eq!(text.matches("://").count(), 10_000);
-    let start = Instant::now();
     let decoded = DecodedText::new(&text);
-    let elapsed = start.elapsed();
+    // The fastest of nine runs, after one warm-up: the budget is on the
+    // work, not on the scheduler.
+    let elapsed = timing::fastest(|| {
+        let _ = DecodedText::new(&text);
+    });
     eprintln!(
         "decode {} bytes / 50 000 escapes / 10 000 URLs: {elapsed:?}",
         text.len()
@@ -58,32 +68,35 @@ fn adversarial_entity_soup_stays_linear() {
     let piece =
         format!("&{nested}#45;&#000000000000000045&EACUTE⟦PERSON_ABC⟧⟦\u{200B}&shy;&#x27E6;&am");
     let text = piece.repeat((1 << 20) / piece.len() + 1);
-    let start = Instant::now();
     let decoded = DecodedText::new(&text);
-    let elapsed = start.elapsed();
+    // The fastest of nine runs, after one warm-up: the budget is on the
+    // work, not on the scheduler.
+    let elapsed = timing::fastest(|| {
+        let _ = DecodedText::new(&text);
+    });
     eprintln!("decode 1 MiB of entity soup: {elapsed:?}");
     assert!(!decoded.text().contains('⟦'));
     let bound = decode_budget() * 5;
     assert!(elapsed < bound, "1 MiB of entity soup took {elapsed:?}");
     // Openers with no `⟧` anywhere: each looks for its bracket once.
-    let start = Instant::now();
-    assert_eq!(
-        DecodedText::new(&"⟦a".repeat(1 << 18)).text().len(),
-        1 << 18
-    );
-    assert!(
-        start.elapsed() < bound,
-        "1 MiB of openers took {:?}",
-        start.elapsed()
-    );
+    let elapsed = timing::fastest(|| {
+        assert_eq!(
+            DecodedText::new(&"⟦a".repeat(1 << 18)).text().len(),
+            1 << 18
+        );
+    });
+    assert!(elapsed < bound, "1 MiB of openers took {elapsed:?}");
 }
 
 #[test]
 fn an_ampersand_with_no_semicolon_stays_bounded() {
     let text = "&".repeat(1_000_000);
-    let start = Instant::now();
     let decoded = DecodedText::new(&text);
-    let elapsed = start.elapsed();
+    // The fastest of nine runs, after one warm-up: the budget is on the
+    // work, not on the scheduler.
+    let elapsed = timing::fastest(|| {
+        let _ = DecodedText::new(&text);
+    });
     eprintln!("decode 1 MB of bare `&`: {elapsed:?}",);
     assert_eq!(decoded.text().len(), text.len());
     assert!(

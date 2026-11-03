@@ -12,3 +12,6 @@ mod perf;
 mod phone;
 mod reference;
 mod wrapped_keys;
+
+#[path = "../common/mod.rs"]
+mod common;

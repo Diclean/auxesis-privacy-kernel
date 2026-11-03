@@ -1,6 +1,6 @@
 //! Cap and bounded-work tests: drafts, seeding, patterns and windows.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use zeroize::Zeroizing;
 
@@ -9,6 +9,13 @@ use crate::recognizer::Recognizer;
 use super::super::variants::variants_for;
 use super::super::{ContactIndex, PersonDraft, SeedLimits};
 use super::{first_names_masked, masked_kinds, zs};
+
+mod timing {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../test-support/timing.rs"
+    ));
+}
 
 #[test]
 fn many_contacts_with_one_name_emit_one_span_per_mention() {
@@ -31,9 +38,12 @@ fn many_contacts_with_one_name_emit_one_span_per_mention() {
         text.push_str("Marie a dit bonjour à Paul. ");
     }
     let mentions = text.matches("Marie").count();
-    let started = Instant::now();
-    let spans = recognizer.analyze(&text);
-    let elapsed = started.elapsed();
+    // The fastest of nine runs, after one warm-up: the bound is on the work,
+    // not on the scheduler.
+    let mut spans = Vec::new();
+    let elapsed = timing::fastest(|| {
+        spans = recognizer.analyze(&text);
+    });
     assert_eq!(spans.len(), mentions);
     assert!(elapsed < Duration::from_secs(5), "took {elapsed:?}");
 }

@@ -2,6 +2,13 @@
 
 use super::*;
 
+mod timing {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../test-support/timing.rs"
+    ));
+}
+
 #[test]
 fn a_multi_word_password_is_masked_to_its_clause_end() {
     let masked = |text: &str| {
@@ -344,8 +351,11 @@ fn a_phrase_scan_reads_each_cue_a_bounded_span() {
         "__mot-de-passe__ du ".repeat(20_000),
         "`pwd` is the same as ".repeat(20_000),
     ] {
-        let start = std::time::Instant::now();
-        let _ = hits(&text);
-        assert!(start.elapsed() < std::time::Duration::from_secs(5));
+        // The fastest of nine runs, after one warm-up: the bound is on the
+        // work, not on the scheduler.
+        let elapsed = timing::fastest(|| {
+            let _ = hits(&text);
+        });
+        assert!(elapsed < std::time::Duration::from_secs(5));
     }
 }

@@ -4,9 +4,11 @@
 //! lookalikes stay readable. Values are invented; token prefixes are split so
 //! no scanner reads the source as a live key.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use kernel_core::privacy::PrivacyMode;
+
+mod common;
 
 /// The linear-time bar of this file. Release keeps 10 s; the debug profile is
 /// slower (the KPUB-2 dry run measured 12.46 s for the slowest cue on this Mac,
@@ -239,15 +241,17 @@ fn everyday_cues_stay_linear_on_long_input() {
         "code de récupération ",
     ] {
         let text = unit.repeat(20_000);
-        let started = Instant::now();
-        for mode in MODES {
-            let _ = issue(mode, &text);
-        }
+        // The fastest of nine runs, after one warm-up: the budget is on the
+        // work, not on the scheduler.
+        let elapsed = common::fastest(|| {
+            for mode in MODES {
+                let _ = issue(mode, &text);
+            }
+        });
         let limit = linear_budget();
         assert!(
-            started.elapsed() < limit,
-            "{unit:?} took {:?}, limit {limit:?}",
-            started.elapsed()
+            elapsed < limit,
+            "{unit:?} took {elapsed:?}, limit {limit:?}"
         );
     }
 }
@@ -261,14 +265,11 @@ fn grouped_code_runs_stay_linear_on_long_input() {
         "Wi-Fi key: 7KQ2 9XZ1 ".repeat(20_000),
         "Recovery codes ".repeat(20_000),
     ] {
-        let started = Instant::now();
-        for mode in MODES {
-            let _ = issue(mode, &text);
-        }
-        assert!(
-            started.elapsed() < linear_budget(),
-            "took {:?}",
-            started.elapsed()
-        );
+        let elapsed = common::fastest(|| {
+            for mode in MODES {
+                let _ = issue(mode, &text);
+            }
+        });
+        assert!(elapsed < linear_budget(), "took {elapsed:?}");
     }
 }

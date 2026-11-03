@@ -15,7 +15,11 @@ fn s2_t4_and_h14_scan_in_under_a_second() {
     assert_eq!(link_scan(&s2), [(12_012, s2.len() - 1)]);
     for unit in ["*_*_password-_-", "mot de passe "] {
         let flood = |size: usize| unit.repeat(size / unit.len());
-        let (small, big) = (fastest(&flood(10_000)), fastest(&flood(100_000)));
+        let (small_text, big_text) = (flood(10_000), flood(100_000));
+        // Both sides timed over windows of the same length, so a machine
+        // that stalls a run in proportion to its length slows both sides
+        // down alike.
+        let (small, big) = timing::best_pair(|| time(&small_text), || time(&big_text));
         assert!(big < Duration::from_secs(1), "H14 {unit:?}: {big:?}");
         assert!(
             // 10x input: linear is ~10x, quadratic ~100x. The Mac CI runner
@@ -47,7 +51,7 @@ fn n5_balanced_nesting_scans_in_linear_time() {
         link_scan(&small),
         [(0, value - "password is ".len()), (value, small.len() - 5)]
     );
-    let (small, big) = (fastest(&small), fastest(&big));
+    let (small, big) = timing::best_pair(|| time(&small), || time(&big));
     assert!(big < Duration::from_secs(3), "N5: {big:?}");
     assert!(
         big.as_secs_f64() <= 20.0 * small.as_secs_f64().max(1e-3),

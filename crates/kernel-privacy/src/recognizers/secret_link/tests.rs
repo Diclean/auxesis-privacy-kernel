@@ -58,6 +58,13 @@ fn fastest(text: &str) -> Duration {
     })
 }
 
+/// One run of `link_scan` over `text`: the time of the work itself.
+fn time(text: &str) -> Duration {
+    let started = std::time::Instant::now();
+    let _ = link_scan(text);
+    started.elapsed()
+}
+
 /// P1: well-formed spans; P7: main's masked bytes are a subset of the head's.
 fn p1_and_p7(text: &str) -> Result<(), TestCaseError> {
     let spans = link_scan(text);

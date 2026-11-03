@@ -9,6 +9,13 @@ use kernel_core::privacy::GrantPolicy;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+mod timing {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../test-support/timing.rs"
+    ));
+}
+
 #[test]
 fn a_detector_error_after_the_export_mask_fails_closed() {
     let detector = FailsLate(NamesClaimed::new(), std::sync::atomic::AtomicUsize::new(0));
@@ -277,9 +284,12 @@ fn kept_tokens_are_found_in_linear_time_on_openers_with_no_closer() {
     // to the end of the text at each opener took 8 s in release; one pass is
     // milliseconds (7 ms release). The bound is generous for a debug build.
     let text = "⟦x".repeat(1024 * 1024 / 4);
-    let started = std::time::Instant::now();
-    assert!(token_ranges(&text, &minted()).is_empty());
-    let scan = started.elapsed();
+    let issued = minted();
+    // The fastest of nine runs, after one warm-up: the bound is on the work,
+    // not on the scheduler.
+    let scan = timing::fastest(|| {
+        assert!(token_ranges(&text, &issued).is_empty());
+    });
     assert!(scan < std::time::Duration::from_secs(2), "{scan:?}");
     // A closer past the longest token is not read as one.
     let far = format!("⟦{}_0A1B2C3D4E5F⟧", "K".repeat(MAX_SESSION_TOKEN_BYTES));
@@ -333,9 +343,12 @@ fn many_mixed_issued_markers_are_scanned_within_a_linear_bound() {
     }
     let issued: BTreeSet<String> = [token.to_string()].into();
 
-    let started = std::time::Instant::now();
     let ranges = token_ranges(&text, &issued);
-    let elapsed = started.elapsed();
+    // The fastest of nine runs, after one warm-up: the bound is on the work,
+    // not on the scheduler.
+    let elapsed = timing::fastest(|| {
+        let _ = token_ranges(&text, &issued);
+    });
 
     assert_eq!(
         ranges.len(),

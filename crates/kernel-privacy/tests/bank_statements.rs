@@ -9,6 +9,8 @@
 use kernel_core::privacy::{admit, Context, Decision, Destination, Grant, PathId, PrivacyMode};
 use kernel_privacy::Gate;
 
+mod common;
+
 const STATEMENTS: &[(&str, &str)] = &[
     (
         "uk header block",
@@ -276,11 +278,11 @@ fn a_wide_account_table_stays_fast() {
         "Account  ".repeat(cells),
         "12345678  ".repeat(cells + 1)
     );
-    let started = std::time::Instant::now();
-    for mode in MODES {
-        gated(mode, &text);
-    }
-    let took = started.elapsed();
+    let took = common::fastest(|| {
+        for mode in MODES {
+            gated(mode, &text);
+        }
+    });
     let limit = if cfg!(debug_assertions) { 60 } else { 3 };
     eprintln!("wide account table, both modes: {took:?}");
     assert!(took.as_secs() < limit, "took {took:?}");

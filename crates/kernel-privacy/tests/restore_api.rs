@@ -4,11 +4,13 @@
 //! `take_minted`), so the round-trip property runs on real minted token names and
 //! real escaped text. All values are invented.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use kernel_core::privacy::{admit, Context, Decision, Destination, Grant, PathId, PrivacyMode};
 use kernel_privacy::{restore, Gate, UnknownPolicy, UNKNOWN_REFERENCE};
 use proptest::prelude::*;
+
+mod common;
 
 const KEY: [u8; 32] = [0x3Au8; 32];
 const EMAIL: &str = "alice@example.com";
@@ -147,10 +149,13 @@ fn one_mebibyte_restores_under_two_seconds_in_debug() {
     answer.push_str(&" ".repeat(SIZE - answer.len()));
     assert_eq!(answer.len(), SIZE);
 
-    let start = Instant::now();
     let restored = restore(&answer, &minted, UnknownPolicy::Keep);
-    let elapsed = start.elapsed();
     std::hint::black_box(&restored);
+    // The fastest of nine runs, after one warm-up: the bar is on the work,
+    // not on the scheduler.
+    let elapsed = common::fastest(|| {
+        let _ = restore(&answer, &minted, UnknownPolicy::Keep);
+    });
 
     assert!(restored.contains("person0@example.invalid"));
     assert!(restored.contains("literal ⟦ opener"));
