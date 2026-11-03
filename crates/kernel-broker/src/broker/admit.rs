@@ -341,6 +341,7 @@ impl Broker {
                     arguments: requested.clone(),
                     tainted,
                     taint_source: taint_source.clone(),
+                    web_approval: taint.source().and_then(|source| source.web_approval),
                     unsandboxed,
                     networked,
                 };
