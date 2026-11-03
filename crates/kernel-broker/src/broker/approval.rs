@@ -23,6 +23,9 @@ pub struct ApprovalRequest {
     /// Summary of what introduced the untrusted content, when known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub taint_source: Option<String>,
+    /// Structured facts for a web gate ask; never inferred from card copy.
+    #[serde(skip)]
+    pub web_approval: Option<crate::WebApprovalContext>,
     /// True when the call will run unsandboxed (the `[shell]` escape hatch):
     /// the card must say so and "always allow" must not be offered or
     /// accepted, exactly as for a tainted ask.
