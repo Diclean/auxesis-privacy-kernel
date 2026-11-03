@@ -417,9 +417,15 @@ fn label_dense_text_scales_linearly() {
     for unit in ["password: ", "Tax ID ", "the pin, 7198 ", table] {
         let time = |n: usize| {
             let text = unit.repeat(n);
-            let start = Instant::now();
-            registry.analyze(&text);
-            start.elapsed().as_secs_f64()
+            (0..3)
+                .map(|_| {
+                    let start = Instant::now();
+                    registry.analyze(&text);
+                    start.elapsed()
+                })
+                .min()
+                .expect("three runs")
+                .as_secs_f64()
         };
         time(1_000);
         let (small, large) = (time(4_000), time(16_000));

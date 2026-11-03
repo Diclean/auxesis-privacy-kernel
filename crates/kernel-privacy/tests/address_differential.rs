@@ -332,7 +332,8 @@ fn a_prohibited_value_inside_an_address_is_never_issued() {
 /// A megabyte of address-like lines through the Private registry takes about
 /// the time it takes without the address rule (on the Mac, release, main and
 /// this branch both take about 11 s here: main's own registry is slow on such
-/// lines). The ratio is measured in one run, so the bar holds on any machine.
+/// lines). Each side is the fastest of three runs, so the bar holds on any
+/// machine.
 #[test]
 #[ignore = "release perf bar: cargo test --release -- --ignored"]
 fn a_megabyte_of_address_lines_costs_about_what_main_costs() {
@@ -353,9 +354,15 @@ fn a_megabyte_of_address_lines_costs_about_what_main_costs() {
     for line in mixes {
         let text = line.repeat(1024 * 1024 / line.len() + 1);
         let time = |registry: &Registry| {
-            let start = Instant::now();
-            registry.analyze(&text);
-            start.elapsed().as_secs_f64()
+            (0..3)
+                .map(|_| {
+                    let start = Instant::now();
+                    registry.analyze(&text);
+                    start.elapsed()
+                })
+                .min()
+                .expect("three runs")
+                .as_secs_f64()
         };
         let (main, ours) = (time(&without), time(&with));
         eprintln!(
