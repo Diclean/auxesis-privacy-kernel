@@ -457,4 +457,45 @@ mod tests {
             same_tools_one_agent.approval_binding(secret, None)
         );
     }
+
+    /// KMCP-HARDEN-c: a non-catalog `stdio` server with `approval = None` must
+    /// NOT count as install-approved through the pre-M6-2 grandfather path.
+    /// No record in the config marks an entry as pre-M6-2, so grandfathering
+    /// cannot apply: only an explicit, still-valid M6-2 approval record may
+    /// install-approve a server.
+    #[test]
+    #[ignore = "KMCP-HARDEN-c: fails until the fix lands"]
+    fn kmcp_harden_c_approval_none_is_not_install_approved_without_pre_m6_2_marker() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("server");
+        std::fs::write(&bin, b"program").unwrap();
+        let mut server = McpServerConfig {
+            id: "legacy".into(),
+            catalog_id: None,
+            data_class: McpDataClass::Sensitive,
+            stdio_confirmed: true,
+            stdio_confirmation: None,
+            approval: None,
+            network: false,
+            transport: McpTransport::Stdio,
+            url: None,
+            command: Some(bin.to_string_lossy().into_owned()),
+            args: args(&["--stdio"]),
+            env: vec![],
+            enabled: true,
+            agents: Default::default(),
+        };
+        let secret = b"daemon-token";
+        server.stdio_confirmation = server.confirmation_binding(secret);
+        assert!(
+            server.stdio_is_confirmed_with(secret),
+            "the launch confirmation itself is valid"
+        );
+        assert!(
+            !server.is_install_approved(Some(secret), None),
+            "approval = None must not be install-approved for a non-catalog stdio server: \
+             the grandfather path accepts any valid confirmation as an install approval, \
+             and no pre-M6-2 marker exists to restrict it"
+        );
+    }
 }

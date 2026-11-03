@@ -341,4 +341,45 @@ mod tests {
             "a replacement that cannot be hashed must never be confirmed"
         );
     }
+
+    /// KMCP-HARDEN-c: the confirmation digest must bind the server `id`, so
+    /// renaming a confirmed server invalidates the stored confirmation
+    /// instead of carrying it over to the new id.
+    #[test]
+    #[ignore = "KMCP-HARDEN-c: fails until the fix lands"]
+    fn kmcp_harden_c_edited_server_id_invalidates_confirmation() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("server");
+        std::fs::write(&bin, b"program").unwrap();
+        let mut server = McpServerConfig {
+            id: "alpha".into(),
+            catalog_id: None,
+            data_class: McpDataClass::Sensitive,
+            stdio_confirmed: true,
+            stdio_confirmation: None,
+            approval: None,
+            network: false,
+            transport: McpTransport::Stdio,
+            url: None,
+            command: Some(bin.to_string_lossy().into_owned()),
+            args: args(&["--stdio"]),
+            env: vec![],
+            enabled: true,
+            agents: Default::default(),
+        };
+        let secret = b"daemon-token";
+        server.stdio_confirmation = server.confirmation_binding(secret);
+        assert!(
+            server.stdio_is_confirmed_with(secret),
+            "the unedited launch is confirmed"
+        );
+
+        let mut renamed = server.clone();
+        renamed.id = "beta".into();
+        assert!(
+            !renamed.stdio_is_confirmed_with(secret),
+            "editing the server id after confirmation must invalidate the confirmation: \
+             the digest does not cover the id, so the old confirmation still matches the rename"
+        );
+    }
 }
