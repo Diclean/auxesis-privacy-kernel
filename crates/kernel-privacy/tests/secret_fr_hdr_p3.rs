@@ -13,6 +13,8 @@ mod norm1 {
 }
 use norm1::{covered, masked, MODES};
 
+mod common;
+
 const PW: &str = "Tr0ub4dor&3x";
 
 /// Each `(mode, value)` of `values` that some mode leaves clear in `text`, or
@@ -242,7 +244,7 @@ fn lookalikes_stay_clear_in_open() {
 /// 1 MiB of blank-split rows on each new path costs about ten times 100 KiB.
 #[test]
 fn the_new_paths_scan_in_linear_time() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     for (head, unit) in [
         ("id,password,city\n", "8,Cherry6!,Oslo,\n\n"),
         ("id,password,city\n", "7,token,Paris\n\n"),
@@ -251,14 +253,9 @@ fn the_new_paths_scan_in_linear_time() {
     ] {
         let text = |bytes: usize| format!("{head}{}", unit.repeat(bytes / unit.len()));
         let best = |t: &str| {
-            (0..3)
-                .map(|_| {
-                    let start = Instant::now();
-                    let _ = masked(PrivacyMode::Open, t);
-                    start.elapsed()
-                })
-                .min()
-                .expect("three runs")
+            common::fastest(|| {
+                let _ = masked(PrivacyMode::Open, t);
+            })
         };
         let (small, large) = (best(&text(104_858)), best(&text(1_048_576)));
         assert!(
@@ -272,21 +269,16 @@ fn the_new_paths_scan_in_linear_time() {
 /// time: each cell's column lookup must not walk every secret column (seal B r3).
 #[test]
 fn a_wide_secret_header_with_sentence_rows_scans_in_linear_time() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     let text = |columns: usize| {
         let head = vec!["pin"; columns].join(",");
         let row = ",".repeat(columns - 1);
         format!("{head}\n{row}{}", format!("\n\n{row}").repeat(4))
     };
     let best = |t: &str| {
-        (0..3)
-            .map(|_| {
-                let start = Instant::now();
-                let _ = masked(PrivacyMode::Private, t);
-                start.elapsed()
-            })
-            .min()
-            .expect("three runs")
+        common::fastest(|| {
+            let _ = masked(PrivacyMode::Private, t);
+        })
     };
     let (small, large) = (best(&text(6_000)), best(&text(60_000)));
     assert!(

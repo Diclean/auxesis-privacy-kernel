@@ -4,10 +4,12 @@
 //! All values are fictional.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use kernel_core::privacy::{admit, Context, Decision, Destination, PathId, PrivacyMode};
 use kernel_privacy::{Gate, NameDictionary};
+
+mod common;
 
 #[allow(dead_code)]
 mod norm1 {
@@ -246,9 +248,9 @@ fn glued_and_broken_inputs_stay_linear() {
     let time = |n: usize| {
         let text = unit.repeat(n);
         let mut gate = gate(PrivacyMode::Private);
-        let started = Instant::now();
-        gate.text(&text).expect("issued");
-        started.elapsed()
+        common::fastest(|| {
+            gate.text(&text).expect("issued");
+        })
     };
     let small = time(20).max(Duration::from_millis(1));
     let large = time(200);

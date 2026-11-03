@@ -12,6 +12,8 @@ mod norm1 {
 }
 use norm1::{covered, masked, MODES};
 
+mod common;
+
 const PW: &str = "Tr0ub4dor&3x";
 
 /// Each mode that leaves the last `PW` of `text` clear, or refuses `text`.
@@ -169,7 +171,7 @@ fn lookalikes_match_main_in_open() {
 /// times 100 KiB.
 #[test]
 fn blank_split_rows_scan_in_linear_time() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     for unit in ["---,---,---\n\n", "8,Cherry6!,Oslo\n \n", "\n"] {
         let text = |bytes: usize| {
             format!(
@@ -178,14 +180,9 @@ fn blank_split_rows_scan_in_linear_time() {
             )
         };
         let best = |t: &str| {
-            (0..3)
-                .map(|_| {
-                    let start = Instant::now();
-                    let _ = masked(PrivacyMode::Open, t);
-                    start.elapsed()
-                })
-                .min()
-                .expect("three runs")
+            common::fastest(|| {
+                let _ = masked(PrivacyMode::Open, t);
+            })
         };
         let (small, large) = (best(&text(104_858)), best(&text(1_048_576)));
         assert!(
@@ -199,7 +196,7 @@ fn blank_split_rows_scan_in_linear_time() {
 /// pass, so 16,000 columns cost about ten times 1,600 (seal r1, fictional).
 #[test]
 fn a_wide_row_after_a_blank_line_scans_in_linear_time() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     let text = |columns: usize| {
         let head: Vec<String> = (0..columns)
             .map(|i| {
@@ -220,14 +217,9 @@ fn a_wide_row_after_a_blank_line_scans_in_linear_time() {
         )
     };
     let best = |t: &str| {
-        (0..3)
-            .map(|_| {
-                let start = Instant::now();
-                let _ = masked(PrivacyMode::Open, t);
-                start.elapsed()
-            })
-            .min()
-            .expect("three runs")
+        common::fastest(|| {
+            let _ = masked(PrivacyMode::Open, t);
+        })
     };
     let (small, large) = (best(&text(1_600)), best(&text(16_000)));
     assert!(

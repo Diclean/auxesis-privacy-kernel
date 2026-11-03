@@ -1023,13 +1023,20 @@ fn union(a: Vec<(usize, usize)>, b: Vec<(usize, usize)>) -> Vec<(usize, usize)> 
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     use proptest::prelude::*;
 
     use super::link_scan;
     use crate::recognizer::Recognizer;
     use crate::recognizers::secrets::SecretRecognizer;
+
+    mod timing {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../test-support/timing.rs"
+        ));
+    }
 
     include!("../../tests/data/secret_tail4_cases.rs");
 
@@ -1078,17 +1085,14 @@ mod tests {
         }
     }
 
-    fn timed(text: &str) -> Duration {
-        let start = Instant::now();
-        let _ = link_scan(text);
-        start.elapsed()
-    }
-
-    /// The fastest of three runs. A loaded machine or a debug build on a shared
-    /// runner must not decide a bound: what is measured is the work, not the
-    /// scheduler. The bound itself is unchanged.
+    /// The fastest of nine runs of `link_scan` over `text`, after one warm-up.
+    /// A loaded machine or a debug build on a shared runner must not decide a
+    /// bound: what is measured is the work, not the scheduler. The bound itself
+    /// is unchanged.
     fn fastest(text: &str) -> Duration {
-        (0..3).map(|_| timed(text)).min().unwrap_or_default()
+        timing::fastest(|| {
+            let _ = link_scan(text);
+        })
     }
 
     #[test]
@@ -1137,7 +1141,7 @@ mod tests {
             link_scan(&small),
             [(0, value - "password is ".len()), (value, small.len() - 5)]
         );
-        let (small, big) = (timed(&small), timed(&big));
+        let (small, big) = (fastest(&small), fastest(&big));
         assert!(big < Duration::from_secs(3), "N5: {big:?}");
         assert!(
             big.as_secs_f64() <= 20.0 * small.as_secs_f64().max(1e-3),
@@ -1159,7 +1163,8 @@ mod tests {
             + &"| hunter2 |\n".repeat(75_000);
         assert!(text.len() > 1_000_000);
         assert!(link_scan(&text).len() >= 75_000);
-        assert!(timed(&text) < Duration::from_secs(1), "{:?}", timed(&text));
+        let took = fastest(&text);
+        assert!(took < Duration::from_secs(1), "{took:?}");
     }
 
     /// P1: well-formed spans; P7: main's masked bytes are a subset of the head's.
@@ -1199,8 +1204,8 @@ mod tests {
         Ok(())
     }
 
-    /// P5: every family scans in linear time, `t(2n) / t(n) ≤ 2.6` (best of 3) from
-    /// 100 KB to 200 KB (plus the deep mixed-kind flow).
+    /// P5: every family scans in linear time, `t(2n) / t(n) ≤ 2.6` (fastest of
+    /// nine) from 100 KB to 200 KB (plus the deep mixed-kind flow).
     #[test]
     #[ignore = "release perf ratio: cargo test --release -- --ignored"]
     fn p5_every_family_scans_in_linear_time() {
@@ -1333,7 +1338,7 @@ mod tests {
                 Box::new(|size| fill("password: ", "{[", "x", size / 2) + &"]}".repeat(size / 4)),
             ),
         ];
-        let best = |text: &str| (0..3).map(|_| timed(text)).min().unwrap_or_default();
+        let best = fastest;
         for (name, family) in &families {
             let (small, big) = (best(&family(100_000)), best(&family(200_000)));
             assert!(
