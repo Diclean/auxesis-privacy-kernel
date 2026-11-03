@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use super::digest::{hash_count, hash_field, hash_flag};
-use super::{binary_sha256, McpDataClass, McpServerConfig, McpTransport};
+use super::{binary_sha256, McpDataClass, McpServerConfig, McpTransport, UNAVAILABLE_SHA256};
 
 /// Bind one install approval to one exact server preview and a daemon secret.
 ///
@@ -13,7 +13,10 @@ use super::{binary_sha256, McpDataClass, McpServerConfig, McpTransport};
 /// same before and after the approve write. `catalog_pin` is required for a
 /// catalog server, so a lost or unverifiable entry invalidates the approval.
 /// A non-catalog `stdio` server also binds the program's SHA-256: `binary_sha`
-/// is the hash the caller previewed, or `None` to read the file now.
+/// is the hash the caller previewed, or `None` to read the file now. A program
+/// that cannot be **read** cannot be hashed: the digest is then refused
+/// outright (no binding at all) rather than binding the
+/// [`UNAVAILABLE_SHA256`] marker as if it were a hash.
 pub(super) fn approval_digest(
     secret: &[u8],
     server: &McpServerConfig,
@@ -90,6 +93,12 @@ pub(super) fn approval_digest(
                     .unwrap_or_else(|| Path::new("")),
             ),
         };
+        // A program that cannot be read cannot be hashed, and the marker is
+        // not a hash: it never enters a digest. No binding, so the install is
+        // never approved (fail closed).
+        if sha.eq_ignore_ascii_case(UNAVAILABLE_SHA256) {
+            return None;
+        }
         hash_field(&mut hasher, b"binary-sha256:", &sha);
     }
     Some(hasher.finalize().to_hex().to_string())

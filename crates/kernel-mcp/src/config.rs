@@ -45,7 +45,7 @@ mod server;
 #[cfg(test)]
 mod test_util;
 
-pub use confirmation::binary_sha256;
+pub use confirmation::{binary_sha256, UNAVAILABLE_SHA256};
 pub use model::{
     McpConfig, McpConfigError, McpDataClass, McpServerConfig, McpTransport, QuarantinedServer,
 };
