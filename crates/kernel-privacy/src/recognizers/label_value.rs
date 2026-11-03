@@ -19,7 +19,7 @@
 //! number words (`no.`, `Nr`,
 //! `n°`, and one glued to its value: `n°12AB34567`) and prose links (`is`,
 //! `might be`, `changed … to` reads as `to`; a health or ID label also takes
-//! `of`, `such as`, `c'est` and `for … is`, ID-LABEL), at most [`MAX_LINK`] bytes with each blank run
+//! `of`, `such as`, `c'est` and `for … is`, ID-LABEL), at most `MAX_LINK` bytes with each blank run
 //! counted once. A `name=value; Path=/` cookie is masked too.
 //! Every lookup is a bounded look-ahead from one automaton match: linear.
 //! Values are `SECRET`, `NATIONAL_ID` or `HEALTH`, classes open mode removes.

@@ -825,7 +825,7 @@ pub fn span_is_well_formed(text: &str, span: &Span) -> bool {
 /// and leaves no fragment in clear. A `PERSON` span that does not overlap a
 /// deterministic span is its own region, so a name alone in clear text keeps its
 /// `PERSON` label. The result is non-overlapping, ordered by start offset, and
-/// its byte coverage is exactly [`masked_regions`] on the same input.
+/// its byte coverage is exactly `masked_regions` on the same input.
 pub fn resolve_overlaps(spans: Vec<Span>) -> Vec<Span> {
     merge_regions(spans.into_iter().filter(|span| !span.is_empty()).collect())
 }

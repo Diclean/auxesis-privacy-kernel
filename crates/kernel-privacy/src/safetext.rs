@@ -3,7 +3,7 @@
 //! [`SafeText`] is the only text a chat provider may receive. Its fields are
 //! private and it has no public constructor, no `From<String>` and no
 //! `Deserialize`, so it can be issued only by a [`Gate`], and a gate exists
-//! only for a [`Grant`](kernel_core::privacy::Grant) minted by
+//! only for a [`Grant`] minted by
 //! `kernel_core::privacy::admit`. The gate runs the deterministic recognisers
 //! (with the e-mail layer) and follows the grant's policy:
 //!
@@ -1059,7 +1059,7 @@ impl Gate {
     /// the grant's policy. Numbers, booleans and nulls pass unchanged. A string
     /// value whose key gives it a secret's context (the detector reads the pair
     /// `"<key>: <value>"`) is treated as one secret: a single token, or
-    /// [`SECRET_REMOVED`] in open mode.
+    /// `SECRET_REMOVED` in open mode.
     pub fn value(&mut self, value: &Value) -> Result<(SafeValue, DetectionReport), GateError> {
         self.names_run = None;
         let (masked, report) = self.map_value(value)?;

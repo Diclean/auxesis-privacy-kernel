@@ -1395,7 +1395,7 @@ impl EmailLayer {
     ///
     /// The config key reserved for this switch is `[privacy]
     /// mask_first_names = false`. With it off, a lone token is left in clear only
-    /// when [`leaves_lone_name_in_clear`] proves it is a bare given name: in the
+    /// when `leaves_lone_name_in_clear` proves it is a bare given name: in the
     /// closed given-name lexicon, not in the surname lexicon, in a vocative or
     /// address position (a greeting or thanks word closing its clause, or a
     /// line-start comma) and outside signature or header context (`P.S.`/`PS`/`NB`

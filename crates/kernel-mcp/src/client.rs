@@ -7,7 +7,7 @@
 //! # Discovery is bounded hard
 //!
 //! `list_tools` stops at the local `max_tools` bound, at a hard page bound
-//! ([`MAX_TOOL_PAGES`]) and at an aggregate wall-clock deadline. A server that
+//! (`MAX_TOOL_PAGES`) and at an aggregate wall-clock deadline. A server that
 //! answers every page with an empty `tools` array plus a fresh `nextCursor` can
 //! therefore never spin forever: a repeated cursor, an empty page that still
 //! advertises a cursor after the first, or a deadline overrun is a typed error

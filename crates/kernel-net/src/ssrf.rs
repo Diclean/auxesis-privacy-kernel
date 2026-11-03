@@ -302,7 +302,7 @@ impl PinnedClient {
 /// call [`resolve_checked`] first, then build the client for the bare host and
 /// the one validated address. The address must itself pass the public-address
 /// guard; an IP-literal `host` that differs from `ip` is refused; the installed
-/// [`PinnedResolver`] answers only for `host`; and the returned
+/// `PinnedResolver` answers only for `host`; and the returned
 /// [`PinnedClient`] refuses any request to another host.
 pub fn build_client(host: &str, ip: IpAddr) -> Result<PinnedClient, FetchError> {
     // The pinned address must itself pass the public-address guard: a caller

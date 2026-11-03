@@ -179,7 +179,7 @@ impl Anonymizer {
     /// Replace every span in `text` with its delimited placeholder.
     ///
     /// Overlapping or adjacent spans of every kind are merged into one masked
-    /// region first with [`crate::recognizer::masked_regions`], so no byte of any
+    /// region first with `crate::recognizer::masked_regions`, so no byte of any
     /// detection can survive in the clear and the masked text is exactly the
     /// union of the detected spans. Every region longer than
     /// [`crate::recognizer::MAX_SPAN_BYTES`] is split first, so one token never

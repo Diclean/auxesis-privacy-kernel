@@ -28,7 +28,7 @@ fn untrusted_name_hook(name: &str) -> bool {
 /// silent: they only change the egress rules.
 ///
 /// This name hook is only a backstop for a connector whose output is private
-/// by convention. The **class** flag is [`Tool::returns_private_data`], which
+/// by convention. The **class** flag is [`ToolClassExt::returns_private_data`], which
 /// the tool itself declares (and which the registry consults in
 /// [`ToolRegistry::is_private_data`]); `read_file`, the Google and EventKit
 /// reads use that flag, and the EventKit tools are also listed explicitly by
@@ -63,7 +63,7 @@ struct Entry {
 /// its output does to the conversation:
 ///
 /// - **Output trust is deny-by-default.** A tool is trusted only when it
-///   explicitly declares [`Tool::output_trust`] as trusted. Shells, fetchers,
+///   explicitly declares [`ToolClassExt::output_trust`] as trusted. Shells, fetchers,
 ///   connectors, mail tools, and any name nobody classified produce
 ///   untrusted output that taints the conversation.
 /// - **Read-only is an explicit class.** Only tools marked with
@@ -82,7 +82,7 @@ pub struct ToolRegistry {
     /// Tools whose output is private owner data (mail, calendar, memory,
     /// notes). Reading one flips the conversation's egress rule. The explicit
     /// set is a manual override; the tool's own
-    /// [`Tool::returns_private_data`] flag is the class declaration.
+    /// [`ToolClassExt::returns_private_data`] flag is the class declaration.
     private_data: BTreeSet<String>,
     /// Tools kept out of what the model is offered (see
     /// [`ToolRegistry::mark_unoffered`]).
@@ -110,9 +110,9 @@ impl ToolRegistry {
     /// one read-only tool, so it keeps its configured rule while a
     /// conversation is tainted (taint applies at the workspace level in the
     /// engine, not per file). `read_file` also declares
-    /// [`Tool::returns_private_data`], so a workspace file read flips the
+    /// [`ToolClassExt::returns_private_data`], so a workspace file read flips the
     /// conversation's egress rule; `http_fetch` declares
-    /// [`Tool::performs_web_egress`], so the engine gates it (and any future
+    /// [`ToolClassExt::performs_web_egress`], so the engine gates it (and any future
     /// fetch tool) by class.
     ///
     /// The shell runs with [`ShellSandbox::default`]: sandboxed, no network,
@@ -279,7 +279,7 @@ impl ToolRegistry {
 
     /// True when `name`'s output is private owner data. The explicit set, the
     /// mail/calendar/memory/notes name hook, and the tool's own
-    /// [`Tool::returns_private_data`] class flag all count; an unregistered or
+    /// [`ToolClassExt::returns_private_data`] class flag all count; an unregistered or
     /// differently-named tool is not private data (the egress rule stays a
     /// deliberate, named class). Class-based so `read_file` — and any future
     /// file-content tool — is caught without a name prefix.
@@ -316,7 +316,7 @@ impl ToolRegistry {
         self.read_only.contains(name)
     }
 
-    /// Names of the registered tools that declare [`Tool::skill_only`], sorted.
+    /// Names of the registered tools that declare [`ToolClassExt::skill_only`], sorted.
     ///
     /// A **snapshot**, for display and audit. The broker's hardline skill floor
     /// does not use it: [`crate::Broker::new`] takes a live
@@ -338,7 +338,7 @@ impl ToolRegistry {
     /// **Fail closed:** a name the registry cannot resolve is
     /// [`ExecutionMode::Unsandboxed`], so an unclassified call can never be
     /// auto-run by an `allow` rule. The engine passes this to
-    /// [`Broker::authorize`], which raises every unsandboxed or
+    /// [`crate::Broker::authorize`], which raises every unsandboxed or
     /// network-enabled call to an ask on the first call, before any taint mark
     /// exists.
     pub fn execution_mode(&self, name: &str) -> ExecutionMode {
