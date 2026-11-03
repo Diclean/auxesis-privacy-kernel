@@ -103,6 +103,26 @@ fn in_cfg_test_module(src: &Path, path: &Path) -> bool {
     false
 }
 
+/// The files of one crate's `src` that the scan reads: all of them, minus
+/// test modules split into their own files (`in_cfg_test_module`). A crate that
+/// can alias a file (`#[path]`, `include!`) keeps every file: the alias could
+/// load a test-gated file again as product code.
+fn scanned_sources(src: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    rust_sources(src, &mut found);
+    let aliased = found.iter().any(|path| {
+        std::fs::read_to_string(path)
+            .is_ok_and(|text| text.contains("#[path") || text.contains("include!("))
+    });
+    if aliased {
+        return found;
+    }
+    found
+        .into_iter()
+        .filter(|path| !in_cfg_test_module(src, path))
+        .collect()
+}
+
 /// `path | api-pattern | justification` entries, `#` comments allowed.
 fn allowlist(root: &Path) -> Vec<(String, String, String)> {
     let text = std::fs::read_to_string(root.join("qa/sandbox-gateway-allowlist.txt"))
@@ -127,16 +147,7 @@ fn home_access_and_raw_fs_calls_are_gateway_routed_or_allowlisted() {
     let entries = allowlist(&root);
     let mut sources = Vec::new();
     for member in std::fs::read_dir(root.join("crates")).unwrap().flatten() {
-        let src = member.path().join("src");
-        let mut found = Vec::new();
-        rust_sources(&src, &mut found);
-        // A test module split into its own file is test code, like an inline
-        // `mod tests` block below the cut.
-        sources.extend(
-            found
-                .into_iter()
-                .filter(|path| !in_cfg_test_module(&src, path)),
-        );
+        sources.extend(scanned_sources(&member.path().join("src")));
     }
     sources.sort();
 
@@ -234,4 +245,28 @@ fn only_cfg_test_modules_leave_the_scan() {
     assert!(!in_cfg_test_module(&src, &src.join("tools/tests.rs")));
     assert!(!in_cfg_test_module(&src, &src.join("lib.rs")));
     std::fs::remove_dir_all(&src).unwrap();
+}
+
+/// A crate that can alias a file (`#[path]`, `include!`) keeps every file in
+/// the scan, even one its parent gates with `#[cfg(test)]`.
+#[test]
+fn an_aliasing_crate_keeps_test_modules_in_the_scan() {
+    let root = std::env::temp_dir().join(format!("write-gateway-alias-{}", std::process::id()));
+    let plain = root.join("plain");
+    let aliased = root.join("aliased");
+    for (src, extra) in [
+        (&plain, ""),
+        (&aliased, "#[path = \"raw.rs\"]\nmod runtime;\n"),
+    ] {
+        std::fs::create_dir_all(src).unwrap();
+        std::fs::write(
+            src.join("lib.rs"),
+            format!("#[cfg(test)]\nmod raw;\n{extra}"),
+        )
+        .unwrap();
+        std::fs::write(src.join("raw.rs"), "").unwrap();
+    }
+    assert!(!scanned_sources(&plain).contains(&plain.join("raw.rs")));
+    assert!(scanned_sources(&aliased).contains(&aliased.join("raw.rs")));
+    std::fs::remove_dir_all(&root).unwrap();
 }
