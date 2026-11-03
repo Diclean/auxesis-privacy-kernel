@@ -165,15 +165,36 @@ impl McpServerConfig {
     /// `catalog_pin` is the curated `catalog_hash` for a catalog entry; a
     /// catalog server without a pin gets no binding (fail closed). Like the
     /// confirmation, an empty secret yields `None`.
+    ///
+    /// A non-catalog `stdio` server's digest includes the SHA-256 of the
+    /// program file **as it is now**. A caller that already previewed the file
+    /// passes the previewed hash to [`Self::approval_binding_for_sha`] instead,
+    /// so a swap between preview and approve cannot be accepted by re-reading
+    /// the swapped file.
     pub fn approval_binding(&self, secret: &[u8], catalog_pin: Option<&str>) -> Option<String> {
-        approval_digest(secret, self, catalog_pin)
+        approval_digest(secret, self, catalog_pin, None)
+    }
+
+    /// The same approval binding, but over a binary SHA-256 the caller already
+    /// previewed, instead of re-reading the file.
+    ///
+    /// Only a non-catalog `stdio` server carries the hash: a catalog entry's
+    /// pin covers its published SHA, and an `http` server has no program.
+    pub fn approval_binding_for_sha(
+        &self,
+        secret: &[u8],
+        catalog_pin: Option<&str>,
+        sha256: &str,
+    ) -> Option<String> {
+        approval_digest(secret, self, catalog_pin, Some(sha256))
     }
 
     /// Whether the owner approved **this** install: a keyed digest over the
     /// id, catalog id and pin, transport, endpoint or launch, data class,
-    /// network and every agent→tool allowlist. A hand-edited `enabled = true`
-    /// never passes; the lifecycle fields are deliberately not hashed, so the
-    /// same hash the preview returned is still valid for the approve call.
+    /// network, every agent→tool allowlist and (for a non-catalog stdio
+    /// server) the program's SHA-256. A hand-edited `enabled = true` never
+    /// passes; the lifecycle fields are deliberately not hashed, so the same
+    /// hash the preview returned is still valid for the approve call.
     pub fn is_approved_with(&self, secret: &[u8], catalog_pin: Option<&str>) -> bool {
         let Some(stored) = self.approval.as_deref() else {
             return false;

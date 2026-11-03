@@ -1,8 +1,10 @@
 //! The keyed M6-2 install-approval digest that binds one approval to one
 //! exact server preview.
 
+use std::path::Path;
+
 use super::digest::{hash_count, hash_field, hash_flag};
-use super::{McpDataClass, McpServerConfig};
+use super::{binary_sha256, McpDataClass, McpServerConfig, McpTransport};
 
 /// Bind one install approval to one exact server preview and a daemon secret.
 ///
@@ -10,10 +12,13 @@ use super::{McpDataClass, McpServerConfig};
 /// (`enabled`, `approval`, `stdio_confirmed`): the preview hash must stay the
 /// same before and after the approve write. `catalog_pin` is required for a
 /// catalog server, so a lost or unverifiable entry invalidates the approval.
+/// A non-catalog `stdio` server also binds the program's SHA-256: `binary_sha`
+/// is the hash the caller previewed, or `None` to read the file now.
 pub(super) fn approval_digest(
     secret: &[u8],
     server: &McpServerConfig,
     catalog_pin: Option<&str>,
+    binary_sha: Option<&str>,
 ) -> Option<String> {
     if secret.is_empty() {
         return None;
@@ -69,6 +74,23 @@ pub(super) fn approval_digest(
         for tool in tools {
             hash_field(&mut hasher, b"tool:", tool);
         }
+    }
+    // Only a non-catalog stdio install names a program file: a catalog entry's
+    // pin already covers its published SHA, and an http server has none. The
+    // preview passes the hash it showed; a caller with no previewed hash reads
+    // the file now, so a swap changes the digest and refuses the old approval.
+    if server.transport == McpTransport::Stdio && server.catalog_id.is_none() {
+        let sha = match binary_sha {
+            Some(sha) => sha.to_ascii_lowercase(),
+            None => binary_sha256(
+                server
+                    .command
+                    .as_deref()
+                    .map(Path::new)
+                    .unwrap_or_else(|| Path::new("")),
+            ),
+        };
+        hash_field(&mut hasher, b"binary-sha256:", &sha);
     }
     Some(hasher.finalize().to_hex().to_string())
 }
