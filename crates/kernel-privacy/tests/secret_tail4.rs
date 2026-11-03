@@ -509,9 +509,14 @@ fn residue_hits_on_one_line_scale_linearly_in_private() {
     };
     let time = |n: usize| {
         let text = text(n);
-        let start = Instant::now();
-        let _ = gate(PrivacyMode::Private, &text);
-        start.elapsed()
+        (0..3)
+            .map(|_| {
+                let start = Instant::now();
+                let _ = gate(PrivacyMode::Private, &text);
+                start.elapsed()
+            })
+            .min()
+            .expect("three runs")
     };
     let (small, large) = (time(4_000), time(16_000));
     eprintln!("residue scaling: n=4000 {small:?}, n=16000 {large:?}");

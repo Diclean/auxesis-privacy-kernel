@@ -363,13 +363,18 @@ fn a_long_word_before_a_street_word_is_scanned_in_linear_time() {
     let address = kernel_privacy::recognizers::address::AddressRecognizer::new();
     let time = |n: usize| {
         let text = format!("x{}straat 12", "A".repeat(n));
-        let start = Instant::now();
-        assert!(address.analyze(&text).is_empty());
-        start.elapsed()
+        (0..3)
+            .map(|_| {
+                let start = Instant::now();
+                assert!(address.analyze(&text).is_empty());
+                start.elapsed()
+            })
+            .min()
+            .expect("three runs")
     };
     time(1_000);
-    let (small, large) = (time(4_000), time(16_000));
-    eprintln!("glued scan: n=4000 {small:?}, n=16000 {large:?}");
+    let (small, large) = (time(16_000), time(64_000));
+    eprintln!("glued scan: n=16000 {small:?}, n=64000 {large:?}");
     assert!(large < small * 6, "small={small:?} large={large:?}");
     assert!(large < Duration::from_secs(1), "large={large:?}");
 }
