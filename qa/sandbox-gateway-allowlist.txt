@@ -4,7 +4,9 @@
 # a test fixture, an OS primitive, or a helper whose home paths route through
 # the kernel-core gateway first.
 
-crates/kernel-broker/src/sandbox.rs | "HOME" | shell-sandbox child environment and profile construction (the real home is read only through the kernel-core gateway), not a daemon home write
+crates/kernel-broker/src/sandbox/home.rs | "HOME" | shell-sandbox child environment and profile construction (the real home is read only through the kernel-core gateway), not a daemon home write
+crates/kernel-broker/src/sandbox/launcher.rs | "HOME" | shell-sandbox child environment and profile construction (the real home is read only through the kernel-core gateway), not a daemon home write
+crates/kernel-broker/src/sandbox/tests/developer_dir.rs | fs::create_dir_all( | test fixture: builds the fake Xcode bundle trees in a temp dir (a #[cfg(test)] module split out of sandbox.rs)
 crates/kernel-mcp/src/stdio/command.rs | "HOME" | static denylist of env names a config may never declare; never a home read
 crates/kernel-mcp/src/stdio/transport.rs | "HOME" | the sandboxed stdio child's private HOME (a temp dir); never a home read
 crates/kernel-mcp/src/runtime/tests/sandbox.rs | fs::write( | test fixture: fake server binaries in a temp dir (a #[cfg(test)] module split out of runtime.rs)
