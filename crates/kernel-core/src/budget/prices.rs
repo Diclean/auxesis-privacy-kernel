@@ -34,18 +34,40 @@ pub struct PriceTable {
 impl Default for PriceTable {
     /// Built-in prices for the models this installation is documented to use
     /// (cents per million tokens).
+    ///
+    /// Each price is the highest standard rate on the official pricing pages
+    /// cited next to it in the source: peak hours, cache miss, longest
+    /// context. Opt-in premium tiers (OpenAI Fast, MiniMax Priority) are left
+    /// out. When two pages price the same id, the higher input and the higher
+    /// output are kept, so the money cap errs high, never low.
     fn default() -> Self {
         let mut models = HashMap::new();
         for (model, input, output) in [
-            // DeepSeek via opencode-go / OpenCode Zen (no retention).
-            ("deepseek-v4-flash", 14, 28),
-            ("deepseek-v4.1-flash", 14, 28),
-            ("deepseek-v4-pro", 174, 348),
-            // DeepSeek direct list price (the pre-migration config).
-            ("deepseek-flash", 22, 66),
-            // Other families seen in the fleet.
-            ("minimax-m3", 30, 120),
-            ("gpt-6-luna", 10, 50),
+            // Legacy id, deprecated by OpenCode on 2026-10-26. DeepSeek still takes
+            // it and bills the Flash price, $0.30 / $1.20 at peak (read 2026-11-04):
+            // https://api-docs.deepseek.com/quick_start/pricing
+            ("deepseek-v4-flash", 30, 120),
+            // OpenCode Console and Go peak: $0.30 / $1.20 (read 2026-11-04):
+            // https://opencode.ai/v2/docs/console/models/
+            // https://opencode.ai/v2/docs/console/go/
+            ("deepseek-v4.1-flash", 30, 120),
+            // OpenCode Console $1.74 / $3.48, Go peak $1.32 / $3.96 (read 2026-11-04):
+            // https://opencode.ai/v2/docs/console/models/
+            // https://opencode.ai/v2/docs/console/go/
+            ("deepseek-v4-pro", 174, 396),
+            // DeepSeek direct, peak, cache miss: $0.30 / $1.20 (read 2026-11-04):
+            // https://api-docs.deepseek.com/quick_start/pricing
+            ("deepseek-flash", 30, 120),
+            // Over 512K input tokens, MiniMax and OpenCode Go: $0.60 / $2.40
+            // (read 2026-11-04):
+            // https://platform.minimax.io/docs/pricing/overview
+            // https://opencode.ai/v2/docs/console/go/
+            ("minimax-m3", 60, 240),
+            // Over 272K input tokens, OpenAI and OpenCode Go: $0.20 / $0.75
+            // (read 2026-11-04):
+            // https://developers.openai.com/api/docs/pricing
+            // https://opencode.ai/v2/docs/console/go/
+            ("gpt-6-luna", 20, 75),
         ] {
             models.insert(
                 model.to_string(),
