@@ -1,4 +1,4 @@
-//! A sensitive label followed by its value (LABEL-VALUE-1).
+//! A sensitive label followed by its value.
 //!
 //! One lexicon (`data/label-value-v1.tsv`) maps a label (`MRN`, `blood type`,
 //! `the pin`, `Personalausweis`, `护照号`) to a class; the value after it is
@@ -12,14 +12,14 @@
 //! * `BLOOD`: a blood group with its sign (`O negative`, `AB+`, `B Rh-`), or
 //!   bare after `:` when written in capitals;
 //! * `MEMBER`: a `HEALTH` number after a label that is health only near a
-//!   health word (`member ID` by a health insurer, not a gym's) (HEALTH-LABEL).
+//!   health word (`member ID` by a health insurer, not a gym's).
 //!
 //! The link between label and value is bounded: decoration (`**`, quotes, `|`,
 //! and for an ID or health label an opening parenthesis), `:`, `=`, `#`, `,`,
 //! number words (`no.`, `Nr`,
 //! `n°`, and one glued to its value: `n°12AB34567`) and prose links (`is`,
 //! `might be`, `changed … to` reads as `to`; a health or ID label also takes
-//! `of`, `such as`, `c'est` and `for … is`, ID-LABEL), at most `MAX_LINK` bytes with each blank run
+//! `of`, `such as`, `c'est` and `for … is`), at most `MAX_LINK` bytes with each blank run
 //! counted once. A `name=value; Path=/` cookie is masked too.
 //! Every lookup is a bounded look-ahead from one automaton match: linear.
 //! Values are `SECRET`, `NATIONAL_ID` or `HEALTH`, classes open mode removes.

@@ -1,10 +1,10 @@
-//! The registry: one row per data path. New rows are added to
-//! `docs/phase1.md` §2 with their private and open behaviour. A change to a
-//! row is a privacy decision: change the contract first.
+//! The registry: one row per data path. Each row states its private and open
+//! behaviour. A change to a row is a privacy decision: change the contract
+//! first.
 //!
 //! Where the matrix says "DISABLED for hosted hosts" or "DISABLED except an
 //! explicit click", the row is `Disabled`. That is the conservative choice.
-//! The finer rule belongs to the destination check in Wave 1b.
+//! The finer rule belongs to the destination check.
 
 use super::path::PathId;
 use super::path::PathId::*;
@@ -31,10 +31,10 @@ const fn row(
     }
 }
 
-/// Every row. `Allow` in private mode only on `Covered` rows (A1, A2, C9,
-/// I1, memory rows B1, B2, G3 since K16b, mail and calendar reads B11, B19, B22 since K16c, and gated document excerpts G5 since DOC-READ-1,
-/// the morning brief F2 since WO-PRIVBRIEF-1, the daily tools B3 to B7 since TOK-3, the owner profile B23 since ASK-1, the ACP rows D1 to D4 since TOK-6, and the MCP rows B13, B14 since TOK-7, the iMessage fixed notice C11 and held answers C12), which the tests enforce. B15 (absent) and B16 (deleted) are disabled in
-/// both modes.
+/// Every row. `Allow` in private mode only on `Covered` rows: the chat
+/// providers, the memory rows, the mail and calendar reads, the gated
+/// excerpts, the brief, the daily tools, the owner profile, the ACP rows, the
+/// MCP rows and the iMessage notices; the rest are disabled in both modes.
 ///
 /// One row per line, so the table reads like the matrix. rustfmt is off here.
 #[rustfmt::skip]

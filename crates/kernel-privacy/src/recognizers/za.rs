@@ -8,7 +8,7 @@ use crate::span::{EntityKind, Span};
 /// Score of a Luhn-valid run whose date or citizenship field is odd, or of a
 /// checksum-invalid run of the right shape. It sits below the `ZaId` floor even
 /// after the `id` cue boost, so the registry always relabels it the generic
-/// `NATIONAL_ID` instead of claiming a specific kind (P2-2). A typo in a real
+/// `NATIONAL_ID` instead of claiming a specific kind. A typo in a real
 /// document is still personal data.
 pub const ODD_SCORE: f32 = 0.1;
 

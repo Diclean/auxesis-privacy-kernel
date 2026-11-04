@@ -1,6 +1,6 @@
 //! The one place that may spawn the macOS `security` binary.
 //!
-//! **Default deny (KC-01).** The Keychain is touched only when the operator
+//! **Default deny.** The Keychain is touched only when the operator
 //! explicitly opts in with `AUXESIS_ALLOW_KEYCHAIN=1`, and even then only
 //! outside a sandbox guard (`AUXESIS_SANDBOX=1` or a `HOME` that is not the
 //! OS account's home) and outside a crate's own tests. Nothing else enables
@@ -27,7 +27,7 @@ pub fn keychain_allowed() -> bool {
         return false;
     }
     if std::env::var("AUXESIS_ALLOW_KEYCHAIN").as_deref() != Ok("1") {
-        // No explicit opt-in: never touch the Keychain (KC-01).
+        // No explicit opt-in: never touch the Keychain.
         return false;
     }
     if std::env::var("AUXESIS_SANDBOX")

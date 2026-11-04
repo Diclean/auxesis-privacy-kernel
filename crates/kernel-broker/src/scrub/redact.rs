@@ -37,7 +37,7 @@ fn redact_with_registry(registry: &Registry, text: &str) -> Option<String> {
     for hit in matcher.find_overlapping_iter(text.as_bytes()) {
         ranges.push((hit.start(), hit.end()));
     }
-    // SB6-01: a dump or an escaped copy is still the same secret. Scan the
+    // A dump or an escaped copy is still the same secret. Scan the
     // text a second time as hex spellings (contiguous or separated by
     // whitespace/colons, `\xNN`/`%NN` escaped, `xxd`/`od`/`hexdump -C`
     // scaffolding) and match the decoded bytes through the same automaton.
@@ -59,7 +59,7 @@ fn redact_with_registry(registry: &Registry, text: &str) -> Option<String> {
             }
         }
     }
-    // R8: an NFKC-equivalent spelling (`ofﬁce` with a ligature, fullwidth or
+    // An NFKC-equivalent spelling (`ofﬁce` with a ligature, fullwidth or
     // superscript compatibility forms, a decomposed combining sequence) is
     // the same value to a human and to any NFKC normaliser. Fold the text
     // with real NFKC and match through the same automaton, mapping every hit
@@ -79,7 +79,7 @@ fn redact_with_registry(registry: &Registry, text: &str) -> Option<String> {
             }
         }
     }
-    // R8: JSON/JS `\u` escapes — surrogate pairs included — are the same
+    // JSON/JS `\u` escapes — surrogate pairs included — are the same
     // characters; fold them and match, so a mixed spelling (raw text with
     // one escaped character) is caught too. Separated and hex-dump spellings
     // are handled by the decoded-run scanner.

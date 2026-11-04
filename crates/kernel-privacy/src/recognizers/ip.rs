@@ -16,7 +16,7 @@ static IPV4_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b").expect("ipv4 regex compiles")
 });
 
-/// Finds IPv4 addresses. IPv6 is intentionally out of slice 1b.
+/// Finds IPv4 addresses. IPv6 is intentionally out of scope.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct IpV4Recognizer;
 
@@ -57,7 +57,7 @@ impl Recognizer for IpV4Recognizer {
 /// Whether an adjacent `.` continues the dotted run, so `1.2.3.4.5` is rejected.
 ///
 /// A trailing sentence period is not part of a run: `192.168.0.1.` still masks
-/// (P2-5) because the dot is not followed by a digit, while `.5` after the
+/// because the dot is not followed by a digit, while `.5` after the
 /// address is.
 fn part_of_dotted_run(text: &str, start: usize, end: usize) -> bool {
     let before = text[..start].chars().next_back();
@@ -78,7 +78,7 @@ fn part_of_dotted_run(text: &str, start: usize, end: usize) -> bool {
 
 /// Whether the token immediately before the address marks a version string, so
 /// `build 1.2.3.4`, `version 10.12.0.1`, `release v 10.12.0.1` are not read as
-/// IP addresses, while `app 10.0.0.5` is (P3-3). Only the nearest token counts,
+/// IP addresses, while `app 10.0.0.5` is. Only the nearest token counts,
 /// and its length is capped so a very long run before an address stays linear.
 fn version_context(text: &str, start: usize) -> bool {
     let before = text[..start].trim_end_matches(char::is_whitespace);

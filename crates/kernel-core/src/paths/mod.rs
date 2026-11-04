@@ -3,7 +3,7 @@
 //! Everything lives under the *Auxesis home*: `$AUXESIS_HOME` when set,
 //! otherwise `$HOME/.auxesis`.
 //!
-//! # The sandbox guard (J-02)
+//! # The sandbox guard
 //!
 //! [`ensure_sandbox_guard`] is the single entry point every workspace binary
 //! calls before it reads or creates anything. It resolves the real home from
@@ -19,9 +19,9 @@
 //! descriptors and returns a [`SandboxHome`] handle. Every later write under
 //! the sandbox home goes through that handle (`openat`/`O_NOFOLLOW` relative
 //! to the verified fd), never through a path string, so a symlink swapped in
-//! after the check cannot redirect a write (breaker round 2, security review P1).
+//! after the check cannot redirect a write.
 //!
-//! # Threat model (maintainer decision, 2026-10-06)
+//! # Threat model (a maintainer decision)
 //!
 //! In scope: **accidental use of the real `~/.auxesis`** — a binary or test
 //! started with a misconfigured `HOME`/`AUXESIS_HOME`/port, or a sandbox home
@@ -115,7 +115,7 @@ pub fn ensure_sandbox_guard(api_port: Option<u16>) -> Result<PathBuf, String> {
 
 /// Whether the sandbox guard is active in this process (flag, `$HOME`
 /// override, or a failed passwd lookup). Clients use this to decide whether
-/// `--api`/`AUXESIS_API` may be trusted (J-02 round 3).
+/// `--api`/`AUXESIS_API` may be trusted.
 pub fn sandbox_guard_active() -> bool {
     SandboxContext::resolve().active
 }
@@ -167,7 +167,7 @@ pub fn auxesis_home() -> PathBuf {
 
 /// Route a write at `path` through the verified home gateway when the path
 /// lives under the current Auxesis home; `None` when it does not (the caller
-/// falls back to its legacy path-based behaviour). J-02 round 4: this lets
+/// falls back to its legacy path-based behaviour). This lets the
 /// legacy private-file helpers (voice, WhatsApp) keep their API while the
 /// home-derived path is resolved by the verified fd.
 pub fn sandbox_write_path(path: &Path, data: &[u8], mode: u32) -> Option<std::io::Result<()>> {

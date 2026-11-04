@@ -52,12 +52,12 @@ pub(crate) const MASK: &str = "<redacted>";
 
 /// Bounded window (bytes) the pair scanner may skip between a separator and
 /// its value: spaces, tabs, line breaks, indentation and one shell line
-/// continuation (B3-01). Bounded so the skip can never go quadratic.
+/// continuation. Bounded so the skip can never go quadratic.
 pub(crate) const PAIR_SKIP_LIMIT: usize = 256;
 
 /// Bounded window (bytes) the quoted-value scan looks across for a closing
 /// quote, so a value broken over lines is one value without ever rescanning
-/// the document (B3-01/B3-02).
+/// the document.
 pub(crate) const QUOTED_SCAN_LIMIT: usize = 1024;
 
 /// Scrub an upstream error string before it is echoed to the owner.

@@ -250,7 +250,7 @@ const USCC_CUES: [&str; 4] = ["信用代码", "uscc", "credit code", "税号"];
 const USCC_CUE_BYTES: usize = 40;
 
 /// The Chinese unified social credit code (统一社会信用代码, GB 32100-2015,
-/// K-PII-TRACE-GAPS-2): eighteen characters with a MOD 31 check character, one
+/// GB 32100-2015): eighteen characters with a MOD 31 check character, one
 /// ASCII run, or two wrapped over a line break or up to two spaces, masked
 /// whole. An all-digit code masks only after a cue, so an order number stays
 /// clear.

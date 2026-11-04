@@ -17,7 +17,7 @@ pub const QUESTIONABLE_SCORE: f32 = 0.6;
 
 static EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
     // Unicode letters and digits in both the local part and the domain, so
-    // IDN domains and non-ASCII local parts are still found (P1-4).
+    // IDN domains and non-ASCII local parts are still found.
     Regex::new(r"(?i)[\p{L}\p{N}._%+\-]+@[\p{L}\p{N}.\-]+\.[\p{L}]{2,63}")
         .expect("email regex compiles")
 });
@@ -62,7 +62,7 @@ impl Recognizer for EmailRecognizer {
                 }
                 cursor = end;
             } else {
-                // A rejected match is retried from the next position (P2-4).
+                // A rejected match is retried from the next position.
                 // When the *right* side rejected the match, every start inside
                 // the same local-part run would produce the same bad tail, so
                 // the whole `[\p{L}\p{N}._%+\-]+` run is skipped at once: that
@@ -157,7 +157,7 @@ fn skip_local_part_run(text: &str, index: usize) -> usize {
 
 /// A deliberately strict check: one `@`, an RFC dot-atom local part and a
 /// dotted host whose last label is alphabetic. Letters and digits may be of
-/// any script (Unicode local parts and IDN domains, P1-4).
+/// any script (Unicode local parts and IDN domains).
 pub(crate) fn valid_email(value: &str) -> bool {
     let mut parts = value.split('@');
     let Some(local) = parts.next() else {
@@ -235,7 +235,7 @@ const PROSE_LOCALS: &str = "me us him her them you it is are was were be look lo
 const PROSE_LABELS: &str = "the a an this that these those it its his her their our your \
     some any each every one no which what whose least most all first last once";
 
-/// Finds an e-mail address written out to dodge a scraper (K-PII-TRACE-GAPS-2):
+/// Finds an e-mail address written out to dodge a scraper:
 /// `jane dot doe at example dot org`, `jane [at] example [dot] org`, `jean
 /// arobase exemple point fr`. The local part is every word joined to the cue
 /// by dots; the domain runs to its last alphabetic TLD. A bare `at` also needs a

@@ -227,7 +227,7 @@ pub(super) fn line_table(text: &str) -> (Vec<Line>, Pairs) {
     };
     // `owner`: the outermost Entry whose value is empty, an opener or a block header,
     // or line that ends in `:`. A blank run before a line deeper than it does not end
-    // the paragraph (D-2: the residue view must not split such a block).
+    // the paragraph (the residue view must not split such a block).
     let (mut first, mut blank, mut near, mut owner) = (None, None::<usize>, None, None);
     let (mut entries, mut sep0, mut prose, mut stack) = (0, 0, false, Vec::new());
     for i in 0..lines.len() {

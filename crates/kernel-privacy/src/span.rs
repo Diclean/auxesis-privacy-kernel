@@ -52,26 +52,26 @@ pub enum EntityKind {
     /// must never depend on the specific label, so this generic kind is the
     /// fail-toward-masking fallback.
     NationalId,
-    /// A person's name (GLiNER, slice 1d).
+    /// A person's name (GLiNER).
     Person,
-    /// An organisation name (GLiNER, slice 1d).
+    /// An organisation name (GLiNER).
     Organization,
-    /// A postal address or place name (GLiNER, slice 1d). The model's
+    /// A postal address or place name (GLiNER). The model's
     /// `location` label is folded into this kind when it names a place.
     Address,
-    /// A date of birth (GLiNER, slice 1d).
+    /// A date of birth (GLiNER).
     DateOfBirth,
-    /// A health condition (GLiNER, slice 1d).
+    /// A health condition (GLiNER).
     Health,
-    /// A religion or faith (GLiNER, slice 1d).
+    /// A religion or faith (GLiNER).
     Religion,
-    /// Sexual orientation or sex life, GDPR Art. 9 (deterministic lexicon, K10).
+    /// Sexual orientation or sex life, GDPR Art. 9 (deterministic lexicon).
     SexualOrientation,
-    /// Trade-union membership, GDPR Art. 9 (deterministic lexicon, K10).
+    /// Trade-union membership, GDPR Art. 9 (deterministic lexicon).
     Union,
-    /// Ethnic or racial origin, GDPR Art. 9 (deterministic lexicon, K10).
+    /// Ethnic or racial origin, GDPR Art. 9 (deterministic lexicon).
     Ethnicity,
-    /// An API key or token, masked whole with its prefix (K10). Never a secret
+    /// An API key or token, masked whole with its prefix. Never a secret
     /// that an IBAN or a phone shape relabels.
     Secret,
 }
@@ -224,7 +224,7 @@ impl EntityKind {
     /// The order is the one the privacy kernel fixes: `passport > iban >
     /// card > national_id > phone > email > url > ipv4`. A secret shares the top
     /// rank with a passport, so an API key is never relabelled an IBAN, a card
-    /// or a phone (K10). A passport-shaped
+    /// or a phone. A passport-shaped
     /// value must keep its specific label when it overlaps an IBAN candidate
     /// (P3, kind labels). Company identifiers (SIREN/SIRET/VAT) sit with the
     /// national identifiers, below phone, so a company number always wins over
@@ -250,7 +250,7 @@ impl EntityKind {
             EntityKind::Email => 6,
             EntityKind::Url => 7,
             EntityKind::IpV4 => 8,
-            // Model-emitted textual kinds (slice 1d) sit below every
+            // Model-emitted textual kinds sit below every
             // deterministic rule: when a GLiNER span overlaps a checksum-valid
             // identifier the deterministic label and its end offset win, so a
             // model over-reach can never shrink a deterministic mask.
@@ -293,8 +293,8 @@ pub struct Span {
     pub score: f32,
     /// The recogniser that produced the span.
     pub recognizer: &'static str,
-    /// The known person this span names, when a contact index produced it
-    /// (slice 1f). Every variant of one person carries the same id, so an
+    /// The known person this span names, when a contact index produced it.
+    /// Every variant of one person carries the same id, so an
     /// anonymizer can give them one token. `None` for every other span, and for
     /// a merged region whose members name different people.
     pub person_id: Option<crate::contacts::PersonId>,
@@ -336,8 +336,8 @@ impl Span {
     }
 
     /// Whether this span never leaves the Mac in any mode: its kind is
-    /// prohibited, or it is a date of birth the birth-label rule read
-    /// (OCR-KERNEL-3b). The e-mail layer's cue-gated and a model's dates of
+    /// prohibited, or it is a date of birth the birth-label rule read. The
+    /// e-mail layer's cue-gated and a model's dates of
     /// birth stay ordinary, so Open leaves them in clear as before.
     pub fn is_prohibited(&self) -> bool {
         self.kind.is_prohibited()

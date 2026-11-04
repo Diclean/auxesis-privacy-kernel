@@ -10,8 +10,8 @@ impl ToolRegistry {
     /// [`Tool::name`]; a rename would silently drop the classification (the
     /// map is keyed by name).
     ///
-    /// Used to wrap the whole set with an output filter (WA-MSG-0 scrubs
-    /// tool results before persistence) without re-deriving the deny-by-
+    /// Used to wrap the whole set with an output filter (tool results are
+    /// scrubbed before persistence) without re-deriving the deny-by-
     /// default trust classes.
     pub fn map_tools(&mut self, mut f: impl FnMut(Box<dyn Tool>) -> Box<dyn Tool>) {
         let tools = std::mem::take(&mut self.tools);

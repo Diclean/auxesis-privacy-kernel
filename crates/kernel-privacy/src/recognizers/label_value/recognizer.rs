@@ -72,7 +72,7 @@ impl Recognizer for LabelValueRecognizer {
             }
             if !label.cjk_end && after.is_some_and(char::is_alphanumeric) {
                 // A blood group glued to its label, maybe behind a short tag
-                // (`Blood typerefAB negative`), HEALTH-LABEL-1.
+                // (`Blood typerefAB negative`).
                 if let Some(end) = (label.class == Class::Blood)
                     .then(|| glued_blood(text, map[hit.end()]))
                     .flatten()
@@ -141,7 +141,7 @@ impl Recognizer for LabelValueRecognizer {
                 };
                 spans.push(Span::new(kind, start, end, 1.0, NAME));
                 // A label inside a crossed aside is still read (`licence number
-                // (password/…): …`, ID-LABEL-2 r1): the value is short, so the
+                // (password/…): …`): the value is short, so the
                 // rescan stays bounded.
                 if !crossed {
                     reach = reach.max(end);

@@ -1,7 +1,8 @@
 //! Wire shapes for `tools/list` and `tools/call`.
 //!
-//! These are deliberately dumb, vendor-free carriers: S1 moves bytes, S2 turns
-//! them into Auxesis descriptors and maps the raw `annotations` object into
+//! These are deliberately dumb, vendor-free carriers: the transport moves
+//! bytes, the descriptor layer turns them into Auxesis descriptors and maps
+//! the raw `annotations` object into
 //! `McpTag`s. Keeping the mapping out of here means a server annotation
 //! change never touches the transport crate.
 //!

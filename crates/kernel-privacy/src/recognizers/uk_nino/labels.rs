@@ -1,7 +1,7 @@
-//! Explicit NI labels and the aside a label may carry (ID-LABEL-2).
+//! Explicit NI labels and the aside a label may carry.
 
 /// Explicit NI labels, folded to lower case: after one, a loose number in
-/// mixed case or after a short word, suffix glued, is the value (seal A r1).
+/// mixed case or after a short word, suffix glued, is the value.
 const NI_LABELS: &[&str] = &[
     "national insurance number",
     "national insurance no",
@@ -12,7 +12,7 @@ const NI_LABELS: &[&str] = &[
 
 /// Whether an [`NI_LABELS`] label, not glued to a letter or digit before it,
 /// ends right before char `at`, past up to twelve blanks, `:`, `#`, `=`, `.`,
-/// `,` or `-` with at most one line break among them (ID-LABEL-2: `NI number:\n…`,
+/// `,` or `-` with at most one line break among them (`NI number:\n…`,
 /// `NI number:      …`). It reads at most forty characters back: linear.
 pub(super) fn ni_labelled(chars: &[(usize, char)], at: usize) -> bool {
     let run = || {
@@ -40,7 +40,7 @@ pub(super) fn ni_labelled(chars: &[(usize, char)], at: usize) -> bool {
 }
 
 /// Where an NI label ends when one short aside closes right before `end`
-/// (`NI number (if applicable): …`, ID-LABEL-2 r1): one to thirty letters,
+/// (`NI number (if applicable): …`): one to thirty letters,
 /// blanks, `'`, `-` or `/` in parentheses, and up to three blanks before them.
 /// `end` itself when there is none. At most thirty-five characters back.
 fn aside_start(chars: &[(usize, char)], end: usize) -> usize {

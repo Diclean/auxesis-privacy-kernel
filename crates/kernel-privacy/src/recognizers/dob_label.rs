@@ -1,4 +1,4 @@
-//! A date of birth after its label (OCR-KERNEL-3b).
+//! A date of birth after its label.
 //!
 //! A date is masked as [`EntityKind::DateOfBirth`] only right after a birth
 //! label (`Date of birth`, `DOB`, `born on`, `né(e) le`, `date de naissance`),

@@ -3,7 +3,7 @@
 use super::keys::is_prose_word;
 use super::value::{bounded, core, next_word};
 
-/// SECRET-RECALL-2: a letters-only Wi-Fi key right after its [`WIFI_KEY_RE`](super::keys::WIFI_KEY_RE)
+/// A letters-only Wi-Fi key right after its [`WIFI_KEY_RE`](super::keys::WIFI_KEY_RE)
 /// key and a `:`, `=`, `is` or `est` (`Wi-Fi key: blueotterriver`), on the
 /// key's line or the next: 8 to 63 letters, the length of a WPA passphrase, not
 /// a [`PROSE_WORDS`](super::keys::PROSE_WORDS) status nor `ask…`/`see…`, and after `is` no `-ed` or `-ing`

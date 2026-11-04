@@ -1,4 +1,4 @@
-//! Email-aware detection layer (slice 1e).
+//! Email-aware detection layer.
 //!
 //! [`EmailLayer`] is the post-pass that closes the gap the deterministic
 //! recognisers and GLiNER leave on messy e-mail: a bare first name in a

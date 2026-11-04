@@ -43,7 +43,7 @@
 //!
 //! The single transport parser accepts CR, LF and CRLF terminators, including a
 //! CRLF split across two read chunks, and drops a leading UTF-8 BOM (split or
-//! whole). `limits::read_sse_line` is retained only as the S0 bounded-line
+//! whole). `limits::read_sse_line` is retained only as the bounded-line
 //! helper its tests exercise; the transport never uses it.
 
 use std::sync::Mutex;
@@ -117,7 +117,7 @@ impl Origin {
 ///
 /// Only a connection-level failure is retryable; an HTTP status, a frame bound,
 /// a timeout or a protocol error is not. This is internal to the transport so
-/// the S0 [`McpError`] surface does not have to grow.
+/// the [`McpError`] surface does not have to grow.
 struct AttemptError {
     mcp: McpError,
     retryable: bool,

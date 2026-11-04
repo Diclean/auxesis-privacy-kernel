@@ -1,8 +1,8 @@
 //! Header cells, the names they hold, and the table a header line opens.
 
 /// The header names a table pass reads: main's list under the row cap, the
-/// wider list with no cap (SECRET-FR-HDR-1), and that list with a bare `pass`
-/// and the password manager export names (SECRET-LEAK-294B). Each pass only
+/// wider list with no cap, and that list with a bare `pass`
+/// and the password manager export names. Each pass only
 /// adds spans, so a new name never changes what the older passes hide.
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum Names {
@@ -19,7 +19,7 @@ impl Names {
 
 /// `cell` lower-cased, without blanks, `_` or `-`; `wide` also drops a last
 /// colon (`Mot de passe :`), no-break blanks and combining accents, so an NFD
-/// `Clé privée` reads as its NFC form (SECRET-FR-HDR-P3).
+/// `Clé privée` reads as its NFC form.
 pub(super) fn folded(cell: &str, wide: bool) -> String {
     let cell = cell.trim().trim_matches('"');
     let cell = if wide {
@@ -47,7 +47,7 @@ pub(super) fn folded(cell: &str, wide: bool) -> String {
 }
 
 /// A header cell that names a secret column (closed list); a wide list adds
-/// the French names and the compound English ones (SECRET-FR-HDR-1), the
+/// the French names and the compound English ones, the
 /// export list a bare `pass` and the password manager column names.
 pub(super) fn secret_header(cell: &str, names: Names) -> bool {
     let wide = names.wide();

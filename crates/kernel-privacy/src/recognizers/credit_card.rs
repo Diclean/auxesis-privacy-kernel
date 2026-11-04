@@ -31,9 +31,9 @@ impl Recognizer for CreditCardRecognizer {
             .into_iter()
             .filter(|(start, end)| valid_card(&view[*start..*end]))
             .collect();
-        // FIN-6: a run with other separators adds only where no card above was
+        // A run with other separators adds only where no card above was
         // found. Those runs are sorted by start and disjoint, so a binary search
-        // picks the only candidate; scanning them all was quadratic (r1).
+        // picks the only candidate; scanning them all would be quadratic.
         let old = found.len();
         for (start, end) in uniform_candidates(view) {
             let first = &found[..old];
@@ -92,7 +92,7 @@ fn candidates(text: &str) -> Vec<(usize, usize)> {
     found
 }
 
-/// FIN-6: maximal runs of digits grouped by one separator byte (space, hyphen,
+/// Maximal runs of digits grouped by one separator byte (space, hyphen,
 /// `.` or `/`), repeated one to three times at each joint, the same byte all
 /// along the run (`4539  1488  0343  6467`, `4539/1488/0343/6467`).
 fn uniform_candidates(text: &str) -> Vec<(usize, usize)> {

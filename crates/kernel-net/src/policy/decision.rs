@@ -7,7 +7,7 @@ use super::host::url_origin_key;
 /// The engine fills this in; it never comes from the model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EgressContext {
-    /// The conversation holds untrusted content (WS-C taint).
+    /// The conversation holds untrusted content (taint).
     pub tainted: bool,
     /// The turn read mail/calendar/memory/notes: private owner data.
     pub carries_private_data: bool,

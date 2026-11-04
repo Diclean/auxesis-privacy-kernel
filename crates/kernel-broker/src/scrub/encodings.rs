@@ -45,7 +45,7 @@ pub(super) fn html_entities(value: &str, hex: bool) -> String {
     out
 }
 
-/// `%73%62…`: every byte percent-escaped, uppercase hex (the R6 spelling the
+/// `%73%62…`: every byte percent-escaped, uppercase hex (the spelling the
 /// decoded scan accepts).
 pub(super) fn percent_encode_all(value: &str) -> String {
     const UPPER: &[u8; 16] = b"0123456789ABCDEF";
@@ -114,7 +114,7 @@ pub(super) fn escaped_hex(value: &str, prefix: &str, upper: bool) -> String {
 
 /// `\u0043\U00000043`-style escapes, one per **character**: `\u` uses four
 /// hex digits for the BMP and a surrogate pair (`\uD83D\uDE00`) beyond it,
-/// `\U` uses eight hex digits. Both hex cases (R7-4/R8).
+/// `\U` uses eight hex digits. Both hex cases are accepted.
 pub(super) fn unicode_escaped(value: &str, prefix: &str, upper: bool) -> String {
     let mut out = String::with_capacity(value.len() * (prefix.len() + 8));
     for c in value.chars() {

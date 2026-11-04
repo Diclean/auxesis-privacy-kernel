@@ -4,7 +4,7 @@
 //! and the HTML parser crates log through the `log` facade. At the default
 //! levels those records reach the subscriber and, for the daemon, are redirected
 //! by launchd into `~/.auxesis/logs/auxd.log` — so parser noise is a
-//! disk-fill vector, not just noise (RV4-02: html5ever logs one `WARN` per
+//! disk-fill vector, not just noise: html5ever logs one `WARN` per
 //! foster-parented token; 99,360 records / 8.85 MiB on disk for a single
 //! 512 KiB unauthenticated fetch).
 

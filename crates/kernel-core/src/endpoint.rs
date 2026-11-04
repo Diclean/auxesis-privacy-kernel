@@ -1,5 +1,4 @@
-//! One client endpoint resolver shared by `auxesis` and `aux doctor` (J-02
-//! round 3).
+//! One client endpoint resolver shared by `auxesis` and `aux doctor`.
 //!
 //! Under an active sandbox guard clients take their endpoint **only** from
 //! `AUXESIS_API_PORT`: `--api` and `AUXESIS_API` are refused (they can hide

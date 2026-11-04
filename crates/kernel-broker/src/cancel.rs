@@ -1,4 +1,4 @@
-//! Cooperative cancellation token for one turn (E-18).
+//! Cooperative cancellation token for one turn.
 //!
 //! The token lives in `kernel-broker` (not the engine) so tool implementations
 //! can observe it through [`ToolCtx::cancel`](crate::ToolCtx): the engine
@@ -6,7 +6,7 @@
 //! long-running tool can then run its own cleanup (the `shell` tool kills
 //! its whole process tree) instead of relying only on being dropped.
 //!
-//! Cancelling never rolls back persisted state — the WS-C write-ahead taint
+//! Cancelling never rolls back persisted state — the write-ahead taint
 //! marks written before an untrusted dispatch must survive exactly as they do
 //! for a crash or a timeout.
 

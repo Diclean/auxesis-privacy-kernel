@@ -133,7 +133,7 @@ const MAX_ENUM_VALUES: usize = 32;
 
 /// An enum string is a short token, never prose: no spaces, so a server cannot
 /// smuggle a sentence ("ignore previous instructions …") into the schema the
-/// model reads (security review P2, round 4).
+/// model reads.
 fn safe_enum_text(value: &str) -> bool {
     (1..=32).contains(&value.len())
         && value

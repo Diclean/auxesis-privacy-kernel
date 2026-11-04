@@ -1,4 +1,4 @@
-//! Deterministic web egress policy (slice W1).
+//! Deterministic web egress policy.
 //!
 //! A web `GET` is **egress**, not a harmless local read: the URL path/query
 //! and the DNS lookup both leave the machine before anything is refused. This
@@ -28,7 +28,7 @@
 //! Deny always wins: `deny_domains` beats `allow_domains`, a remembered
 //! approval, and every mode. An unknown or missing state fails closed.
 //!
-//! Friction, stated plainly (maintainer decision, security-review round 4): after any web
+//! Friction, stated plainly (a maintainer decision): after any web
 //! read or private read in a conversation, every further fetch asks. That is
 //! deliberate — a silent egress while the turn is sensitive is a channel.
 

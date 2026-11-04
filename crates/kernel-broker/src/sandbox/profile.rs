@@ -154,7 +154,7 @@ pub(super) fn seatbelt_profile_with_developer_dir(
     // toolchains read at startup stay readable without re-opening the broad
     // package `etc` trees: Homebrew's OpenSSL config/CA bundle (node, npm,
     // pnpm, tsc abort without them), Homebrew's own `Library/Homebrew` code
-    // (H-07: `brew --version`/`list`/`info`, including exec of its vendored
+    // (`brew --version`/`list`/`info`, including exec of its vendored
     // Ruby) and system Ruby's gems tree (rubygems globs it in
     // `gem_prelude`, before any user code runs).
     profile.push_str("(allow file-read*");

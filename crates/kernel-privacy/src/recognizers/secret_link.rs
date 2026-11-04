@@ -1,4 +1,4 @@
-//! K-SECRET-TAIL-4: one linear link scanner. A secret's value runs from its
+//! One linear link scanner. A secret's value runs from its
 //! link to a structural end: the end of its paragraph, or in an unambiguous config
 //! paragraph the end of its logical line. No end depends on a word of the value.
 //! Its spans are only added to the older scans' spans; it never removes one.

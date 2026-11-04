@@ -16,7 +16,7 @@ pub(super) fn untrusted_name_hook(name: &str) -> bool {
 
 /// Tool names whose output is **private owner data**: mail, calendar, memory
 /// and notes. Reading one marks the conversation `carries_private_data`, and
-/// after that an unseen web host asks (WEB-01). The reads themselves stay
+/// after that an unseen web host asks. The reads themselves stay
 /// silent: they only change the egress rules.
 ///
 /// This name hook is only a backstop for a connector whose output is private

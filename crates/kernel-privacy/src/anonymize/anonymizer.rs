@@ -133,7 +133,7 @@ impl Anonymizer {
         mac.update(kind.as_str().as_bytes());
         mac.update(b"\x1f");
         mac.update(normalized.as_bytes());
-        // NORM-1: a spelling the scan folds (`𝐄𝐒91…`, `ЕS91…`, a hidden or
+        // A spelling the scan folds (`𝐄𝐒91…`, `ЕS91…`, a hidden or
         // Unicode space) keys on its own bytes too, so it gets its own token and
         // restores to itself, never to another spelling of the value. A value
         // with nothing to fold (all ASCII text) keeps its key.

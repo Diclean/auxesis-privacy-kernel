@@ -8,7 +8,7 @@ use super::*;
 
 /// The one-pass redactor: a cursor walks the text, each construct consumes
 /// the bytes it decides on, and no text is ever rescanned for a failed
-/// candidate (B2-04).
+/// candidate.
 pub(super) struct Redactor<'a> {
     pub(super) text: &'a str,
     pub(super) bytes: &'a [u8],
@@ -32,8 +32,7 @@ impl Redactor<'_> {
                 continue;
             }
             // A run always starts here: `try_run` consumes the whole run and
-            // every masking path lands after a value delimiter, so the old
-            // run-start boundary guard was dead code (B3-10).
+            // every masking path lands after a value delimiter.
             if is_run_byte(byte) {
                 self.try_run();
                 continue;
@@ -154,7 +153,7 @@ impl Redactor<'_> {
         while p < self.bytes.len() && matches!(self.bytes[p], b' ' | b'\t') {
             p += 1;
         }
-        // E6-05: `curl --user=(admin:pass)` — the bracket wrapper is skipped
+        // `curl --user=(admin:pass)` — the bracket wrapper is skipped
         // inside the same bounded window as any pair; `<>` is masked whole,
         // `(…)` keeps its parentheses around the mask.
         if let Some((body_start, body_end)) = self.bracket_body(p) {
@@ -246,7 +245,7 @@ impl Redactor<'_> {
             }
             return;
         }
-        // B3-06: a percent-encoded DSN (`postgres%3A%2F%2Fu:pass@host`).
+        // A percent-encoded DSN (`postgres%3A%2F%2Fu:pass@host`).
         if is_scheme(run) && is_percent_scheme_separator(self.bytes, end) {
             if !self.try_url_userinfo(start, end + 9) {
                 self.cursor = end;
@@ -293,7 +292,7 @@ impl Redactor<'_> {
 
     /// A quoted key (`"api_key"`, `'token'`): unwrap and share the pair rule.
     /// An escaped closing quote (`\"api_key\":…`, a JSON fragment copied out
-    /// of an encoded string) closes the name too (B3-02). B5-02: padding
+    /// of an encoded string) closes the name too. Padding
     /// spaces inside the quotes (`" api_key "`) are skipped before and after
     /// the run, so a padded key is still a key.
     fn try_quoted_name(&mut self) -> bool {
@@ -373,10 +372,10 @@ impl Redactor<'_> {
     /// Redact a `Bearer <value>` / `Basic <value>` value that looks like an
     /// opaque secret.
     ///
-    /// B5-04: the whitespace between scheme and value is skipped with the
+    /// The whitespace between scheme and value is skipped with the
     /// same bounded rule as every other pair, so an obs-folded credential
     /// (`Authorization: Bearer\r\n  eyJ…`, what every header wrapper emits)
-    /// is one value and not an invisible tail. E6-06: a bracketed value
+    /// is one value and not an invisible tail. A bracketed value
     /// (`Bearer (…)`) is handled like every other pair's bracket wrapper.
     fn try_scheme_value(&mut self, name_end: usize) -> bool {
         let p = self.skip_pair_whitespace(name_end, PAIR_SKIP_LIMIT);
@@ -417,9 +416,9 @@ impl Redactor<'_> {
     ///
     /// The separator and the value may be split across lines (pretty-printed
     /// JSON fragments, YAML, a shell line continuation); the skip window is
-    /// bounded so an adversarial text stays linear (B3-01).
+    /// bounded so an adversarial text stays linear.
     fn try_pair(&mut self, name_end: usize, info: NameInfo, gate: Option<HeaderGate>) -> bool {
-        // E6-04: a bracketed query suffix (`?auth[token]=`, `?token[]=`) sits
+        // A bracketed query suffix (`?auth[token]=`, `?token[]=`) sits
         // between the name run and the separator.
         let p = self.skip_pair_whitespace(name_end, PAIR_SKIP_LIMIT);
         let p = self.skip_pair_whitespace(self.skip_name_bracket_suffix(p), PAIR_SKIP_LIMIT);
@@ -428,7 +427,7 @@ impl Redactor<'_> {
         };
         let is_colon = self.bytes[p] == b':';
         let mut q = self.skip_pair_whitespace(p + separator_len, PAIR_SKIP_LIMIT);
-        // SB6-04: a repeated separator (`api_key = = …`, `key%3D%3D…`) names
+        // A repeated separator (`api_key = = …`, `key%3D%3D…`) names
         // the same pair; consume at most two extras, inside the same bounded
         // windows.
         for _ in 0..2 {
@@ -440,7 +439,7 @@ impl Redactor<'_> {
         if let Some(gate) = gate.filter(|_| is_colon) {
             return self.try_header_value(q, gate);
         }
-        // B5-01: a value wrapped by the punctuation the same sentence uses
+        // A value wrapped by the punctuation the same sentence uses
         // — `password=(mysecretpassphrase)`, `api_key=<…>` — is still the
         // value of the pair; the wrapper is skipped inside the same bounded
         // window, never by rescanning.
@@ -468,7 +467,7 @@ impl Redactor<'_> {
         true
     }
 
-    /// E6-04: skip a bracketed suffix on a name (`auth[token]=`,
+    /// Skip a bracketed suffix on a name (`auth[token]=`,
     /// `token[]=`), inside a constant window.
     fn skip_name_bracket_suffix(&self, p: usize) -> usize {
         if self.bytes.get(p) != Some(&b'[') {
@@ -488,7 +487,7 @@ impl Redactor<'_> {
 
     /// Redact a value wrapped in `(…)` or `<…>`.
     ///
-    /// B5-01: `(`/`)`/`<`/`>` are value delimiters, so without this the
+    /// `(`/`)`/`<`/`>` are value delimiters, so without this the
     /// value after the separator reads as empty and the pair disappears;
     /// `password=(mysecretpassphrase)` — prose, maths, a shell transcript —
     /// leaked verbatim. The scan for the closing bracket is bounded
@@ -517,8 +516,8 @@ impl Redactor<'_> {
     }
 
     /// Skip the whitespace — including line breaks, indentation, a single
-    /// shell line continuation, percent-encoded spaces (SB6-04:
-    /// `api_key%20=%20…`) and JSON5 comments (E6-03/B5-05) — between a
+    /// shell line continuation, percent-encoded spaces
+    /// (`api_key%20=%20…`) and JSON5 comments — between a
     /// name/separator and the value, up to `limit` bytes.
     fn skip_pair_whitespace(&self, mut p: usize, limit: usize) -> usize {
         let end = (p + limit).min(self.bytes.len());
@@ -613,8 +612,8 @@ impl Redactor<'_> {
 
     /// Value span: the matching closing quote when there is one, else up to
     /// the first delimiter (or whitespace for scheme values). The quoted scan
-    /// honours `\` escapes (`"a\"b"` is one value, B3-02) and looks across a
-    /// bounded window of line breaks for the closing quote (B3-01); every
+    /// honours `\` escapes (`"a\"b"` is one value) and looks across a
+    /// bounded window of line breaks for the closing quote; every
     /// window is a constant, so a single-line document cannot make the scan
     /// quadratic. Returns `(body_end, closed)`.
     fn scan_value(&self, body_start: usize, quote: Option<u8>, scheme: bool) -> (usize, bool) {

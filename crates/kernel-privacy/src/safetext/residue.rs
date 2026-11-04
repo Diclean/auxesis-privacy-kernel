@@ -85,7 +85,7 @@ pub(super) fn residue_in_text(
     spans
 }
 
-/// K-RESIDUE-URL: the rest of each residue URL in `more` that a masked secret
+/// The rest of each residue URL in `more` that a masked secret
 /// cut short. A secret's stand-in ends its line in the residue view, so a URL
 /// read there stops at the secret, while the URL rule, reading the text itself,
 /// runs on through it (`…?key=<secret>&alt=json`). Past each secret span the URL

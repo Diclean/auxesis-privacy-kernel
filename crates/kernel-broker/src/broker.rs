@@ -6,12 +6,12 @@
 //! firewalls and OpenCode policies). A [`Rule`] may scope an agent and/or a tool
 //! with the [`ANY`] wildcard.
 //! When no rule matches, the broker asks — except for a tool the caller
-//! declares **read-only by construction** (H-02): a declared read-only tool
+//! declares **read-only by construction**: a declared read-only tool
 //! with no matching deny rule runs with a `tool.decision` audit row and no
 //! approval card. Reads are the daily-use path; the effectful default stays
 //! conservative.
 //!
-//! **Taint (WS-C):** when the conversation holds untrusted content, the
+//! **Taint:** when the conversation holds untrusted content, the
 //! broker raises the bar: every consequential call asks even if an `allow`
 //! rule matches, and the [`ApprovalRequest`] tells the approver it is tainted
 //! (so "always allow" can be refused). `deny` rules still win, tools the
@@ -24,7 +24,7 @@
 //! failures — is written to the store as a `tool.decision` event whose payload
 //! is JSON.
 //!
-//! **Execution mode (WS-C round 7):** a call that will run **unsandboxed** is
+//! **Execution mode:** a call that will run **unsandboxed** is
 //! never auto-run by an `allow` rule. An `allow` rule is raised to `ask`
 //! exactly as taint does (deny rules still win; a `read_only` declaration does
 //! not exempt an unsandboxed call). The [`ApprovalRequest`] carries
@@ -35,7 +35,7 @@
 //! of any prior taint mark. The caller passes [`ExecutionMode::Sandboxed`] as
 //! the default; an unknown mode fails closed (unsandboxed).
 //!
-//! **Network-enabled shell (SHELL-NETWORK-ASK):** a sandboxed `shell` call
+//! **Network-enabled shell:** a sandboxed `shell` call
 //! whose profile has `network = true` reports [`ExecutionMode::Networked`]. It
 //! gets the same bar: no `allow` rule — and no persisted "always allow" — may
 //! auto-run it, the [`ApprovalRequest`] carries `networked: true`, and the

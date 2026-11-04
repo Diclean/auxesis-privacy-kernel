@@ -12,7 +12,7 @@ use super::{DEFAULT_DIR_NAME, REAL_DAEMON_PORT, SANDBOX_ENV};
 /// this process, never `$HOME`.
 ///
 /// `$HOME` is exactly the variable a sandbox overrides, so it cannot be used
-/// to recognise the real `~/.auxesis` (J-02). Returns `None` when the lookup
+/// to recognise the real `~/.auxesis`. Returns `None` when the lookup
 /// fails; non-unix platforms fall back to `$HOME`.
 #[cfg(unix)]
 pub fn real_user_home() -> Option<PathBuf> {
@@ -78,7 +78,7 @@ impl SandboxContext {
 
     /// Pure constructor (unit tests): invalid/empty/relative `HOME` counts as
     /// overridden, never as a real home to compare against. A failed passwd
-    /// lookup arms the guard and fails closed (J02-2-BI2-03).
+    /// lookup arms the guard and fails closed.
     pub(super) fn new(
         real_home: Option<PathBuf>,
         env_home: Option<PathBuf>,

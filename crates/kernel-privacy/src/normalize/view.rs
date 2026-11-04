@@ -33,7 +33,7 @@ thread_local! {
 
 /// While alive, every [`NormalizedText::new`] of exactly this text shares one
 /// view per `ocr` flag, so the recognisers of a scan normalise the text twice,
-/// not once each (K-REGISTRY-PERF: two dozen whole-text passes were most of a
+/// not once each (two dozen whole-text passes were most of a
 /// megabyte's scan). A view is a pure function of the text and the flag, so a
 /// shared one is the value a fresh build returns. Dropping the guard (or a
 /// panic unwinding past it) forgets the text and its views.
@@ -43,7 +43,7 @@ thread_local! {
 /// into `SHARED` after the storage is gone. `try_with` returns an `AccessError`
 /// in that window, so the guard silently stays unregistered and its `Drop`
 /// stays a no-op; every call falls back to a fresh build whose output is
-/// byte-identical to the cached one (K-REGISTRY-PERF r1 fix for NO SEAL P2).
+/// byte-identical to the cached one.
 pub(crate) struct SharedViews(bool);
 
 impl SharedViews {

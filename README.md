@@ -335,6 +335,15 @@ Auxesis daemon and are tied to macOS more closely. Most users only need
 The prompt-injection corpus that the tests read and the private held-out sets
 are not part of this repository.
 
+## How the crates fit together
+
+- **`auxesis-kernel-core`** — the policy and the plumbing: privacy modes, the paths out (`PathId`), `admit()` and `Grant`; plus the home directory, config, budgets, jobs and the kill switch.
+- **`auxesis-kernel-privacy`** — the detectors: `Registry` finds the sensitive spans, `Anonymizer` swaps them for `⟦KIND_…⟧` tokens, and `Gate` produces the `SafeText` that only checked text can travel in.
+- **`auxesis-kernel-broker`** — the tool side: `ToolRegistry`, the `Broker` that decides `allow`/`ask`/`deny` per call, taint tracking for untrusted content, the sandbox profiles and the log scrubber.
+- **`auxesis-kernel-net`** — the egress side: the one HTTP client factory with the SSRF guard and DNS pinning, the web policy (allow list, budgets, ask rules) and the loopback CONNECT proxy for sandboxed extensions.
+- **`auxesis-kernel-mcp`** — the MCP client: stdio and HTTP transports for JSON-RPC tool servers, the install approval, discovery, and the sandbox profile an extension runs under.
+- **`auxesis-gliner2`** — optional: a local GLiNER2 entity model over ONNX Runtime, off by default and not used by the default build.
+
 ## Run the tests and the eval
 
 ```sh

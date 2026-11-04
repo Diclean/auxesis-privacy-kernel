@@ -9,7 +9,7 @@ use crate::contacts::fold::is_default_ignorable;
 
 use super::{SecretRecognizer, MAX_WRAP_BYTES};
 
-/// K-GOOGLE-KEY: the keys written with markdown escapes (`AIza…\_…`, `ya29.c.…\-…`).
+/// The keys written with markdown escapes (`AIza…\_…`, `ya29.c.…\-…`).
 /// The key alphabet stops at the backslash, so the head before it is too short
 /// and the whole key stayed clear. The text is read once more with each
 /// backslash before `_` or `-` dropped; a key found there maps back to the text,
@@ -43,7 +43,7 @@ pub(super) fn unescaped_keys(text: &str) -> Vec<(usize, usize)> {
         .collect()
 }
 
-/// FIN-6: an AWS access key ID written in lower case (`akia` and sixteen more
+/// An AWS access key ID written in lower case (`akia` and sixteen more
 /// letters or digits, twenty in all). Lower case reads like prose, so unlike the
 /// capital shape no ASCII letter or digit may touch it.
 static LOWER_AWS_RE: LazyLock<Regex> =

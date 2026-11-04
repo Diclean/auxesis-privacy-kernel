@@ -1,4 +1,4 @@
-//! The keyed M6-2 install-approval digest that binds one approval to one
+//! The keyed install-approval digest that binds one approval to one
 //! exact server preview.
 
 use std::path::Path;

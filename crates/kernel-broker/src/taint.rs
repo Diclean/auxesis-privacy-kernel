@@ -1,4 +1,4 @@
-//! Trust labels and the conversation taint model (WS-C).
+//! Trust labels and the conversation taint model.
 //!
 //! Tools can ingest content the owner never authored (fetched pages,
 //! connector results, mail). [`Trust`] labels a tool's **output**; [`Taint`]

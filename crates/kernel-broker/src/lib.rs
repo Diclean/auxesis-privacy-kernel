@@ -1,7 +1,7 @@
 //! Tools and the permission broker for Auxesis.
 //!
-//! Slice C of M1. The interface contract moved out of this repository (see
-//! `docs/README.md`).
+//! The tool interface and the approval contract are documented with the app
+//! that uses this crate, not here.
 //!
 //! - [`Tool`] is the single interface every tool implements. Tools are
 //!   registered in a [`ToolRegistry`] so the chat loop can look them up by

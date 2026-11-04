@@ -10,7 +10,7 @@ use super::SCORE;
 use crate::recognizer::Recognizer;
 use crate::span::{EntityKind, Span};
 
-/// The cue of a short numeric code (K-PII-TRACE-GAPS-2): a PIN, an OTP or a
+/// The cue of a short numeric code: a PIN, an OTP or a
 /// passcode (group 1), whose code needs four digits, or the word `code`, six.
 static CODE_CUE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(

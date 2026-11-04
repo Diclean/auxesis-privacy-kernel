@@ -1,5 +1,5 @@
 //! Deterministic PII detection and anonymisation for the Auxesis privacy
-//! kernel (slice 1b).
+//! kernel.
 //!
 //! The crate ports the deterministic half of Microsoft Presidio's
 //! architecture to Rust:

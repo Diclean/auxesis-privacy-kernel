@@ -1,9 +1,8 @@
 //! `kernel-mcp` — the generic JSON-RPC 2.0 / MCP protocol client for Auxesis.
 //!
-//! S0 ships the vendor-free skeleton: the envelope types, the bounded frame
-//! readers, the typed error surface and the [`Transport`] seam. S1 adds the
-//! network layer on top of that seam ([`HttpTransport`] plus the [`McpClient`]
-//! operations), still without any vendor knowledge.
+//! The vendor-free protocol layer: the envelope types, the bounded frame
+//! readers, the typed error surface, the [`Transport`] seam and the network
+//! layer on top of it ([`HttpTransport`] plus the [`McpClient`] operations).
 //!
 //! # Why the bounds live here and not in the transport
 //!
@@ -12,11 +11,11 @@
 //! while streaming and reports [`McpError::FrameTooLarge`]; a caller can never
 //! observe a truncated JSON error instead.
 //!
-//! # Completeness is the transport's duty (the S0/S1 boundary)
+//! # Completeness is the transport's duty
 //!
-//! [`limits::read_frame`] reads until the reader reports EOF, so at S0 it
-//! cannot tell a complete body from a **truncated-but-valid prefix**: only the
-//! transport (S1) knows whether a `Content-Length` was satisfied or an SSE
+//! [`limits::read_frame`] reads until the reader reports EOF, so it cannot
+//! tell a complete body from a **truncated-but-valid prefix**: only the
+//! transport knows whether a `Content-Length` was satisfied or an SSE
 //! stream delivered its terminal event. Truncation detection therefore belongs
 //! to the transport, not to this crate; `read_frame` alone never proves
 //! completeness.
@@ -114,7 +113,7 @@ pub use tools::{
     UNTRUSTED_MCP_TAG,
 };
 
-/// The MCP protocol revision this client opens with (S1 bumps it if the
+/// The MCP protocol revision this client opens with (it bumps if the
 /// server negotiates a different one).
 pub const PROTOCOL_VERSION: &str = "2025-11-25";
 

@@ -1,4 +1,4 @@
-//! EU national and tax identifiers (EU-KERNEL-1a): Germany, Spain, Italy,
+//! EU national and tax identifiers: Germany, Spain, Italy,
 //! the Netherlands and Belgium; 1b: Poland, Portugal, Austria, Ireland, Sweden;
 //! 1c: Romania, Czechia and Slovakia, Greece and Bulgaria, read over one body.
 //!
@@ -109,7 +109,7 @@ static RULES: [Rule; 10] = [
     Rule("se_personnummer", SE_CUES, se_candidates),
 ];
 
-/// The rules of EU-KERNEL-1c: Romania, Czechia and Slovakia, Greece and
+/// The rules of this group: Romania, Czechia and Slovakia, Greece and
 /// Bulgaria. One recogniser reads them over one body, so the text is grouped
 /// into runs once for the five, not once each.
 static RULES_1C: [Rule; 5] = [

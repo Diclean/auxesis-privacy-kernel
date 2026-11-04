@@ -1,4 +1,4 @@
-//! EU-KERNEL-1b: Poland, Portugal, Austria, Ireland and Sweden.
+//! Poland, Portugal, Austria, Ireland and Sweden.
 
 use crate::normalize::ascii_digits;
 

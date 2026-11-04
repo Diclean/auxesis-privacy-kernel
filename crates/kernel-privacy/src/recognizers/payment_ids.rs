@@ -8,12 +8,12 @@
 //! * a US routing number (ABA), a bank account number of 6 to 17 digits and a UK
 //!   sort code, each after its cue;
 //! * a French RIB (`30006 00001 12345678901 89`), checked with its key;
-//! * on a bank statement (K-BANK-STATEMENT-1): a German, Dutch or Spanish account
+//! * on a bank statement: a German, Dutch or Spanish account
 //!   cue, a RIB whose groups sit in table columns, a value glued to its label
 //!   (`Account number55555555`), and a table value under its header line.
 //! * a generic ID after a personal-identity label (`ID number`, `national ID`, `n° CNI`)
 //!   or a bare `ID` at a sentence start or after `my`; business references (`order ID`,
-//!   `customer ID`) stay clear (K-PUBLIC-MISSES).
+//!   `customer ID`) stay clear.
 //!
 //! All of them are masked as `NATIONAL_ID`, a class open mode removes. The cue
 //! may be followed by a label word (`no`, `number`, `n°`), a colon or an equals
@@ -64,7 +64,7 @@ const TAX_CUES: &[&str] = &[
 const ROUTING_CUES: &[&str] = &["routing", "aba", "rtn"];
 const ACCOUNT_CUES: &[&str] = &["account", "acct", "a/c", "compte"];
 const SORT_CUES: &[&str] = &["sort code", "sortcode"];
-/// Account cues of other statement languages (K-BANK-STATEMENT-1).
+/// Account cues of other statement languages.
 const ACCOUNT_CUES_INTL: &[&str] = &[
     "kontonummer",
     "konto-nr",
@@ -358,7 +358,7 @@ fn starts_token(bytes: &[u8], at: usize) -> bool {
 }
 
 /// Read `shape` at `start`: groups of exact widths, joined by one consistent
-/// run of one to three spaces or `-`, `/` or `.` bytes (FIN-6 r1: an SSN written
+/// run of one to three spaces or `-`, `/` or `.` bytes (an SSN written
 /// `512  45  8873` joins like the slash and dot shapes do), or by nothing.
 fn groups(bytes: &[u8], start: usize, shape: &[Group], glued: bool) -> Option<usize> {
     let mut at = start;
@@ -395,7 +395,7 @@ fn separator_run(bytes: &[u8], at: usize, joint: &mut Option<u8>, glued: bool) -
     Some(run)
 }
 
-/// FIN-6: a `/` or `.` joint must not run on into another group (`512/45/8873/1234`).
+/// A `/` or `.` joint must not run on into another group (`512/45/8873/1234`).
 fn runs_on(at: usize, end: usize, bytes: &[u8]) -> bool {
     let Some(&joint @ (b'/' | b'.')) = bytes.get(at + 3) else {
         return false;

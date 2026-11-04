@@ -14,7 +14,7 @@ use super::unicode_digit_value;
 use super::{NormalizedText, MAX_FOLDED_RUN, RUN_BOUNDARY};
 
 impl NormalizedText {
-    /// The folded views the registry scans besides the text itself (NORM-1), so
+    /// The folded views the registry scans besides the text itself, so
     /// a value written with look-alike, full-width, mathematical or invisible
     /// characters is found by every recogniser, ASCII-only ones included:
     ///
@@ -46,7 +46,7 @@ impl NormalizedText {
         text.contains(['\u{FF06}', '\u{FF03}', '\u{FF05}'])
     }
 
-    /// The folded views with the NORM-GLYPH escape rule: a look-alike or
+    /// The folded views with the glyph escape rule: a look-alike or
     /// full-width `x`, a full-width `＃` and full-width hex digits open an escape
     /// as their ASCII forms do ([`opens_escape_glyph`]). The registry scans these
     /// as an **extra** set of views and unions their spans with those of
@@ -206,7 +206,7 @@ fn fold(ch: char) -> Fold {
 
 /// Whether the full-width character at `index`, which reads as `ascii`, opens
 /// an escape there — wherever it sits, and whether or not an ASCII letter or
-/// digit stands beside it (NORM-2 r1).
+/// digit stands beside it.
 ///
 /// `＆#100;`, `＆#x41;` and `＆nbsp;` each begin an entity, `％41` a percent
 /// escape. An escape that opens a value has a blank and a `#` beside it, never
@@ -246,7 +246,7 @@ fn opens_escape(index: usize, ascii: char, items: &[(usize, char, Fold)]) -> boo
     }
 }
 
-/// [`opens_escape`] for the glyph views only (NORM-GLYPH): the escape is read as the folded view reads it ([`escape_read`]), so a
+/// [`opens_escape`] for the glyph views only: the escape is read as the folded view reads it ([`escape_read`]), so a
 /// look-alike `x` (`＆#х73;`) or a look-alike hex digit opens it like the ASCII
 /// one, and the full-width `＃` of `＆＃73;` folds with it.
 fn opens_escape_glyph(

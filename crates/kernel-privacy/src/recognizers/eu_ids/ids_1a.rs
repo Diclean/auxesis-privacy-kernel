@@ -1,4 +1,4 @@
-//! EU-KERNEL-1a: Germany, Spain, Italy, the Netherlands and Belgium.
+//! Germany, Spain, Italy, the Netherlands and Belgium.
 
 use crate::normalize::ascii_digits;
 

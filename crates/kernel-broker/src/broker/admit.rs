@@ -194,7 +194,7 @@ impl Broker {
         let unsandboxed = mode.is_unsandboxed();
         let networked = mode.is_networked();
 
-        // Hardline floor (soul rule 1): a skill-only tool
+        // Hardline floor: a skill-only tool
         // requested without a skill context is refused here, before any rule
         // match and before the approver is asked anything.
         if skill_only && skill.is_none() {

@@ -1,11 +1,11 @@
-//! The FIN-6 separated pass: one separator shape at every pair boundary.
+//! The separated pass: one separator shape at every pair boundary.
 
 use crate::normalize::NormalizedText;
 
 use super::compact::glued_next_end;
 use super::shape::{broke_line, number_starts_at, prefix_allowed};
 
-/// What a FIN-6 separated shape reads at one offset, before any rule on what
+/// What a separated shape reads at one offset, before any rule on what
 /// follows its suffix letter: the two prefix letters, the suffix letter with the
 /// offset one past it, and the offset where the separator run that precedes the
 /// suffix begins — a line break inside that run puts whatever follows the suffix
@@ -18,7 +18,7 @@ pub(super) struct Separated {
     last: usize,
 }
 
-/// FIN-6: the shape of a number whose four pair boundaries hold the same
+/// The shape of a number whose four pair boundaries hold the same
 /// separator: one to three spaces, or one `-`, `/` or `.` (`PN/48/15/16/C`,
 /// `PN  48  15  16  C`, `CB 12  34 56 A`), with a suffix letter A to D. The
 /// shape alone, which is what the glue rule asks about
@@ -71,11 +71,11 @@ pub(super) fn separated_shape_at(bytes: &[u8], start: usize) -> Option<Separated
     })
 }
 
-/// FIN-6: a number whose four pair boundaries hold the same separator. A digit
+/// A number whose four pair boundaries hold the same separator. A digit
 /// may not touch it. A letter may (`refPN 48 15 16 C`, `PN 48 15 16 Cok`) when
 /// the prefix and the suffix are capitals: then the separators still mark it.
 /// A suffix letter that opens another number lifts both rules on its side
-/// (NINO-CHAIN): the digit before, and the case of a letter after.
+/// the digit before, and the case of a letter after.
 /// A suffix glued to a following letter across a line break ends the shape at the
 /// break, so the next line is read whole from its own first letter, but only
 /// where another number starts there (NINO-GLUED-NEXT): a word the suffix took
@@ -98,12 +98,12 @@ pub(super) fn separated_nino_at(
     let after = bytes.get(end).copied();
     // Its suffix letter opens another number: a chain is evidence of its own,
     // so neither a digit before it nor lower case glued to the next number
-    // refuses it (NINO-CHAIN). A value masked before a chain
+    // refuses it. A value masked before a chain
     // (`…9268 19AB 65  43 21\tCB-87 …`) left its last digit there, and only the
     // residue round read the number behind it, from the next number's letter:
     // masking that letter first left the number in clear. A whole number that
     // no pass reads on its own there (its suffix is glued to an IBAN or a key)
-    // is read with this one ([`glued_next_end`], NINO-CHAIN r1).
+    // is read with this one ([`glued_next_end`]).
     let shared = after.is_some_and(|b| b.is_ascii_alphabetic()) && number_starts_at(bytes, suffix);
     let glued_next = shared
         .then(|| glued_next_end(bytes, suffix, reads))
@@ -129,11 +129,11 @@ pub(super) fn separated_nino_at(
         // its second character: a word whose first letter the suffix took is
         // then a word again, so its label still matches and its value stays
         // masked. One exception, and the reason the cut exists: another number
-        // starts at that letter, whose own digits must be read whole (FIN-6).
+        // starts at that letter, whose own digits must be read whole.
         // `number_starts_at` knows every shape, not only the spaced ones, so
-        // the cut lands on all of them (NINO-GLUED-NEXT r1). On one line the
+        // the cut lands on all of them. On one line the
         // letter is kept, and the scan reads the next number from it too
-        // ([`opens_another`], NINO-CHAIN), unless no pass reads it there.
+        // ([`opens_another`]), unless no pass reads it there.
         return Some(match glued_next {
             Some(next) => next,
             None if shared && next_line => suffix,

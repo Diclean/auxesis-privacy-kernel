@@ -16,7 +16,7 @@ const LINKS: &str = "is was are were be been might may will would should could m
 const HEALTH_LINKS: &str = "of such as like c'est";
 
 /// The links after which a plain word is a value (`might be`, `set to`, `est`):
-/// English and French only, the languages of K-SECRET-TAIL's stopwords.
+/// English and French only, the languages of the clause-tail stopwords.
 const PROSE_LINKS: &str = "is was are were be been set changed updated est etait sera";
 const NUMBER_WORDS: &str =
     "no nr n° nº num number numero nummer nommer szam szama stevilka 号 号码 號碼 是 为 為";
@@ -24,7 +24,7 @@ const NUMBER_WORDS: &str =
 /// Words that make a `number`-linked label a business's, right before it.
 const BUSINESS_WORDS: &str = "certificate software product business trade company vendor \
     export import site server app seat volume";
-/// Business words read in an aside only (ID-LABEL-2 r1), not before a label:
+/// Business words read in an aside only, not before a label:
 /// `the corporate licence number …` stays masked as on main.
 const BUSINESS_ASIDES: [&str; 4] = ["corporate", "commercial", "organisation", "organization"];
 
@@ -38,7 +38,7 @@ pub(super) const QUOTES: &str = "\"'`“”‘’«»„「」『』";
 /// or ID label (`wide`) also crosses [`HEALTH_LINKS`] and a `for … is` clause.
 ///
 /// An opening parenthesis is decoration for a `wide` label only
-/// (`driver_license_number (D37-…)`, ID-LABEL-2). Behind a secret or cookie
+/// (`driver_license_number (D37-…)`). Behind a secret or cookie
 /// label it is the first byte of the value, exactly as on main: `api_key
 /// (smith…)` masks from the `(`.
 ///
@@ -110,7 +110,7 @@ pub(super) fn link(
 }
 
 /// The folded offset past a short aside whose `(` ends right before `at`
-/// (ID-LABEL-2): one to thirty letters, blanks, `'`, `-` or `/`, then `)`. No
+/// one to thirty letters, blanks, `'`, `-` or `/`, then `)`. No
 /// digit, so a value in parentheses stays the value, and no business word
 /// (`licence number (business): …` is a business's). At most 31 characters.
 fn aside_end(folded: &str, at: usize) -> Option<usize> {
@@ -137,7 +137,7 @@ fn aside_end(folded: &str, at: usize) -> Option<usize> {
 }
 
 /// Whether a number word comes first in `rest`, past blanks (`licence number …`,
-/// `licence no. …`, `licence n°12AB34567`, ID-LABEL-1): a word that only starts
+/// `licence no. …`, `licence n°12AB34567`): a word that only starts
 /// with one (`licence notes`) is none. A business word right before the label
 /// makes it a business's (`the certificate license number …`).
 ///
