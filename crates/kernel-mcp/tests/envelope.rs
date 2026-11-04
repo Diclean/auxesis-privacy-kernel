@@ -7,7 +7,7 @@
 use std::io::{self, Read};
 use std::time::{Duration, Instant};
 
-use kernel_mcp::limits::{read_frame, read_sse_line};
+use kernel_mcp::limits::read_frame;
 use kernel_mcp::{
     sanitize_untrusted, IdGenerator, JsonRpcError, JsonRpcRequest, JsonRpcResponse, Limits,
     McpError, Method, ResponseId, Transport, JSONRPC_VERSION, MAX_UNTRUSTED_BYTES,
@@ -135,17 +135,6 @@ fn oversize_frame_is_refused_while_streaming() {
             limit: 64,
             seen: 65
         }
-    );
-}
-
-#[test]
-fn sse_line_is_bounded() {
-    let line: Vec<u8> = b"data: ".iter().chain([b'x'; 40].iter()).copied().collect();
-    let mut reader: &[u8] = &line;
-    let err = read_sse_line(&mut reader, 32).unwrap_err();
-    assert!(
-        matches!(err, McpError::FrameTooLarge { limit: 32, .. }),
-        "got {err:?}"
     );
 }
 
@@ -293,14 +282,6 @@ fn frame_too_large_is_terminal_for_the_connection() {
 
     let protocol = McpError::protocol(-32700, "bad json");
     assert!(!protocol.requires_connection_close());
-
-    let line: Vec<u8> = b"data: ".iter().chain([b'x'; 40].iter()).copied().collect();
-    let mut reader: &[u8] = &line;
-    let err = read_sse_line(&mut reader, 8).unwrap_err();
-    assert!(
-        err.requires_connection_close(),
-        "over-limit SSE line was not terminal: {err:?}"
-    );
 }
 
 /// FB-14: `Limits::validate` rejects zero and absurd bounds.

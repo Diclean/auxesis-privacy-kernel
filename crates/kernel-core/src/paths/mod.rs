@@ -165,21 +165,6 @@ pub fn auxesis_home() -> PathBuf {
     env_path
 }
 
-/// Route a write at `path` through the verified home gateway when the path
-/// lives under the current Auxesis home; `None` when it does not (the caller
-/// falls back to its legacy path-based behaviour). This lets the
-/// legacy private-file helpers (voice, WhatsApp) keep their API while the
-/// home-derived path is resolved by the verified fd.
-pub fn sandbox_write_path(path: &Path, data: &[u8], mode: u32) -> Option<std::io::Result<()>> {
-    let home = auxesis_home();
-    let rel = path.strip_prefix(&home).ok()?;
-    let handle = match SandboxHome::open(&home) {
-        Ok(handle) => handle,
-        Err(err) => return Some(Err(err)),
-    };
-    Some(handle.write_atomic(rel, data, mode))
-}
-
 /// Path of the main configuration file.
 pub fn config_path(home: &Path) -> PathBuf {
     home.join("config.toml")

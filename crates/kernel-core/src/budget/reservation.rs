@@ -113,6 +113,8 @@ pub enum ReserveOutcome {
 /// - Input usage is bounded only by the length estimate: a call can settle
 ///   above its input reservation by the estimate error. The cap still denies
 ///   the next call once the recorded total reaches it.
+///
+/// The app implements this.
 pub trait ReservationLedger {
     /// Atomically enforce `caps` for `agent`/`day` and reserve `estimate`.
     ///

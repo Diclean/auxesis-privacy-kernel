@@ -1,11 +1,8 @@
-//! S2 discovery tests: deterministic dedupe, stable ordering, the per-agent cap
-//! and the in-memory TTL cache with explicit invalidation.
-
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+//! S2 discovery tests: deterministic dedupe, stable ordering and the per-agent
+//! cap.
 
 use kernel_broker::Risk;
-use kernel_mcp::discovery::{DiscoveryCache, ToolCatalog, PER_AGENT_TOOL_CAP};
+use kernel_mcp::discovery::{ToolCatalog, PER_AGENT_TOOL_CAP};
 use kernel_mcp::{RemoteTool, ToolSchema};
 use serde_json::{json, Value};
 
@@ -116,42 +113,6 @@ fn per_agent_selection_is_capped_at_24() {
     // A fully-served allowlist is complete.
     let complete = catalog.for_agent(&wires[..PER_AGENT_TOOL_CAP]);
     assert!(complete.is_complete());
-}
-
-#[test]
-fn cache_expires_after_ttl() {
-    let now = Arc::new(Mutex::new(Instant::now()));
-    let clock = Arc::clone(&now);
-    let cache = DiscoveryCache::with_clock(
-        Duration::from_secs(60),
-        Arc::new(move || *clock.lock().expect("clock")),
-    );
-    cache.put("fakeserv", catalog_with(&["A"]));
-    assert!(cache.get("fakeserv").is_some());
-
-    *now.lock().expect("clock") += Duration::from_secs(59);
-    assert!(cache.get("fakeserv").is_some());
-
-    // Exactly the TTL is expired.
-    *now.lock().expect("clock") += Duration::from_secs(1);
-    assert!(cache.get("fakeserv").is_none());
-    assert!(cache.is_empty());
-}
-
-#[test]
-fn explicit_invalidation_evicts_on_demand() {
-    let cache = DiscoveryCache::new(Duration::from_secs(3600));
-    cache.put("fakeserv", catalog_with(&["A"]));
-    cache.put("other", catalog_with(&["B"]));
-    assert_eq!(cache.len(), 2);
-
-    assert!(cache.invalidate("fakeserv"));
-    assert!(cache.get("fakeserv").is_none());
-    assert!(!cache.invalidate("fakeserv"));
-    assert_eq!(cache.servers(), vec!["other".to_owned()]);
-
-    cache.invalidate_all();
-    assert!(cache.is_empty());
 }
 
 #[test]

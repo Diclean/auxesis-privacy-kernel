@@ -16,10 +16,8 @@
 //!
 //! # `FrameTooLarge` is terminal for the connection
 //!
-//! When [`read_frame`] or [`read_sse_line`] returns
-//! [`McpError::FrameTooLarge`], the reader has stopped at an unknown offset
-//! (a body has no resync point, and a bounded SSE reader has discarded the
-//! over-limit line). The connection **must be dropped and never resumed**;
+//! When [`read_frame`] returns [`McpError::FrameTooLarge`], the reader has
+//! stopped at an unknown offset (a body has no resync point). The connection **must be dropped and never resumed**;
 //! resuming would parse the tail of an oversized frame as if it were a fresh
 //! message. [`McpError::requires_connection_close`] encodes that rule.
 //!
@@ -27,7 +25,7 @@
 //! [`std::io::ErrorKind`] — never the raw `io::Error` string, which can embed
 //! filesystem paths or secrets.
 
-use std::io::{self, BufRead, Read};
+use std::io::{self, Read};
 use std::time::Duration;
 
 use crate::error::McpError;
@@ -212,59 +210,6 @@ pub fn read_frame<R: Read>(reader: &mut R, limit: usize) -> Result<Vec<u8>, McpE
             });
         }
         out.extend_from_slice(&chunk[..n]);
-    }
-}
-
-/// Read one newline-terminated SSE line, bounded by `limit`.
-///
-/// Returns `Ok(None)` at end of stream. The bound is checked while reading;
-/// a line that crosses it yields [`McpError::FrameTooLarge`] and is never
-/// returned partially.
-///
-/// LF, CR and CRLF terminators are all accepted. A CRLF split across two
-/// `fill_buf` windows is read as two lines (the CR ends the first, the LF is an
-/// empty second line); the streaming transport uses its own chunk-fed parser
-/// that holds a trailing CR back to cover the split, so this bounded helper
-/// exists only for the line-bound tests.
-///
-/// The reader cannot re-sync past an over-limit line, so a returned
-/// [`McpError::FrameTooLarge`] is terminal: the connection must be dropped,
-/// never resumed.
-pub fn read_sse_line<R: BufRead>(
-    reader: &mut R,
-    limit: usize,
-) -> Result<Option<Vec<u8>>, McpError> {
-    let mut line = Vec::new();
-    loop {
-        let available = reader.fill_buf().map_err(io_error)?;
-        if available.is_empty() {
-            return Ok(if line.is_empty() { None } else { Some(line) });
-        }
-        if let Some(pos) = available.iter().position(|&b| b == b'\n' || b == b'\r') {
-            let mut take = pos + 1;
-            // Consume a visible CRLF pair as one terminator.
-            if available[pos] == b'\r' && take < available.len() && available[take] == b'\n' {
-                take += 1;
-            }
-            if line.len() + take > limit {
-                return Err(McpError::FrameTooLarge {
-                    limit,
-                    seen: line.len() + take,
-                });
-            }
-            line.extend_from_slice(&available[..take]);
-            reader.consume(take);
-            return Ok(Some(line));
-        }
-        let len = available.len();
-        if line.len() + len > limit {
-            return Err(McpError::FrameTooLarge {
-                limit,
-                seen: line.len() + len,
-            });
-        }
-        line.extend_from_slice(available);
-        reader.consume(len);
     }
 }
 

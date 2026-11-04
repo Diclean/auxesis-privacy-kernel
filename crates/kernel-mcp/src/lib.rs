@@ -25,8 +25,7 @@
 //! must be dropped and never resumed — resuming would parse the tail of an
 //! oversized frame as if it were a fresh message (mirroring the app's ACP crate's
 //! `Frame::TooLarge` contract). [`McpError::requires_connection_close`] makes
-//! that rule callable, and [`limits::read_sse_line`] is subject to the same
-//! rule: it cannot re-sync past an over-limit line.
+//! that rule callable.
 //!
 //! # Untrusted text
 //!
@@ -41,14 +40,14 @@
 //! Nothing here is shown to the owner directly except the `Display` strings
 //! of [`McpError`], which stay protocol-neutral on purpose.
 //!
-//! # S2: descriptors, naming and the discovery cache
+//! # S2: descriptors, naming and the tool catalog
 //!
 //! [`descriptor`] turns a remote [`RemoteTool`] into an Auxesis
 //! [`McpToolDescriptor`] with a stable [`wire_name`], a [`McpTag`] set and a
 //! sanitised description/schema. [`naming`] owns the deterministic name map;
-//! [`discovery`] dedupes the list into a [`ToolCatalog`] and caches it in memory
-//! with a TTL. Every name and description here is untrusted, model-visible
-//! input: it is data, never an instruction.
+//! [`discovery`] dedupes the list into a [`ToolCatalog`]. Every name and
+//! description here is untrusted, model-visible input: it is data, never an
+//! instruction.
 #![doc = include_str!("../README.md")]
 
 // `test-util` widens this crate's constructors for dependents' tests (for
@@ -85,10 +84,10 @@ pub use config::{
     MAX_MCP_URL_BYTES, UNAVAILABLE_SHA256,
 };
 pub use descriptor::{
-    risk_from_tags, sanitize_description, sanitize_schema, McpTag, McpToolDescriptor, ToolkitMap,
+    risk_from_tags, sanitize_description, sanitize_schema, McpTag, McpToolDescriptor,
 };
-pub use discovery::{AgentTools, DiscoveryCache, DiscoveryStats, ToolCatalog, PER_AGENT_TOOL_CAP};
-pub use error::{sanitize_untrusted, McpError, McpResult, Sanitized, MAX_UNTRUSTED_BYTES};
+pub use discovery::{AgentTools, DiscoveryStats, ToolCatalog, PER_AGENT_TOOL_CAP};
+pub use error::{sanitize_untrusted, McpError, Sanitized, MAX_UNTRUSTED_BYTES};
 pub use http::HttpTransport;
 pub use identity::{tool_identity, IdentityDrift, PinnedTools};
 pub use jsonrpc::{

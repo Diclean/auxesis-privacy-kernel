@@ -10,6 +10,8 @@ use super::ContactIndex;
 /// 4), never plain files.** A contact index holds real names, e-mail addresses
 /// and phone numbers. It never leaves this machine: it is not written to a plain
 /// file, a cache, a log, or a cloud payload, and no model is ever given it.
+///
+/// A seam for the caller's own store; the kernel ships [`MemoryContactStore`].
 pub trait ContactStore {
     /// Load the saved index, or an empty one when nothing was saved.
     fn load(&self) -> Result<ContactIndex, ContactStoreError>;

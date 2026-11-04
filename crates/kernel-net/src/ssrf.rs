@@ -30,13 +30,6 @@ impl AddressPolicy {
             AddressPolicy::AllowLoopback => is_public_address(addr) || addr.is_loopback(),
         }
     }
-
-    /// Tests only: the loopback policy, so a local `wiremock` server is
-    /// reachable through a `[dev-dependencies]` edge.
-    #[cfg(any(test, feature = "testing"))]
-    pub fn allow_loopback() -> Self {
-        Self::AllowLoopback
-    }
 }
 
 /// True when `addr` is a globally routable unicast address.

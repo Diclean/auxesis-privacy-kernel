@@ -1,10 +1,9 @@
-//! S2 descriptor tests: the risk table, description/schema sanitation and the
-//! config-fed toolkit classifier.
+//! S2 descriptor tests: the risk table and description/schema sanitation.
 
 use kernel_broker::Risk;
 use kernel_mcp::descriptor::{
     risk_from_tags, sanitize_description, sanitize_schema, McpTag, McpToolDescriptor, RiskBasis,
-    ToolkitMap, FORGED_PROVENANCE_MARKER, MAX_DESCRIPTION_BYTES,
+    FORGED_PROVENANCE_MARKER, MAX_DESCRIPTION_BYTES,
 };
 use kernel_mcp::RemoteTool;
 use kernel_mcp::ToolSchema;
@@ -266,16 +265,6 @@ fn overlong_remote_name_is_refused_never_truncated() {
     assert!(!McpToolDescriptor::name_is_valid(&"N".repeat(49)));
     assert!(McpToolDescriptor::name_is_valid(&"N".repeat(48)));
     assert!(!McpToolDescriptor::name_is_valid(""));
-}
-
-#[test]
-fn toolkit_map_classifies_only_explicit_slugs() {
-    let map = ToolkitMap::new().with_toolkit("fakeserv", "zoho", &["ZOHO_CRM_X"]);
-    assert_eq!(
-        map.classify("fakeserv", "ZOHO_CRM_X"),
-        Some("zoho".to_owned())
-    );
-    assert_eq!(map.classify("fakeserv", "NOT_LISTED"), None);
 }
 
 #[test]

@@ -1,4 +1,4 @@
-//! Tool catalogs and the in-memory discovery cache.
+//! Tool catalogs.
 //!
 //! [`ToolCatalog`] is the deduped, stably ordered set of descriptors. Duplicate
 //! remote names are collapsed by a deterministic rule (higher risk first, then
@@ -13,11 +13,6 @@
 //! sorted `(server, remote)` set, so the allocation never depends on the order
 //! servers are registered.
 //!
-//! [`DiscoveryCache`] keeps a catalog in memory with a TTL and explicit
-//! invalidation. The durable SQL store does not exist yet; this type is
-//! the live process cache the caller refreshes on `tools/list_changed` or
-//! `aux connect sync`.
-//!
 //! # Per-agent cap
 //!
 //! Only an agent's explicit allowlist reaches its registry. [`ToolCatalog::for_agent`]
@@ -27,13 +22,10 @@
 //! exceed the cap.
 
 use std::collections::btree_map::Entry;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
 
 use kernel_broker::Risk;
-use kernel_core::sync::{rwlock_read_recover, rwlock_write_recover};
 use serde_json::Value;
 
 use crate::descriptor::{risk_from_tags, sanitize_schema, McpTag, McpToolDescriptor};
@@ -391,100 +383,5 @@ fn canonical_value_string(value: &Value) -> String {
             out
         }
         other => serde_json::to_string(other).unwrap_or_default(),
-    }
-}
-
-/// Monotonic clock seam for the cache TTL; injectable in tests.
-pub type Clock = Arc<dyn Fn() -> Instant + Send + Sync>;
-
-struct CacheEntry {
-    catalog: Arc<ToolCatalog>,
-    stored_at: Instant,
-}
-
-/// A process-local [`ToolCatalog`] cache with a TTL and explicit invalidation.
-pub struct DiscoveryCache {
-    ttl: Duration,
-    clock: Clock,
-    entries: RwLock<HashMap<String, CacheEntry>>,
-}
-
-impl DiscoveryCache {
-    /// A cache whose entries live for `ttl` on the system clock.
-    pub fn new(ttl: Duration) -> Self {
-        Self::with_clock(ttl, Arc::new(Instant::now))
-    }
-
-    /// A cache with an injectable clock (tests advance time without sleeping).
-    pub fn with_clock(ttl: Duration, clock: Clock) -> Self {
-        Self {
-            ttl,
-            clock,
-            entries: RwLock::new(HashMap::new()),
-        }
-    }
-
-    /// The configured time-to-live.
-    pub fn ttl(&self) -> Duration {
-        self.ttl
-    }
-
-    /// The catalog for `server`, or `None` when absent or expired.
-    ///
-    /// An expired entry is evicted on read.
-    pub fn get(&self, server: &str) -> Option<Arc<ToolCatalog>> {
-        let now = (self.clock)();
-        let mut entries = rwlock_write_recover(&self.entries);
-        let entry = entries.get(server)?;
-        if now.saturating_duration_since(entry.stored_at) < self.ttl {
-            Some(Arc::clone(&entry.catalog))
-        } else {
-            entries.remove(server);
-            None
-        }
-    }
-
-    /// Store (or refresh) the catalog for `server`, returning the shared handle.
-    pub fn put(&self, server: &str, catalog: ToolCatalog) -> Arc<ToolCatalog> {
-        let shared = Arc::new(catalog);
-        let now = (self.clock)();
-        let mut entries = rwlock_write_recover(&self.entries);
-        entries.insert(
-            server.to_owned(),
-            CacheEntry {
-                catalog: Arc::clone(&shared),
-                stored_at: now,
-            },
-        );
-        shared
-    }
-
-    /// Drop one server's entry; `true` when something was removed.
-    pub fn invalidate(&self, server: &str) -> bool {
-        rwlock_write_recover(&self.entries).remove(server).is_some()
-    }
-
-    /// Drop every entry.
-    pub fn invalidate_all(&self) {
-        rwlock_write_recover(&self.entries).clear();
-    }
-
-    /// The servers currently cached, in stable order.
-    pub fn servers(&self) -> Vec<String> {
-        let entries = rwlock_read_recover(&self.entries);
-        let mut servers: Vec<String> = entries.keys().cloned().collect();
-        servers.sort();
-        servers
-    }
-
-    /// Number of cached entries (including an entry that has not been read past
-    /// its TTL yet).
-    pub fn len(&self) -> usize {
-        rwlock_read_recover(&self.entries).len()
-    }
-
-    /// Whether the cache holds no entries.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 }
