@@ -1,12 +1,11 @@
 //! French identifier recognisers (Presidio has no French pack).
 //!
-//! Enablement follows slice 1c and the identifiers research doc: NIR and SIRET
-//! stay `verified: false` (and so off by default) until their rules are
-//! confirmed against an official source.
+//! NIR and SIRET stay `verified: false` (and so off by default) until their
+//! rules are confirmed against an official source.
 //! SIREN (Luhn) and numeric-key VAT are deterministic and enabled.
 //!
 //! Every recogniser scans the shared normalised view and uses digit-run
-//! boundaries (P2-2), so a letter glued to a value or an OCR-confused digit
+//! boundaries, so a letter glued to a value or an OCR-confused digit
 //! does not hide it.
 
 use crate::checksum::{
@@ -18,8 +17,7 @@ use crate::span::{EntityKind, Span};
 
 /// Score of a checksum-invalid value whose shape is still the identifier's.
 /// For an unverified recogniser the registry clamps it to `NATIONAL_ID`, but
-/// the span stays below a checksum-valid hit so the score records the doubt
-/// (P2-3).
+/// the span stays below a checksum-valid hit so the score records the doubt.
 pub const INVALID_SCORE: f32 = 0.55;
 
 /// NIR: thirteen digits or fifteen with the key (`97 - n mod 97`), Corsica
@@ -50,12 +48,12 @@ impl Recognizer for FrNirRecognizer {
     fn analyze(&self, text: &str) -> Vec<Span> {
         let normalized = NormalizedText::new(text, true);
         let mut found = nir_candidates(normalized.text());
-        // FIN-6: a NIR whose groups two or three spaces join is read on a view
+        // A NIR whose groups two or three spaces join is read on a view
         // where each such run is one space; it adds only where none was found.
         if normalized.text().contains("  ") {
             let (squeezed, at) = squeeze_spaces(normalized.text());
             let old = found.len();
-            // FIN-6: the first-pass spans are sorted by start, so the furthest
+            // The first-pass spans are sorted by start, so the furthest
             // end among those before a candidate answers the overlap test and a
             // binary search picks that prefix; scanning them all was quadratic.
             let mut far = Vec::with_capacity(old);
@@ -423,7 +421,7 @@ impl AlnumRuns {
 
 /// Whether the alphanumeric run around `start..end` is all hex digits and longer
 /// than the candidate: a NIR inside a hash, a UUID or a git SHA written without
-/// dashes. A letter glued to a value does not count (P2-2), and a spaced
+/// dashes. A letter glued to a value does not count, and a spaced
 /// candidate is never a hex run, since its spaces are not hex digits.
 fn inside_hex_run(runs: &AlnumRuns, start: usize, end: usize) -> bool {
     let (begin, finish) = runs.around(start, end);

@@ -14,7 +14,7 @@ pub const SCORE: f32 = 1.0;
 /// scores lower, but still clears the default threshold so it is masked.
 pub const UNKNOWN_SCORE: f32 = 0.6;
 /// A checksum-invalid but IBAN-shaped value is still masked, at a lower score
-/// (fail toward masking, P2-8).
+/// (fail toward masking).
 pub const SHAPE_SCORE: f32 = 0.55;
 
 /// Finds valid IBANs, grouped or ungrouped.
@@ -326,7 +326,7 @@ fn match_at(text: &str, start: usize) -> Option<(usize, f32)> {
 
 /// IBANs of a known country whose groups a PDF table split with a column gap
 /// (`BE68 5390   0754 7034`): up to 24 spaces between groups, exact country
-/// length and a valid mod-97 only (K-BANK-STATEMENT-1).
+/// length and a valid mod-97 only.
 fn column_gap_candidates(text: &str) -> Vec<(usize, usize, f32)> {
     let bytes = text.as_bytes();
     let mut found = Vec::new();
@@ -364,7 +364,7 @@ fn column_gap_candidates(text: &str) -> Vec<(usize, usize, f32)> {
 }
 
 /// The whole UUID tokens of `text` in order: `8-4-4-4-12` hex digits, either
-/// case, nothing alphanumeric glued on either side (IBAN-UUID-OVERMASK). A
+/// case, nothing alphanumeric glued on either side. A
 /// guess wholly inside one (unknown country, or shape only) is a piece of an id
 /// (`sandbox-<uuid>`, EventKit `<uuid>:<uuid>`); a checksum-valid IBAN of a
 /// registered country is masked in any shape. Each start is tried once
@@ -423,8 +423,8 @@ fn count_alnum(value: &str) -> usize {
 /// a letter group inside the account (`ZZ85 ABCD …`) is never left in clear and
 /// the leading country code is part of the span. A valid mod-97 prefix wins; if
 /// none is valid but the value still has the `LLdd` + 11–30 alphanumeric IBAN
-/// shape, it is returned as a shape-only match (P2-8). The check is computed
-/// without building a `String` per length (P3-5).
+/// shape, it is returned as a shape-only match. The check is computed
+/// without building a `String` per length.
 fn unknown_country_candidate(text: &str, start: usize) -> Option<(usize, bool)> {
     if !text.as_bytes()[start..start + 2]
         .iter()
@@ -458,7 +458,7 @@ fn unknown_country_candidate(text: &str, start: usize) -> Option<(usize, bool)> 
     Some((end, false))
 }
 
-/// Where an unknown-country guess must stop (TOK-FP): before the first group
+/// Where an unknown-country guess must stop: before the first group
 /// holding a lower-case letter, and at a `/` or `.`. An IBAN is printed in
 /// upper case with spaces or hyphens; a path or a sentence is not, and the
 /// guess must never run into it (a temp dir `…xm0000gn/T/tmp…` was masked with

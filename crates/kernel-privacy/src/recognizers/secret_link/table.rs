@@ -115,7 +115,7 @@ pub(super) fn continuations(
 /// and owned region. A table is a header line right above a delimiter with as many
 /// cells (else no table, D5); its run of lines ends at a blank, owned or fence line.
 /// Each line is read once as a delimiter, once as a header and once as a row, never
-/// over the header's columns (#156 r3: a quadratic table scan). `pipes`: the
+/// over the header's columns (a quadratic table scan). `pipes`: the
 /// `|`-link values, in text order.
 ///
 /// The gate ends each stand-in's line, so the residue view can read a table the first

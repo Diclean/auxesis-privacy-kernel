@@ -47,7 +47,7 @@ pub(super) fn words(text: &str) -> Vec<Word> {
 }
 
 /// A Latin word written with Cyrillic or Greek look-alikes (`DIАВЕТЕS`), folded
-/// with each look-alike read as its Latin letter (HEALTH-LABEL-1). `None` for a
+/// with each look-alike read as its Latin letter. `None` for a
 /// word with no ASCII letter, no Cyrillic or Greek letter, or a letter that has
 /// no Latin look-alike: a Cyrillic or Greek word keeps its letters.
 fn lookalike_fold(raw: &str) -> Option<String> {

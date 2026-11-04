@@ -1,4 +1,4 @@
-//! The clause-tail reading of a key in a sentence (K-SECRET-TAIL-2), and the
+//! The clause-tail reading of a key in a sentence, and the
 //! linked clause end the label-value rule reads.
 
 use std::sync::LazyLock;
@@ -25,7 +25,7 @@ const FRENCH_STOPWORDS: &str = "oublié oubliée incorrect incorrecte invalide e
      perdu perdue bloqué bloquée trop vide court courte long longue nécessaire différent \
      pareil même ici dans pour votre notre cette celui celle";
 
-/// The keys whose value may run to its clause end (K-SECRET-TAIL-2): the cues of
+/// The keys whose value may run to its clause end: the cues of
 /// [`PHRASE_CUE_RE`](super::phrase::PHRASE_CUE_RE) that take any value, and the French `mot de passe` and `mdp`. A
 /// `-` or `_` between key words reads as a space (`mot-de-passe`). The word edges are
 /// checked by [`key_tail_scan`], so emphasis may touch the key (`__password__`). It
@@ -105,7 +105,7 @@ fn tail_value(text: &str, at: usize, stop: usize) -> Option<SecretValue> {
     None
 }
 
-/// The K-SECRET-TAIL-2 spans, one reading for every phrasing (`My **password** is …`,
+/// The clause-tail spans, one reading for every phrasing (`My **password** is …`,
 /// `password is set to …`, `Mon mot-de-passe est …`): a tail key and its emphasis, an
 /// optional qualifier opened by an English or French head (`for the portal`, `du
 /// portail`), a link ([`is_tail_link`]), and the value ([`tail_value`]) with its clause
@@ -158,7 +158,7 @@ pub(super) fn key_tail_scan(text: &str, breaks: &Breaks) -> Vec<SecretValue> {
             extra.push(value);
         }
     }
-    // These spans are new to K-SECRET-TAIL-2: a long one is masked whole, never
+    // These spans are new to the clause-tail rule: a long one is masked whole,
     // refused, like `rest_value`'s whole-line remainder (`Mon mdp est `
     // + 1025 bytes was admitted on main and refused here). Every byte stays masked.
     for span in &mut extra {
@@ -167,7 +167,7 @@ pub(super) fn key_tail_scan(text: &str, breaks: &Breaks) -> Vec<SecretValue> {
     extra
 }
 
-/// LABEL-VALUE-1 reads a value after its own prose links (`might be`, `,`, `set
+/// The label-value rule reads a value after its own prose links (`might be`, `,`, `set
 /// to`) as [`key_tail_scan`] reads one after `is`: `None` for a stopword value at
 /// `start..end`, else the end of its clause (`. , ; ! ?` or `stop`), never before `end`.
 pub(crate) fn linked_clause_end(

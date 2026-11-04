@@ -39,7 +39,7 @@ pub(super) fn broke_line(text: &str, view: &NormalizedText, index: usize) -> boo
 }
 
 /// Whether a National Insurance number starts at `at`, in every shape this file
-/// reads: the compact and single-separator shapes of [`head_at`] and the FIN-6
+/// reads: the compact and single-separator shapes of [`head_at`] and the
 /// separated shapes of [`separated_shape_at`](super::separated::separated_shape_at) (one to three spaces, or one `-`,
 /// `/` or `.`, in any case). One predicate for the one question the glue rule
 /// asks, so the suffix letter is kept only where the residue round really will
@@ -48,9 +48,9 @@ pub(super) fn broke_line(text: &str, view: &NormalizedText, index: usize) -> boo
 /// It must be a superset of what either pass reads there, never a subset: a
 /// second pattern list that read only single spaces and hyphens let the suffix
 /// swallow the first letter of every other shape, and the number behind that
-/// letter was then no number at all and stood in clear (NINO-GLUED-NEXT r1,
+/// letter was then no number at all and stood in clear,
 /// `AB 12 34 56\nCB/12/34/56/A`). So neither rule on what *follows* a number —
-/// the digit glued to its suffix, the capitals FIN-6 asks for — is applied here.
+/// the digit glued to its suffix, the capitals the separated pass asks for — is
 /// Both only narrow what a pass reads, and narrowing here would eat a letter
 /// that opens a line some pass still reads. At most twenty-one bytes per try
 /// (linear scan), and it is only reached where a suffix is already glued.

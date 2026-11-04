@@ -49,7 +49,7 @@ const SHAPES: &[(&str, usize)] = &[
     // character outside the span, and the span is group 1.
     (r"(?:^|[^A-Za-z0-9])(sk-[A-Za-z0-9_\-]*)", 20),
     // Dropbox short-lived access tokens: `sl.`, same boundary rule as `sk-`.
-    // `sl.u.` is the current layout (K-SKPROJ-GLUE).
+    // `sl.u.` is the current layout.
     (r"(?:^|[^A-Za-z0-9])(sl\.(?:[a-z]\.)?[A-Za-z0-9_\-]*)", 24),
     // GitHub classic and OAuth tokens, and fine-grained personal tokens.
     (r"gh[pousr]_[A-Za-z0-9]*", 40),
@@ -66,7 +66,7 @@ const SHAPES: &[(&str, usize)] = &[
     (r"glpat-[A-Za-z0-9_\-]*", 26),
     (r"xapp-[A-Za-z0-9\-]*", 14),
     (r"ya29\.[A-Za-z0-9_\-]*", 25),
-    // K-GOOGLE-KEY: a ya29. token with more dots inside, such as the `ya29.c.`
+    // A ya29. token with more dots inside, such as the `ya29.c.`
     // service-account token, is read whole (the shape above stops at the dot).
     (r"ya29\.[A-Za-z0-9_\-]*(?:\.[A-Za-z0-9_\-]+)+", 25),
     // Package registries and hosting: npm, PyPI, SendGrid, DigitalOcean, Replicate,
@@ -164,7 +164,7 @@ impl Recognizer for SecretRecognizer {
         for (start, end) in lower_aws_keys(text) {
             spans.push(Span::new(EntityKind::Secret, start, end, SCORE, NAME));
         }
-        // SECRET-PROSE: only a span no older span holds is added.
+        // Only a span no older span holds is added.
         let mut held: Vec<(usize, usize)> = spans.iter().map(|s| (s.start, s.end)).collect();
         held.sort_unstable();
         let mut reach = 0;
@@ -181,15 +181,15 @@ impl Recognizer for SecretRecognizer {
                 spans.push(Span::new(EntityKind::Secret, start, end, SCORE, NAME));
             }
         }
-        // K-GOOGLE-KEY: an extra view, unioned with the scans above.
+        // An extra view, unioned with the scans above.
         for (start, end) in unescaped_keys(text) {
             spans.push(Span::new(EntityKind::Secret, start, end, SCORE, NAME));
         }
-        // K-SKPROJ-GLUE: an extra view, unioned with the scans above.
+        // An extra view, unioned with the scans above.
         for (start, end) in glued_keys(text) {
             spans.push(Span::new(EntityKind::Secret, start, end, SCORE, NAME));
         }
-        // SECRET-1: cookies, label lines, secret CSV columns, glued AWS ids.
+        // Cookies, label lines, secret CSV columns, glued AWS ids.
         for (start, end) in super::secret_lines::lines_scan(text) {
             spans.push(Span::new(EntityKind::Secret, start, end, SCORE, NAME));
         }
@@ -203,7 +203,7 @@ impl Recognizer for SecretRecognizer {
 }
 
 impl SecretRecognizer {
-    /// Every scan before K-SECRET-TAIL-4, unchanged: `link_scan` only adds to it.
+    /// Every scan before the link scan, unchanged: `link_scan` only adds to it.
     pub(crate) fn main_spans(text: &str) -> Vec<Span> {
         // Non-ASCII text is read through a view that drops zero-width characters
         // and maps fullwidth ASCII and dash variants; ASCII text is read as it is.
@@ -325,7 +325,7 @@ impl SecretRecognizer {
     }
 }
 
-/// K-GOOGLE-KEY round 2: an escaped key or a dotted `ya29.` token was read
+/// An escaped key or a dotted `ya29.` token was read
 /// before only by the gate's residue round, which masks a secret on to the
 /// trimmed end of its line. Each such key keeps that run here, so no byte the
 /// residue round masked is left clear. Spans are only widened, never narrowed;

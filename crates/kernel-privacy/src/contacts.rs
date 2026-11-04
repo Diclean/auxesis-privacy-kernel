@@ -1,5 +1,5 @@
 //! A local contact index: the people the owner knows, and a recogniser that
-//! masks every mention of them (slice 1f).
+//! masks every mention of them.
 //!
 //! Detectors that read a model miss what a model cannot know: a bare first
 //! name, a lower-case name in a quoted reply, a name in a `ps:` line. The
@@ -55,7 +55,7 @@ const WINDOW_OVERLAP: usize = 4 << 10;
 /// lives. Every span of one person carries it, so the anonymizer can give all
 /// variants of that person the same token.
 ///
-/// TODO(slice 1f): `Anonymizer` keys its tokens by kind and value, so the spans
+/// TODO: `Anonymizer` keys its tokens by kind and value, so the spans
 /// of one person still get one token per spelling. Reading [`Span::person_id`](crate::span::Span::person_id)
 /// there would unify them; that edit belongs to `anonymize.rs`, owned by
 /// another open PR.

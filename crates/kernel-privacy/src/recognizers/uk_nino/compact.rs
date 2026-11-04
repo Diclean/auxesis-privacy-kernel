@@ -16,20 +16,20 @@ use super::shape::{broke_line, head_at, number_starts_at};
 ///
 /// A suffix letter glued to a following letter or digit is refused, unless a
 /// number's shape starts at that letter, a pass reads another number within
-/// three bytes behind it ([`read_near`], NINO-CHAIN r2), or a line break sits
+/// three bytes behind it ([`read_near`]), or a line break sits
 /// before it. In the first case the
 /// letter is kept and the caller reads the next number from there as well
-/// (NINO-CHAIN): where that number starts at the letter, the two spans overlap
+/// where that number starts at the letter, the two spans overlap
 /// and [`union`](super::recognizer::union) makes them one, so neither number gives a byte to the other
 /// (`AB 12 34 56\ncb123456a` left its head in clear: this rule refused it, and
-/// the FIN-6 cut needs capitals). In the second, the letter opens the next line,
+/// the separated cut needs capitals). In the second, the letter opens the next line,
 /// so it is masked with this number, which makes the next line a word again, so
 /// its label still matches and the value behind it stays masked
-/// (NINO-GLUED-NEXT).
+/// its label still matches and the value behind it stays masked.
 ///
 /// A whole number at that letter that no pass reads on its own (its suffix is
 /// glued to an IBAN or a key) is read with this one, to its own suffix
-/// ([`glued_next_end`], NINO-CHAIN r1): taking only its first letter left
+/// ([`glued_next_end`]): taking only its first letter left
 /// `l 05 51 39 d` in clear in `ak 67 18 39\r\nbl 05 51 39 dGB82…`, where main
 /// left the letter to the residue round. Open mode has no residue round, so
 /// the chain is read whole in the first.
@@ -64,8 +64,8 @@ pub(super) fn nino_at(
 /// The offset one past the suffix letter of a whole number — prefix, six
 /// digits and a suffix letter A to D — that starts at `at` where no pass reads
 /// it on its own: its suffix is glued to a value (an IBAN, a key). The number
-/// whose suffix letter is its first letter reads it with itself (NINO-CHAIN
-/// r1): a chain is evidence of its own. A shape with no suffix letter is no
+/// whose suffix letter is its first letter reads it with itself: a chain is
+/// evidence of its own. A shape with no suffix letter is no
 /// number in any round, so the number before it keeps only the letter, as on
 /// main. At most thirty-four bytes.
 pub(super) fn glued_next_end(bytes: &[u8], at: usize, reads: &[bool]) -> Option<usize> {
@@ -97,7 +97,7 @@ fn read_near(reads: &[bool], at: usize) -> Option<usize> {
         .find(|&offset| read_at(reads, offset))
 }
 
-/// For every offset, whether a pass reads a number there (NINO-CHAIN r1). A
+/// For every offset, whether a pass reads a number there. A
 /// number's glue rule asks only about offsets at least eight bytes behind its
 /// start, so one walk from the end fills the table with no recursion: a chain
 /// of any length costs one try per offset, and each try reads at most
@@ -116,11 +116,11 @@ pub(super) fn reads_table(bytes: &[u8], text: &str, view: &NormalizedText) -> Ve
 
 /// Where the next number may start after a number that ended at `end`: one that
 /// kept its suffix letter looks from that letter on ([`read_near`]); one the
-/// FIN-6 cut ended before the letter looks at the letter. `None` when no pass
+/// separated cut ended before the letter looks at the letter. `None` when no pass
 /// reads a number there.
 ///
 /// A letter or digit may precede that offset, and [`analyze`](crate::recognizer::Recognizer::analyze) waives its start
-/// rule there and reads from it even inside the span just read (NINO-CHAIN):
+/// rule there and reads from it even inside the span just read:
 /// the letter is shared by both numbers, so a start rule that read the whole
 /// word, or a scan that went on past the span, left the next number in clear
 /// (`AB 12 34 56\nBAB123456B`, the middle of `XY 12 34 56 AB 12 34 56 AB …`).

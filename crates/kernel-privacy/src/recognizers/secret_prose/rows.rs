@@ -59,7 +59,7 @@ fn cells(
     done
 }
 
-/// SECRET-RECALL-2: the code rows after a recovery-code key ending at `from`.
+/// The code rows after a recovery-code key ending at `from`.
 /// In a table row (`| Recovery codes | 7KQ2-9XZ1 |`) the [`cells`] after the
 /// key are read; when the key ends its line or a `:` header (`Backup codes:`),
 /// each next list item (`- `, `• `, `1. `, `- [ ] `) or row of cells is read

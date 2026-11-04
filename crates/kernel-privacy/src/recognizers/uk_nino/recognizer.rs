@@ -35,8 +35,8 @@ impl Recognizer for UkNinoRecognizer {
         let normalized = NormalizedText::new(text, false);
         let bytes = normalized.text().as_bytes();
         let mut spans = Vec::new();
-        // FIN-6: the separated shapes, then one union of both passes. Neither
-        // pass is allowed to lose to the other (NINO-GLUED-NEXT r1): the compact
+        // The separated shapes, then one union of both passes. Neither
+        // pass is allowed to lose to the other: the compact
         // pass eats the suffix letter that opens a line, the separated pass
         // stops at the break, so on the same range they read differently and
         // overlap. Dropping the separated span then left a whole number in clear
@@ -101,7 +101,7 @@ impl Recognizer for UkNinoRecognizer {
     }
 }
 
-/// The union of spans that overlap, in start order (NINO-GLUED-NEXT r1). Every
+/// The union of spans that overlap, in start order. Every
 /// span this module makes is a `uk_nino` of the same score and name, so the
 /// union of two of them is one of them, ended at the later end.
 ///

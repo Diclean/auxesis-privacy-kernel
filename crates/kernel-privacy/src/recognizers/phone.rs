@@ -5,7 +5,7 @@
 //! view (Unicode digits, exotic spaces and dashes, OCR confusables), uses a
 //! digit-run boundary so a letter glued to the number (`x0612345678`) does not
 //! hide it, and never caps the upper length: a phone-like run longer than the
-//! national maximum is masked whole (P1-2).
+//! national maximum is masked whole.
 
 use crate::normalize::NormalizedText;
 use crate::recognizer::Recognizer;
@@ -114,7 +114,7 @@ fn candidates(text: &str) -> Vec<(usize, usize)> {
 /// `2026-12-03`) joined by a real date separator (`/`, `-`, `.`) counts, and
 /// only a valid `hh`, `hh:mm` may follow. A run with any further or oversized
 /// digit group (`06/12/1234 56 78`, `06-12-1234-56-78`, `+2026/1/3 12345678`)
-/// is not a date and stays masked (P2-6). A French phone written
+/// is not a date and stays masked. A French phone written
 /// `06.12.34.56.78` is not matched either: its third group is a two-digit year,
 /// not four.
 fn looks_like_datetime(raw: &str) -> bool {
@@ -192,7 +192,7 @@ fn split_groups(raw: &str) -> (Vec<&str>, Vec<char>) {
 /// reject the numbers that are not phones: a long list of digit groups
 /// (`1 2 3 … 20`) and a full date with an optional time (`12/03/2026 14`).
 /// A sequence of 9–12 *singly spaced* digits (the guard is evaluated per
-/// candidate, P2-7) is a phone even though every group is one digit.
+/// candidate) is a phone even though every group is one digit.
 pub(crate) fn valid_number(raw: &str) -> bool {
     let digits: String = raw.chars().filter(|ch| ch.is_ascii_digit()).collect();
     let count = digits.len();
@@ -254,7 +254,7 @@ const PRICE_MAX_DIGITS: usize = 8;
 /// The ISO guard keeps the older bound, so `ISO 27001 2022` stays clear.
 const ISO_MAX_DIGITS: usize = 9;
 
-/// Whether a currency symbol sits immediately before or after the run (P3-6);
+/// Whether a currency symbol sits immediately before or after the run;
 /// a short number beside one is a price and must stay clear.
 ///
 /// The guard only exempts a number of at most [`PRICE_MAX_DIGITS`] digits with
@@ -277,7 +277,7 @@ fn price_context(text: &str, start: usize, end: usize) -> bool {
     currency && guardable_as_non_phone(&text[start..end], PRICE_MAX_DIGITS)
 }
 
-/// Whether the token immediately before the run is `ISO` (P3-6); a standard
+/// Whether the token immediately before the run is `ISO`; a standard
 /// number such as `ISO 27001 2022` must stay clear.
 ///
 /// As with the price guard, only a short undated number is exempt, so

@@ -1,4 +1,4 @@
-//! Postal address recogniser (ADDR-DET-1, ADDR-DET-2): masked like an e-mail or a phone.
+//! Postal address recogniser: masked like an e-mail or a phone.
 //!
 //! An address is a chain of segments: a street line (house number and street
 //! type, in either order), a PO box, a postcode with its city, a flat or a

@@ -190,7 +190,7 @@ impl Lexicon {
 
     /// Record each word that is a one-word health term of [`MIN_TAGGED`] or more
     /// bytes glued to an ASCII tag of at most [`MAX_TAG`] letters or digits before
-    /// and after it (`refchimiothérapie`, `chemotherapyok`), HEALTH-LABEL-1. A
+    /// and after it (`refchimiothérapie`, `chemotherapyok`). A
     /// shorter term (`aids` in `raids`, `hiv` in `archive`) never takes a tag. At
     /// most 25 exact lookups per word, and for a stem of [`MIN_TAGGED`] or more
     /// bytes behind a leading tag (`refdiabetic`, `id42depressive`) at most

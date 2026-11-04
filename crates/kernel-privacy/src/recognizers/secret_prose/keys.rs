@@ -32,7 +32,7 @@ pub(super) static KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
     .expect("prose key list compiles")
 });
 
-/// SECRET-RECALL-1 keys, scanned on their own so they never shadow a
+/// Extra keys, scanned on their own so they never shadow a
 /// [`KEY_RE`] key: recovery and backup codes, a named app's secret
 /// (`AWS secret`), and a Wi-Fi key or `clé` up to 40 bytes after `Wi-Fi` on its
 /// line (`Wi-Fi: CafeNet / key: …`).
@@ -46,7 +46,7 @@ pub(super) static EXTRA_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
     .expect("extra prose keys compile")
 });
 
-/// SECRET-RECALL-2 Wi-Fi keys, scanned on their own like [`EXTRA_KEY_RE`]: a
+/// Wi-Fi keys, scanned on their own like [`EXTRA_KEY_RE`]: a
 /// key, `clé`, password or passphrase up to 40 bytes after `Wi-Fi` on its line,
 /// or `clé Wi-Fi`, `mot de passe Wi-Fi`.
 pub(super) static WIFI_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {

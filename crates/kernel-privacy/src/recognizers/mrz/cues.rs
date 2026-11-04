@@ -33,7 +33,7 @@ const BUSINESS_PREFIXES: &[&str] = &["ref", "inv", "fa", "cmd", "po", "no", "n°
 /// Whether a space-separated strict shape is a passport without a cue.
 ///
 /// The cue-less spaced form is masked on shape alone for *every* 1–3 letter
-/// prefix and 7–9 digits (P2: `E 12345678` and `AB 1234567` used to leak), so a
+/// prefix and 7–9 digits (`E 12345678` and `AB 1234567` used to leak), so a
 /// bare OCR line or a CSV cell no longer depends on a three-letter prefix.
 /// Two short exceptions stay clear because the prefix is a word with another
 /// meaning: `ISO` heads an international-standard number, and the

@@ -1,4 +1,4 @@
-//! K-SKPROJ-GLUE: `sk-` and `sl.` keys glued after a letter or digit, and the
+//! `sk-` and `sl.` keys glued after a letter or digit, and the
 //! wrapped continuation lines they are joined across.
 
 use std::sync::LazyLock;
@@ -7,7 +7,7 @@ use regex::Regex;
 
 use super::key_view::{is_key_char, join_wrapped, KeyView};
 
-/// K-SKPROJ-GLUE: an `sk-` key (`sk-proj-`, `sk-ant-`) or an `sl.` token glued
+/// An `sk-` key (`sk-proj-`, `sk-ant-`) or an `sl.` token glued
 /// after a letter or a digit (`notesk-proj-…`). The two shapes in [`SHAPES`](super::SHAPES) need
 /// a character other than a letter or digit before the prefix. Here the
 /// boundary is dropped: exact-length OpenAI bodies are accepted by length,
@@ -213,7 +213,7 @@ pub(super) fn glued_keys(text: &str) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     let mut consumed = 0;
     let mut consumed_joined = JoinedKeyView::default();
-    // K-SKPROJ-GLUE round 2: an exact format also counts when the run goes on
+    // An exact format also counts when the run goes on
     // with `-` or `_` right after it (`<key>-prod`, `<key>_old`). The lengths
     // are `sk-` + 32, `sk-` + 48 and `sk-or-v1-` + 64; the run is ASCII.
     // An ambiguous glued prefix must first satisfy a key shape. Return the

@@ -7,7 +7,7 @@ use super::recognizer::NAME;
 use super::table::cells;
 use super::text::{ends_word, fold};
 
-/// Longest ASCII tag glued to a blood label or sign (`ref`, `ok`), HEALTH-LABEL-1.
+/// Longest ASCII tag glued to a blood label or sign (`ref`, `ok`).
 const MAX_TAG: usize = 4;
 /// Rows read under a blood-group column header.
 pub(super) const MAX_ROWS: usize = 10_000;
@@ -34,7 +34,7 @@ pub(super) fn blood(text: &str, start: usize, strong: bool) -> Option<usize> {
     // leads back to the original end.
     let view = &rest[at..rest.floor_char_boundary(at + 48)];
     let (folded, map) = fold(view);
-    // Blanks before the sign, across one line break (`AB\r\nnegative`, HEALTH-LABEL-1).
+    // Blanks before the sign, across one line break (`AB\r\nnegative`).
     let skip = |f: usize| {
         let mut breaks = 0;
         f + folded[f..]
@@ -46,7 +46,7 @@ pub(super) fn blood(text: &str, start: usize, strong: bool) -> Option<usize> {
     };
     // A `-` sign reads as a blank once folded, so it is looked for in the raw view
     // right after the group or `Rh` (`AB-`, `O Rh-`); a `-` before a letter is a
-    // hyphen (`A-negative`) and goes on to the sign word (HEALTH-LABEL).
+    // hyphen (`A-negative`) and goes on to the sign word.
     let dash = |f: usize| {
         let raw = &view[map[f]..];
         (raw.starts_with('-') && !raw[1..].starts_with(char::is_alphanumeric))
@@ -62,7 +62,7 @@ pub(super) fn blood(text: &str, start: usize, strong: bool) -> Option<usize> {
     if view[map[f]..].starts_with(['+', '-', '−']) {
         return Some(start + at + map[f] + view[map[f]..].chars().next().map_or(0, char::len_utf8));
     }
-    // A whole sign word may carry a short glued tag (`negativeok`, HEALTH-LABEL-1).
+    // A whole sign word may carry a short glued tag (`negativeok`).
     let sign = BLOOD_SIGNS.split(' ').find_map(|sign| {
         let rest = folded[f..].strip_prefix(sign)?;
         // An adverb is no tag (`negatively`, `positively`).
@@ -89,7 +89,7 @@ pub(super) fn glued_blood(text: &str, from: usize) -> Option<usize> {
 }
 
 /// The cells under every blood-group column of the header holding the label at
-/// `start..end` (`id,blood_type,city` then `17,AB negative,Lyon`), HEALTH-LABEL-1.
+/// `start..end` (`id,blood_type,city` then `17,AB negative,Lyon`).
 /// The label must fill its cell; the delimiter is `,`, `;`, a tab or `|`. At most
 /// [`MAX_ROWS`] rows are read, up to a blank line; the rows read end at `rows`,
 /// and a header before that is skipped.

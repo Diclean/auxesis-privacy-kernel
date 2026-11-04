@@ -1,4 +1,4 @@
-//! The loose spellings no main pass reads (ID-LABEL-1), read on the raw text.
+//! The loose spellings no main pass reads, read on the raw text.
 
 use crate::span::{EntityKind, Span};
 
@@ -7,7 +7,7 @@ use super::shape::prefix_allowed;
 use super::NAME;
 
 /// Two-letter words a lower-case number glued to a word may not start with:
-/// `at 10 20 30 cats` is prose (ID-LABEL-1).
+/// `at 10 20 30 cats` is prose.
 const SHORT_WORDS: &[&[u8; 2]] = &[
     b"ah", b"al", b"am", b"an", b"as", b"at", b"ax", b"ay", b"be", b"by", b"ce", b"eh", b"el",
     b"em", b"en", b"er", b"es", b"et", b"ex", b"ha", b"he", b"hm", b"je", b"la", b"le", b"lo",
@@ -15,7 +15,7 @@ const SHORT_WORDS: &[&[u8; 2]] = &[
     b"ta", b"te", b"we", b"ya", b"ye", b"yo",
 ];
 
-/// ID-LABEL-1: the spellings no pass above reads, scanned on the original
+/// The spellings no pass above reads, scanned on the original
 /// text with each character read as itself:
 ///
 /// * all in lower case with the suffix glued to a word (`pn 48 15 16 cok`),
@@ -55,7 +55,7 @@ fn loose_at(chars: &[(usize, char)], at: usize) -> Option<usize> {
     if !prefix_allowed(first.0, second.0) {
         return None;
     }
-    // ID-LABEL-2: after an explicit NI label, a boundary may also be empty or
+    // After an explicit NI label, a boundary may also be empty or
     // differ from the others (`NI number: Qq284615b`, `NI no: AB  12 34   56 C`).
     let labelled = ni_labelled(chars, at);
     let (mut index, mut blank, mut mark, mut first_run) = (at + 2, true, None, None);

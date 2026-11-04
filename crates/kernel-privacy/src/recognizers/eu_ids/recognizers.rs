@@ -42,7 +42,7 @@ eu_recognizer!(AtSvNrRecognizer, &RULES[7]);
 eu_recognizer!(IePpsnRecognizer, &RULES[8]);
 eu_recognizer!(SePersonnummerRecognizer, &RULES[9]);
 
-/// The recogniser of EU-KERNEL-1c: the Romanian CNP, the Czech and Slovak
+/// The recogniser of this group: the Romanian CNP, the Czech and Slovak
 /// rodné číslo, the Greek AFM and AMKA and the Bulgarian EGN, read over one
 /// body. Every span names the rule that read it.
 #[derive(Clone, Copy, Debug, Default)]
