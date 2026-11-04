@@ -333,7 +333,7 @@ leaves the machine; the measured recall table shows how much it catches.
 | Package | What it does |
 | --- | --- |
 | `auxesis-kernel-privacy` | The detectors, tokens, the gate (`SafeText`) and an encrypted token vault. Start here. |
-| `auxesis-kernel-core` | The policy: privacy modes, the list of paths out (`PathId`), `admit()` and `Grant`. |
+| `auxesis-kernel-core` | The policy: privacy modes, the list of paths out (`PathId`), `admit()` and `Grant`. Also the app plumbing: config, budgets, jobs, the STOP marker. |
 | `auxesis-kernel-broker` | Rules for tool calls, taint tracking for untrusted content, log scrubbing, audit events. |
 | `auxesis-kernel-net` | The one HTTP client factory, with an SSRF guard and DNS pinning. |
 | `auxesis-kernel-mcp` | A client for MCP tool servers (stdio and HTTP), with sandbox profiles. |
@@ -353,7 +353,7 @@ are not part of this repository.
 
 ## How the crates fit together
 
-- **`auxesis-kernel-core`** — the policy and the plumbing: privacy modes, the paths out (`PathId`), `admit()` and `Grant`; plus the home directory, config, budgets, jobs and the kill switch.
+- **`auxesis-kernel-core`** — the policy first: privacy modes, the paths out (`PathId`), `admit()` and the `Grant` it returns. It also holds shared app plumbing (home layout, config, budgets, jobs, the STOP marker); none of it is the gate, and `admit()` never reads STOP.
 - **`auxesis-kernel-privacy`** — the detectors: `Registry` finds the sensitive spans, `Anonymizer` swaps them for `⟦KIND_…⟧` tokens, and `Gate` produces the `SafeText` that only checked text can travel in.
 - **`auxesis-kernel-broker`** — the tool side: `ToolRegistry`, the `Broker` that decides `allow`/`ask`/`deny` per call, taint tracking for untrusted content, the sandbox profiles and the log scrubber.
 - **`auxesis-kernel-net`** — the egress side: the one HTTP client factory with the SSRF guard and DNS pinning, the web policy (allow list, budgets, ask rules) and the loopback CONNECT proxy for sandboxed extensions.
