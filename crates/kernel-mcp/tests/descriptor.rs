@@ -4,7 +4,7 @@
 use kernel_broker::Risk;
 use kernel_mcp::descriptor::{
     risk_from_tags, sanitize_description, sanitize_schema, McpTag, McpToolDescriptor, RiskBasis,
-    ToolkitClassifier, ToolkitMap, FORGED_PROVENANCE_MARKER, MAX_DESCRIPTION_BYTES,
+    ToolkitMap, FORGED_PROVENANCE_MARKER, MAX_DESCRIPTION_BYTES,
 };
 use kernel_mcp::RemoteTool;
 use kernel_mcp::ToolSchema;

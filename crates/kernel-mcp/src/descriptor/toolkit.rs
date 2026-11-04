@@ -2,17 +2,8 @@
 
 use std::collections::BTreeMap;
 
-/// Maps a remote tool slug to its toolkit, fed by the `tools` config map.
-///
-/// The classifier is deliberately explicit: a toolkit is **never** guessed from
-/// a description or a name pattern. Implementations are provided by the config
-/// layer; [`ToolkitMap`] is the plain lookup used by tests and by small configs.
-pub trait ToolkitClassifier: Send + Sync {
-    /// The toolkit owning `(server, remote_name)`, or `None` when unlisted.
-    fn classify(&self, server: &str, remote_name: &str) -> Option<String>;
-}
-
-/// A [`ToolkitClassifier`] backed by an exact `(server, slug) -> toolkit` map.
+/// An explicit `(server, slug) -> toolkit` map, fed by the `tools` config.
+/// A toolkit is never guessed from a description or a name pattern.
 #[derive(Debug, Clone, Default)]
 pub struct ToolkitMap {
     exact: BTreeMap<(String, String), String>,
@@ -39,10 +30,9 @@ impl ToolkitMap {
         }
         self
     }
-}
 
-impl ToolkitClassifier for ToolkitMap {
-    fn classify(&self, server: &str, remote_name: &str) -> Option<String> {
+    /// The toolkit owning `(server, remote_name)`, or `None` when unlisted.
+    pub fn classify(&self, server: &str, remote_name: &str) -> Option<String> {
         self.exact
             .get(&(server.to_owned(), remote_name.to_owned()))
             .cloned()
