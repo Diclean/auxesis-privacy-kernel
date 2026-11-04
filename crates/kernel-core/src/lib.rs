@@ -1,7 +1,42 @@
-//! Core building blocks for Auxesis: filesystem layout, configuration,
-//! shared types, jobs, budgets, and the kill switch.
+//! The privacy policy of the Auxesis kernel: the privacy modes, the one id
+//! per path out ([`privacy::PathId`]), the single decision point
+//! ([`privacy::admit`]) and the unforgeable [`privacy::Grant`] it returns.
+//! [`privacy`] is the policy table and the gate; [`paths`] is the install
+//! layout and the sandbox guard that keeps a process off the real home;
+//! [`text`] and [`sync`] are the shared primitives the gate and the kernel's
+//! other crates use.
+//!
+//! # Shared app plumbing
+//!
+//! The Auxesis app uses the modules below. They are plumbing, not the privacy
+//! gate: whether a path may send, and in which mode, is decided in [`privacy`].
+//!
+//! - [`budget`] — daily spend caps and the guard that refuses an over-budget
+//!   call.
+//! - [`config`] — the `config.toml` model; its web and TOML settings are shared
+//!   with the other kernel crates, and its Telegram, Brief, Location, memory,
+//!   UI and Quiet sections are app-only.
+//! - [`config_lock`] — the cross-process lock for edits to `config.toml` and
+//!   `.env`.
+//! - [`endpoint`] — one loopback endpoint resolver for the CLI and `aux doctor`.
+//! - [`env_file`] — named reads from the protected `~/.auxesis/.env`.
+//! - [`i18n`] — the typed English and French message catalogue.
+//! - [`job`] — interval and daily schedules for the scheduler.
+//! - [`keychain`] — the opt-in, sandbox-guarded macOS Keychain bridge; default
+//!   deny.
+//! - [`killswitch`] — the `STOP` marker and `is_stopped()`; a stop signal the
+//!   app checks before a step, not an egress gate: `admit()` never reads it.
+//! - [`logging`] — log-filter defaults that silence the HTML and XML parser
+//!   crates.
 #![doc = include_str!("../README.md")]
 
+// The policy: the gate, the paths it protects, and shared primitives.
+pub mod paths;
+pub mod privacy;
+pub mod sync;
+pub mod text;
+
+// Shared app plumbing: the app uses these; none is the privacy gate.
 pub mod budget;
 pub mod config;
 pub mod config_lock;
@@ -12,10 +47,6 @@ pub mod job;
 pub mod keychain;
 pub mod killswitch;
 pub mod logging;
-pub mod paths;
-pub mod privacy;
-pub mod sync;
-pub mod text;
 
 pub use budget::{
     audit_denial, warning_threshold, AuditSink, BudgetCaps, BudgetError, BudgetGuard, Budgets,
