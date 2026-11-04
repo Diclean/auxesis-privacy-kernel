@@ -148,7 +148,7 @@ fn touching_prohibited_values_leave_no_byte() {
 /// Release only: a token and text dense with prohibited values, 128 KiB to
 /// 1 MiB, in Private mode; each 2x step at most 2.5x.
 #[test]
-#[ignore = "release timing: cargo test --release --test ocr_kernel_3a -- --ignored --nocapture"]
+#[ignore = "release timing: cargo test --release --test lowercase_length_change -- --ignored --nocapture"]
 fn dense_prohibited_values_scale_linearly() {
     let time = |bytes: usize| {
         let unit = "IBAN FR7630006000011234567890189, I have diabetes. ";

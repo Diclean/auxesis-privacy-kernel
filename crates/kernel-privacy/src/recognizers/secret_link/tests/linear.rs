@@ -61,7 +61,7 @@ fn n5_balanced_nesting_scans_in_linear_time() {
 
 /// PR2 bar: a 1 MB table (10,000 key columns, short rows) scans in linear time,
 /// under a second in a debug `link_scan` (the release gate bar is in
-/// `tests/secret_tail4.rs`). A loop over every header column for each row would walk
+/// `tests/secret_value_runs_to_paragraph_end.rs`). A loop over every header column for each row would walk
 /// 10,000 × 75,000 cells.
 #[test]
 fn a_megabyte_of_wide_tables_scans_in_under_a_second() {

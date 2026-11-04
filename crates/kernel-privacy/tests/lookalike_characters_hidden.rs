@@ -201,7 +201,7 @@ fn chinese_and_cyrillic_prose_stay_unchanged() {
 /// Unicode-space characters, at 4k, 16k and 64k repeats. Bar: each 4x step
 /// costs under 6x.
 #[test]
-#[ignore = "release timing: cargo test --release --test norm1_lookalikes -- --ignored"]
+#[ignore = "release timing: cargo test --release --test lookalike_characters_hidden -- --ignored"]
 fn dense_folded_text_scales_linearly() {
     let units = [
         "a\u{200B}b\u{AD}c\u{2060}d\u{FEFF} ",

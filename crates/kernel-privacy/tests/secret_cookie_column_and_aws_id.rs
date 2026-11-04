@@ -155,7 +155,7 @@ const NEGATIVES: &[&str] = &[
 ];
 
 #[test]
-fn secret_1_repros_are_hidden_in_both_modes() {
+fn cookie_and_column_repros_are_hidden_in_both_modes() {
     let mut wrong = Vec::new();
     for (text, value, keep) in positives() {
         let start = text.find(value).expect("value in text");
@@ -353,7 +353,7 @@ fn a_bracketed_passphrase_is_hidden_in_both_modes() {
 }
 
 #[test]
-fn secret_1_lookalikes_stay_clear() {
+fn cookie_and_column_lookalikes_stay_clear() {
     let mut wrong = Vec::new();
     for text in NEGATIVES {
         for mode in MODES {

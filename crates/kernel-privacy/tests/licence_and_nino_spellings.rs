@@ -531,7 +531,7 @@ fn strict_superset_of_main_in_both_modes() {
 /// Release only: dense NI and licence text at 16 KiB, 64 KiB, 256 KiB and
 /// 1 MiB. Bar: each 4x step under 6x.
 #[test]
-#[ignore = "release timing: cargo test --release --test ids_after_label -- --ignored timing"]
+#[ignore = "release timing: cargo test --release --test licence_and_nino_spellings -- --ignored timing"]
 fn timing_scales_linearly() {
     let mut unit = String::new();
     unit.push_str("pn 48 15 16 cok, PN\u{200b}48\u{200b}15\u{200b}16\u{200b}Cok; ");

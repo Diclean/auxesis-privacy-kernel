@@ -258,7 +258,7 @@ fn inputs() -> Vec<(String, Ranges)> {
 
 /// Each repro hidden in both modes, and restored exactly by Private.
 #[test]
-fn seal_a2_repros_are_hidden_in_both_modes() {
+fn label_aside_repros_are_hidden_in_both_modes() {
     let mut wrong = Vec::new();
     for &(text, value) in REPROS {
         let start = text.find(value).expect("the value is in its text");
@@ -410,7 +410,7 @@ fn strict_superset_of_main_in_both_modes() {
 /// Release only: dense labelled NI and licence text at 16 KiB to 1 MiB. Bar:
 /// each 4x step under 6x.
 #[test]
-#[ignore = "release timing: cargo test --release --test ids_after_label_2 -- --ignored timing"]
+#[ignore = "release timing: cargo test --release --test licence_aside_and_nino_label -- --ignored timing"]
 fn timing_scales_linearly() {
     let unit = "NI number:\nQq 28 46 15 bok NI no: AB  12 34   56 C NI number: Qq284615bok \
         Driving licence number (if applicable): 48263471 ((((( NI number:       \

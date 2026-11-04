@@ -19,7 +19,7 @@ fn filler(seed: usize) -> String {
 }
 
 /// Two hundred names: twelve named ones and 188 fillers.
-fn round5_dictionary() -> Vec<String> {
+fn inflection_dictionary() -> Vec<String> {
     let mut names: Vec<String> = [
         "Mercier", "Bonnet", "Leroy", "Laura", "Denis", "Simon", "Carter", "Isaac", "Andrew",
         "Moreau", "Young", "Camille",
@@ -52,8 +52,8 @@ fn assert_masks(names: &[&str], text: &str, word: &str) {
 }
 
 #[test]
-fn round5_unmasked_probes_stay_unmasked_under_200_names() {
-    let dictionary = NameDictionary::new(round5_dictionary()).expect("dictionary");
+fn inflection_probes_stay_unmasked_under_200_names() {
+    let dictionary = NameDictionary::new(inflection_dictionary()).expect("dictionary");
     for probe in [
         "Merci de votre aide",
         "bonne journée",
