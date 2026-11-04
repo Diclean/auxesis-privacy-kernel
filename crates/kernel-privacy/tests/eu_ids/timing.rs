@@ -1,13 +1,22 @@
 //! The rules scan in linear time: ten times the input costs ten times the
 //! work.
 
-use super::common;
 use super::helpers::rules;
+
+mod stopwatch {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../test-support/timing.rs"
+    ));
+}
 
 /// The rules scan in linear time: ten times the input costs ten times the
 /// work, not a hundred. The bound and the floor are the ones of the H14
 /// test. The runs read 10 KB and 100 KB, so even the small one sits well
-/// above timer noise on a shared runner.
+/// above timer noise on a shared runner. Both sides are timed over windows
+/// of the same length, so a machine that stalls a run in proportion to its
+/// length slows both sides down alike: a shared macOS runner read 21.5x
+/// against the 20x bound that way on 2026-11-03.
 #[test]
 fn the_rules_scan_in_linear_time() {
     for unit in [
@@ -31,7 +40,10 @@ fn the_rules_scan_in_linear_time() {
         "8507091237 ",
     ] {
         let flood = |size: usize| unit.repeat(size / unit.len());
-        let (small, big) = (fastest(&flood(10_000)), fastest(&flood(100_000)));
+        let (small_text, big_text) = (flood(10_000), flood(100_000));
+        let rules = rules();
+        let (small, big) =
+            stopwatch::best_pair(|| time(&rules, &small_text), || time(&rules, &big_text));
         println!(
             "{unit:?}: {small:?} -> {big:?} ({:.1}x)",
             big.as_secs_f64() / small.as_secs_f64().max(1e-9)
@@ -43,14 +55,12 @@ fn the_rules_scan_in_linear_time() {
     }
 }
 
-/// The fastest of nine runs of every rule over `text`, after one warm-up: a
-/// loaded machine must not decide a bound (shared CI runners stall for a few
-/// hundred milliseconds).
-fn fastest(text: &str) -> std::time::Duration {
-    let rules = rules();
-    common::fastest(|| {
-        for rule in &rules {
-            let _ = rule.analyze(text);
-        }
-    })
+/// One run of every rule over `text`: the time of the work itself, without
+/// the rules to build.
+fn time(rules: &[Box<dyn kernel_privacy::Recognizer>], text: &str) -> std::time::Duration {
+    let started = std::time::Instant::now();
+    for rule in rules {
+        let _ = rule.analyze(text);
+    }
+    started.elapsed()
 }

@@ -22,9 +22,6 @@
 //! label and without one. A value whose check digit fails stays in clear
 //! unless a label names it. Every value is invented.
 
-#[path = "../common/mod.rs"]
-mod common;
-
 mod belgium;
 mod corpus;
 mod germany;

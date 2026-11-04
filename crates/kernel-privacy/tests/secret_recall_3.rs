@@ -7,6 +7,8 @@ mod norm1 {
 }
 use norm1::{covered, masked, MODES};
 
+mod common;
+
 /// A positive with braces around exactly the values the gate should mask.
 fn unmark(marked: &str) -> (String, Vec<(usize, usize)>) {
     let (mut text, mut ranges, mut start) = (String::new(), Vec::new(), 0);
@@ -92,7 +94,13 @@ fn ordinary_prose_after_a_recovery_cue_stays_clear() {
 #[test]
 fn long_lowercase_recovery_run_does_not_panic_or_exceed_time_bound() {
     let text = format!("Recovery codes: 7kq2 {}", "wxyz ".repeat(20_000));
-    let started = std::time::Instant::now();
+    // The fastest of nine runs, after one warm-up: the budget is on the
+    // work, not on the scheduler.
+    let elapsed = common::fastest(|| {
+        for mode in MODES {
+            let _ = masked(mode, &text).unwrap_or_else(|| panic!("refused in {mode:?}"));
+        }
+    });
     for mode in MODES {
         let got = masked(mode, &text).unwrap_or_else(|| panic!("refused in {mode:?}"));
         for (index, (at, _)) in text.match_indices("wxyz").enumerate() {
@@ -105,10 +113,7 @@ fn long_lowercase_recovery_run_does_not_panic_or_exceed_time_bound() {
             }
         }
     }
-    assert!(
-        started.elapsed() < linear_budget(),
-        "long recovery run was slow"
-    );
+    assert!(elapsed < linear_budget(), "long recovery run was slow");
 }
 
 /// The linear-time bar: 10 s in release; the debug profile is slower, so it

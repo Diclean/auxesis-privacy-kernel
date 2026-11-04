@@ -496,6 +496,13 @@ fn alnum_count(value: &str) -> usize {
 mod tests {
     use super::*;
 
+    mod timing {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../test-support/timing.rs"
+        ));
+    }
+
     fn hits<R: Recognizer>(recognizer: &R, text: &str) -> Vec<String> {
         recognizer
             .analyze(text)
@@ -509,12 +516,14 @@ mod tests {
         // K13 seal r2: every sex digit in one long alphanumeric run used to
         // rescan the whole run (zero-width chars fold away, so this is one run).
         let text = "AB1\u{200b}2".repeat(24 * 1024);
-        let started = std::time::Instant::now();
-        let _ = FrNirRecognizer::new().analyze(&text);
+        // The fastest of nine runs, after one warm-up: the bound is on the
+        // work, not on the scheduler.
+        let elapsed = timing::fastest(|| {
+            let _ = FrNirRecognizer::new().analyze(&text);
+        });
         assert!(
-            started.elapsed() < std::time::Duration::from_secs(2),
-            "fr_nir took {:?} on {} bytes",
-            started.elapsed(),
+            elapsed < std::time::Duration::from_secs(2),
+            "fr_nir took {elapsed:?} on {} bytes",
             text.len()
         );
     }

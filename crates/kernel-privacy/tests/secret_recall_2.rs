@@ -7,6 +7,8 @@
 use kernel_core::privacy::PrivacyMode;
 use serde_json::Value;
 
+mod common;
+
 #[allow(dead_code)]
 mod norm1 {
     include!("data/norm1_cases.rs");
@@ -121,15 +123,12 @@ fn long_code_lists_and_tables_stay_linear() {
         "Wi-Fi key: ".repeat(30_000),
         "clé Wi-Fi : blueotterriver ".repeat(20_000),
     ] {
-        let started = std::time::Instant::now();
-        for mode in MODES {
-            assert!(issue(mode, &text).is_some(), "refused");
-        }
-        assert!(
-            started.elapsed() < linear_budget(),
-            "{:?} is slow",
-            &text[..24]
-        );
+        let elapsed = common::fastest(|| {
+            for mode in MODES {
+                assert!(issue(mode, &text).is_some(), "refused");
+            }
+        });
+        assert!(elapsed < linear_budget(), "{:?} is slow", &text[..24]);
     }
 }
 
