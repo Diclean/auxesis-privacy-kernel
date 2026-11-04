@@ -13,21 +13,13 @@ use crate::span::{EntityKind, Span};
 pub const ODD_SCORE: f32 = 0.1;
 
 /// Thirteen digits with a plausible date, citizenship digit and Luhn check.
-#[derive(Clone, Copy, Debug)]
-pub struct ZaIdRecognizer {
-    verified: bool,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ZaIdRecognizer;
 
 impl ZaIdRecognizer {
     /// Build the recogniser.
     pub fn new() -> Self {
-        Self { verified: true }
-    }
-}
-
-impl Default for ZaIdRecognizer {
-    fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -63,10 +55,6 @@ impl Recognizer for ZaIdRecognizer {
 
     fn name(&self) -> &'static str {
         "za_id"
-    }
-
-    fn verified(&self) -> bool {
-        self.verified
     }
 }
 
@@ -123,5 +111,16 @@ mod tests {
         assert_eq!(recognizer.kinds(), &[EntityKind::ZaId]);
         assert_eq!(recognizer.name(), "za_id");
         assert!(recognizer.verified());
+    }
+
+    #[test]
+    fn the_recogniser_keeps_its_kind_and_score() {
+        let valid = ZaIdRecognizer::new().analyze("ID 8001015009087");
+        assert_eq!(valid.len(), 1);
+        assert_eq!((valid[0].kind, valid[0].score), (EntityKind::ZaId, 1.0));
+        // A Luhn typo of the right shape is kept, lower; an odd date is not.
+        let typo = ZaIdRecognizer::new().analyze("ID 8001015009088");
+        assert_eq!((typo[0].kind, typo[0].score), (EntityKind::ZaId, ODD_SCORE));
+        assert!(ZaIdRecognizer::new().analyze("8013015009087").is_empty());
     }
 }
