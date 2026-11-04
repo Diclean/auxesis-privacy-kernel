@@ -6,6 +6,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-04
+
+The v0.1.1 and v0.1.2 tags were made without a section in this file, so this
+section lists the changes since 0.1.0.
+
 ### Added
 
 - Secret shapes for New Relic, Docker, GitLab runner, Mailgun and DigitalOcean
@@ -16,19 +21,58 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `gate.restore()` helper, plain-text views and a scrub registry.
 - crates.io metadata and per-crate READMEs; packages are named `auxesis-*`
   (library names unchanged). Nothing is published yet.
+- When untrusted content (a web page, a mail) has been read and a web request
+  follows, the approval request carries the untrusted and private-data facts
+  as fields, so the app can ask and label it without guessing.
 
 ### Changed
 
+- Licence: PolyForm Noncommercial 1.0.0 instead of Apache-2.0. Noncommercial
+  use stays free; commercial use needs a paid licence (see `COMMERCIAL.md`).
+- The crates are versioned 0.1.3, like the tag. The v0.1.1 and v0.1.2 tags
+  still said 0.1.0, so `kernel_core::VERSION`, the MCP client version and the
+  HTTP user agent now say 0.1.3 instead of 0.1.0.
+- `sha2` and `aes-gcm` 0.11; hashes and encrypted vault records keep the same
+  bytes.
 - CI on GitHub runs the full kernel gate: fmt, clippy, tests on macOS and
   Linux, rustdoc, cargo deny and the in-repo privacy eval.
-- Tests run in release, where the linear-time bars apply.
+- Debug builds optimise the dependencies and the detector, so tests and their
+  linear-time bars run at a realistic speed.
+
+### Removed
+
+- Public functions and types that nothing called, here or in the Auxesis app:
+  the MCP toolkit map and discovery cache, `McpResult`, `read_sse_line`,
+  `sandbox_write_path`, `AddressPolicy::allow_loopback`,
+  `NerConfig::with_labels`, `threshold::default_floors`, a few read-only
+  getters, one builder setter, and the name-lexicon version and counts. No
+  detector, gate or egress decision changed.
+- `auxesis-kernel-net` no longer depends on an HTML parser it did not use.
 
 ### Fixed
 
 - An IBAN glued to text on both sides, or wrapped over two lines, is hidden.
-- The built-in model prices match the providers' pricing pages, at their
-  highest standard rate. `deepseek-flash` was below DeepSeek's price, so the
-  money cap could bind too late.
+- An IBAN, card or phone number written with the digits of newer Unicode
+  scripts (Garay, Kawi, Gurung Khema, Myanmar Extended-C and others) is
+  detected. The kernel keeps one table of Unicode digits, so it only finds
+  more than before.
+- The default model prices match the providers' pricing pages, at their
+  highest standard rate; none went down. Some were below the real price,
+  `deepseek-flash` among them, so the daily money cap could stop spending too
+  late. A `[prices]` section in the config still replaces the defaults.
+- With a full Xcode selected, `git` and the other `xcrun` helpers work in the
+  shell sandbox. Only shell tools get this read-and-run access, and only after
+  an authenticity and ownership check on that Xcode.
+
+### Security
+
+- MCP: one approval installs a server; for a stdio server it is bound to the
+  SHA-256 of its program and to the agent's tool allow-list. An unapproved
+  server stops at the approval gate at startup, a stdio launch checks the
+  program it is about to run, and a confirmation is tied to the server's
+  identity; an older confirmation without it asks for approval again.
+- The network guard refuses a host written as one bare number (a dotless IPv4
+  address) and the ORCHID IPv6 ranges.
 
 ## [0.1.0] - 2026-11-01
 
