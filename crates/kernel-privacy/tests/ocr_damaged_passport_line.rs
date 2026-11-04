@@ -690,7 +690,7 @@ fn strict_superset_of_main_in_both_modes() {
 /// Release only: MRZ-like runs at 16 KiB to 1 MiB; each 4x
 /// step under 6x.
 #[test]
-#[ignore = "release timing: cargo test --release --test ocr_kernel_3b_2 -- --ignored timing"]
+#[ignore = "release timing: cargo test --release --test ocr_damaged_passport_line -- --ignored timing"]
 fn timing_scales_linearly() {
     let mut unit = String::new();
     for text in lookalikes() {

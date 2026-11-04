@@ -183,7 +183,7 @@ fn strict_superset_of_main_in_both_modes() {
 /// best of three; the time ratio stays under 6 (linear).
 #[test]
 #[ignore = "release timing: -- --ignored --nocapture scales"]
-fn fin6_shapes_scale_linearly() {
+fn separator_variant_shapes_scale_linearly() {
     for unit in ["PN/48/", "4539  ", "PN  48  15  16  C ", "akia"] {
         let once = |text: &str| {
             let start = Instant::now();

@@ -240,7 +240,7 @@ fn nested_escapes_stay_linear_in_the_text_size() {
 /// Release only: text dense with entities a fold creates escapes from, at 4k,
 /// 16k and 64k repeats. Bar: each 4x step costs under 6x.
 #[test]
-#[ignore = "release timing: cargo test --release --test norm2_composition -- --ignored"]
+#[ignore = "release timing: cargo test --release --test decode_and_fold_compose -- --ignored"]
 fn dense_nested_escapes_scale_linearly() {
     let units = [
         format!("key sk-pr{}jklmnopqrstuvwx ", nest(3)),

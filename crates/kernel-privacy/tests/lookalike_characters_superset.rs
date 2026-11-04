@@ -3,7 +3,7 @@
 //! masks may be left clear, no text may be refused, and no prose line (AF, HU,
 //! SL, Chinese, Cyrillic) may gain a mask. New masks on the Chinese eval cases
 //! are printed for review. Refreeze on main only: `cargo test -p auxesis-kernel-privacy
-//! --test norm1_superset -- --ignored freeze --nocapture`. The 4,000 public
+//! --test lookalike_characters_superset -- --ignored freeze --nocapture`. The 4,000 public
 //! texts are not in the repo: `public_corpus_differential` freezes main to
 //! `NORM1_PUBLIC_MAIN` when `NORM1_PUBLIC_FREEZE=1`, and compares otherwise.
 //! All values are invented.

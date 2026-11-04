@@ -117,7 +117,7 @@ fn long_lowercase_recovery_run_does_not_panic_or_exceed_time_bound() {
 }
 
 /// The linear-time bar: 10 s in release; the debug profile is slower, so it
-/// gets 30 s. What is checked does not change (see secret_recall_1.rs).
+/// gets 30 s. What is checked does not change (see secrets_in_prose_are_found.rs).
 fn linear_budget() -> std::time::Duration {
     if cfg!(debug_assertions) {
         std::time::Duration::from_secs(30)

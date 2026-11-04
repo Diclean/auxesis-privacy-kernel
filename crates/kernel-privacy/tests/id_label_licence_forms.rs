@@ -267,7 +267,7 @@ fn strict_superset_of_main_in_both_modes() {
 /// other classes) at 16 KiB, 64 KiB, 256 KiB and 1 MiB. Bar: each 4x step under
 /// 6x.
 #[test]
-#[ignore = "release timing: cargo test --release --test id_label_2 -- --ignored timing"]
+#[ignore = "release timing: cargo test --release --test id_label_licence_forms -- --ignored timing"]
 fn timing_scales_linearly() {
     let mut unit = String::new();
     unit.push_str("Numéro de permis de conduire : 12AB34567; N° de permis n°071234567890; ");

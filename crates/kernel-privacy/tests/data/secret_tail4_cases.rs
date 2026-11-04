@@ -1,4 +1,4 @@
-// K-SECRET-TAIL-4 acceptance cases, shared by `tests/secret_tail4.rs` and the
+// K-SECRET-TAIL-4 acceptance cases, shared by `tests/secret_value_runs_to_paragraph_end.rs` and the
 // `secret_link` unit tests. (id, input, hide, clear): every non-whitespace byte of the
 // last occurrence of each hide is masked; each clear stays in the gate output.
 //

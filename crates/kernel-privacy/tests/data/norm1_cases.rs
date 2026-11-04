@@ -1,5 +1,5 @@
-// NORM-1 cases and gate helpers, shared by `norm1_lookalikes.rs` and
-// `norm1_superset.rs`. All values are invented: the FR and ES IBANs and the
+// NORM-1 cases and gate helpers, shared by `lookalike_characters_hidden.rs` and
+// `lookalike_characters_superset.rs`. All values are invented: the FR and ES IBANs and the
 // 4111… card are the public specimens, the AWS key is the AWS documentation example.
 
 include!("exact_mask.rs");

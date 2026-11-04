@@ -427,7 +427,7 @@ fn strict_superset_of_main_in_both_modes() {
 /// Release only: labels and dates at 16 KiB to 1 MiB; each 4x
 /// step under 6x.
 #[test]
-#[ignore = "release timing: cargo test --release --test ocr_kernel_3b -- --ignored timing"]
+#[ignore = "release timing: cargo test --release --test birth_date_after_label -- --ignored timing"]
 fn timing_scales_linearly() {
     let mut unit: String = LABELLED.iter().map(|(t, _)| format!("{t}\n")).collect();
     for text in lookalikes() {

@@ -88,7 +88,7 @@ fn find_value(text: &str, value: &str) -> (usize, usize) {
 }
 
 #[test]
-fn secret_2_repros_are_hidden_in_both_modes() {
+fn label_and_cell_repros_are_hidden_in_both_modes() {
     let mut wrong = Vec::new();
     for (text, values, keep) in positives() {
         for mode in MODES {
@@ -133,7 +133,7 @@ const NEGATIVES: &[&str] = &[
 ];
 
 #[test]
-fn secret_2_lookalikes_match_main() {
+fn label_and_cell_lookalikes_match_main() {
     let body = FIXTURE.split_once('\n').expect("fixture header").1;
     let main: Vec<&str> = body.trim().split_terminator(';').map(str::trim).collect();
     let mut wrong = Vec::new();

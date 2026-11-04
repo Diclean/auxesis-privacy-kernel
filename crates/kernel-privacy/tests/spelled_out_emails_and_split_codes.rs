@@ -4,7 +4,7 @@
 //! The differential runs every input through `Gate::for_grant` in Private and
 //! Open against `data/pii_trace_gaps2_main.txt`, frozen from origin/main: no
 //! byte main masks may be left clear and no text may be refused. Refreeze on
-//! main only: `cargo test -p auxesis-kernel-privacy --test pii_trace_gaps2_superset --
+//! main only: `cargo test -p auxesis-kernel-privacy --test spelled_out_emails_and_split_codes --
 //! --ignored freeze --nocapture`. All values are invented.
 
 use std::time::{Duration, Instant};
