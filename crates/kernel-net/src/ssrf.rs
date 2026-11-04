@@ -91,8 +91,12 @@ fn is_public_v6(addr: Ipv6Addr) -> bool {
         || (segments[0] & 0xffc0) == 0xfec0 // site-local fec0::/10 (deprecated)
         || (segments[0] == 0x2001 && segments[1] == 0x0db8) // documentation
         || (segments[0] == 0x0100 && segments[1..4].iter().all(|s| *s == 0)) // discard-only 100::/64
-        || (segments[0] == 0x0064 && segments[1] == 0xff9b) // NAT64 well-known
+        // NAT64: the well-known 64:ff9b::/96 and the local-use
+        // 64:ff9b:1::/48 share 64:ff9b::/32, so this one test covers both.
+        || (segments[0] == 0x0064 && segments[1] == 0xff9b)
         || (segments[0] == 0x2002) // 6to4 embeds an IPv4 address
+        || (segments[0] == 0x2001 && (segments[1] & 0xfff0) == 0x0010) // ORCHID 2001:10::/28
+        || (segments[0] == 0x2001 && (segments[1] & 0xfff0) == 0x0020) // ORCHIDv2 2001:20::/28
         || (segments[0] == 0x2001 && segments[1] == 0x0000)) // Teredo 2001::/32
 }
 
@@ -569,14 +573,28 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "KNET-WB-2: NAT64 local-use 64:ff9b:1::/48 and ORCHID/ORCHIDv2 2001:10::/28, 2001:20::/28 are reserved but is_public_v6 treats them as globally routable — see PR"]
     fn wb_address_guard_v6_local_use_ranges_are_reserved() {
-        for text in ["64:ff9b:1::1", "2001:10::1", "2001:20::1"] {
+        // NAT64 local-use 64:ff9b:1::/48 sits inside 64:ff9b::/32, which
+        // is_public_v6 already refuses for the well-known /96: both share the
+        // first 32 bits. ORCHID and ORCHIDv2 were the actual gap.
+        for (text, why) in [
+            ("64:ff9b:1::1", "NAT64 local-use, inside 64:ff9b::/32"),
+            ("2001:10::1", "ORCHID start"),
+            ("2001:1f:ffff::1", "ORCHID end"),
+            ("2001:20::1", "ORCHIDv2 start"),
+            ("2001:2f:ffff::1", "ORCHIDv2 end"),
+        ] {
             assert!(
                 !is_public_address(ip(text)),
-                "{text} is reserved, not globally routable"
+                "{text} ({why}) is reserved, not globally routable"
             );
         }
+        // Refusals that already held still hold, and a public address stays
+        // public.
+        for text in ["64:ff9b::1", "2002::1", "2001::1", "fe80::1", "fc00::1"] {
+            assert!(!is_public_address(ip(text)), "{text} must stay blocked");
+        }
+        assert!(is_public_address(ip("2606:4700:4700::1111")));
     }
 
     #[test]

@@ -128,13 +128,44 @@ fn wb_numeric_spellings_are_ip_literals_after_url_normalisation() {
 }
 
 #[test]
-#[ignore = "KNET-WB-1: check_host_shape misses the dotless integer spelling `2130706433` (is_obfuscated_numeric_host requires a `.`); today only the url-crate normalisation in check() catches it — see PR"]
 fn wb_dotless_integer_host_shape_is_refused() {
     let gate = web_gate(WebConfig::default());
+    // The shape check refuses these itself now, without depending on the URL
+    // parser normalising the host first.
+    for host in ["2130706433", "017700000001", "0x7f000001"] {
+        assert_eq!(
+            gate.check_host_shape(host).unwrap_err(),
+            DenyReason::ObfuscatedHost,
+            "{host}"
+        );
+    }
+    // Refusals that already held still hold.
+    for host in ["0177.0.0.1", "127.1", "0x7f.1", "1.2.3.999"] {
+        assert_eq!(
+            gate.check_host_shape(host).unwrap_err(),
+            DenyReason::ObfuscatedHost,
+            "{host}"
+        );
+    }
     assert_eq!(
-        gate.check_host_shape("2130706433").unwrap_err(),
-        DenyReason::ObfuscatedHost
+        gate.check_host_shape("8.8.8.8").unwrap_err(),
+        DenyReason::IpLiteral
     );
+    assert_eq!(
+        gate.check_host_shape("xn--g00gle-9db.com").unwrap_err(),
+        DenyReason::PunycodeHost
+    );
+}
+
+#[test]
+fn wb_names_with_digits_stay_allowed() {
+    let gate = web_gate(WebConfig::default());
+    for host in ["123.example", "web1.example.com", "a1b2.example"] {
+        assert_eq!(gate.check_host_shape(host), Ok(()), "{host}");
+    }
+    // The full gate keeps the same answer for a host that merely has digits.
+    assert!(gate.check("https://123.example/").is_ok());
+    assert!(gate.check("https://web1.example.com/").is_ok());
 }
 
 #[test]
