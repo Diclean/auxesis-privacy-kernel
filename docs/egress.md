@@ -26,8 +26,8 @@ added to an allowlisted file is still flagged.
 to pin the connection to the one validated address. A private or loopback
 answer is refused before any client is built.
 
-Three `ssrf.rs` unit tests call `build_client` to check host matching. They
-build request builders only and send nothing.
+Four `ssrf.rs` unit tests call `build_client` to check host matching and URL
+parsing. They build request builders only and send nothing.
 
 Clients for providers, Google, Zoho, Telegram, voice, WhatsApp and the CLI are
 not in this repository. They stay in the app repository and are allowlisted there
@@ -46,4 +46,5 @@ crates/kernel-net/src/ssrf.rs::build_client
 crates/kernel-net/src/ssrf.rs::a_bracketed_ipv6_host_must_match_its_pinned_address
 crates/kernel-net/src/ssrf.rs::a_pinned_host_compares_after_normalisation
 crates/kernel-net/src/ssrf.rs::a_pinned_ipv6_literal_is_allowed_with_its_brackets
+crates/kernel-net/src/ssrf.rs::wb_pinned_client_refuses_an_unparseable_url
 <!-- egress-allowlist:end -->
