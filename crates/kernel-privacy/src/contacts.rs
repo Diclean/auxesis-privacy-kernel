@@ -1,5 +1,6 @@
 //! A local contact index: the people the owner knows, and a recogniser that
-//! masks every mention of them.
+//! masks every mention of them. The owner application calls it: it seeds the
+//! index from its mail, then mounts the recogniser in a [`crate::Registry`].
 //!
 //! Detectors that read a model miss what a model cannot know: a bare first
 //! name, a lower-case name in a quoted reply, a name in a `ps:` line. The

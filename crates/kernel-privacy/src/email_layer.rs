@@ -1,10 +1,12 @@
-//! Email-aware detection layer.
+//! Email-aware detection layer: the post-pass that finds the names a mail
+//! reveals. Called by [`crate::recognizer::RegistryBuilder`], which mounts it
+//! in every default registry, and by the Deep stack under feature
+//! `ner-gliner`.
 //!
-//! [`EmailLayer`] is the post-pass that closes the gap the deterministic
-//! recognisers and GLiNER leave on messy e-mail: a bare first name in a
-//! greeting, a name inside a `linkedin.example.invalid/in/jules-ferrand` path,
-//! an address hidden behind `%40` in an unsubscribe link, a legal footer's
-//! company number.
+//! It closes the gap the deterministic recognisers and GLiNER leave on messy
+//! e-mail: a bare first name in a greeting, a name inside a
+//! `linkedin.example.invalid/in/jules-ferrand` path, an address hidden behind
+//! `%40` in an unsubscribe link, a legal footer's company number.
 //!
 //! It works in three steps:
 //!

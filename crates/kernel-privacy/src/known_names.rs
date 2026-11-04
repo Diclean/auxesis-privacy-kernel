@@ -1,5 +1,7 @@
 //! A caller-supplied dictionary of known person names: the Tier H half of
-//! Standard detection (D7).
+//! Standard detection (D7). The owner application calls it: it passes the
+//! names of its contacts to [`crate::safetext::Gate::for_grant_with_names`] or
+//! [`crate::safetext::Gate::for_grant_with_dictionary`].
 //!
 //! The dictionary is local and exhaustive for the names it is given. For each
 //! entry it compiles the surface forms a person is actually written under —

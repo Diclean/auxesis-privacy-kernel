@@ -17,7 +17,8 @@ one Mac, published on its own so other projects can use it.
 There are two modes. **Private** replaces every value it finds with a token that
 you can restore later. **Open** leaves ordinary values as they are and only tells
 you what Private would have hidden, except for the most sensitive classes, which
-it removes in both modes.
+it removes in both modes. One detail: the Open report also counts the names it
+found, and Private never masks a name. See [Names](#names).
 
 | Class | Examples | Private | Open |
 | --- | --- | --- | --- |
@@ -44,7 +45,8 @@ Be clear about these limits before you rely on it.
 
 - **Names are not hidden.** Person and company names pass through as written,
   in both modes. This is a deliberate choice: name detection guesses wrong too
-  often, and a wrong guess either leaks or breaks the text.
+  often, and a wrong guess either leaks or breaks the text. The
+  [Names](#names) section says what the name tools still do.
 - **Postal addresses are only partly detected.** Measured Private recall is
   40.8 % on Gretel (n = 4,304) and 72.1 % on Nemotron (n = 920); the 100 % TAB
   cell is six street-number addresses. Treat an address as a known gap.
@@ -57,6 +59,20 @@ Be clear about these limits before you rely on it.
 - **It does not remove every identifying detail.** The text around a token can
   still say a lot about a person. It reduces what leaves; it does not prove that
   nothing identifying leaves, and it is not a legal compliance tool.
+
+## Names
+
+Names are not masked: a person name or a company name leaves the Mac as written,
+in Private and in Open mode. On the Private path `egress_detector` in
+`safetext/detector.rs` drops every name span on purpose, so no name is tokenised
+or removed.
+The name tools still have a job: the contact index finds a known contact in a
+text and matches an e-mail address, a phone number or an IBAN to that person;
+the known-names dictionary matches the names the owner gave it; the e-mail layer
+reads the names in a header, a greeting or a sign-off; the optional GLiNER2
+model finds the rest. In Open mode the names found are counted in the report.
+E-mail addresses, phone numbers, ID numbers, IBANs, payment cards, health terms
+and secrets are masked in both modes; only the names stay in clear.
 
 ## Measured recall
 

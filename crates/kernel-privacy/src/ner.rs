@@ -1,10 +1,12 @@
-//! Local GLiNER2-PII NER recogniser, behind the `ner-gliner` feature.
+//! Local GLiNER2-PII NER recogniser, behind the `ner-gliner` feature: the span
+//! engine the deterministic [`crate::Registry`] cannot provide. Called by
+//! [`crate::safetext::Gate::for_grant_with_gliner`], by the Deep detector
+//! that gate builds, and by [`crate::safetext::install_local_name_model`].
 //!
 //! GLiNER2 is a zero-shot span tagger: the caller supplies the entity labels in
-//! the prompt and the model returns byte spans and probabilities for them. It
-//! is the span engine the deterministic [`crate::Registry`] cannot provide.
-//! The runner is the reusable `gliner2-rs` crate (`crates/gliner2`); this
-//! module maps its entities onto the kernel's
+//! the prompt and the model returns byte spans and probabilities for them. The
+//! runner is the reusable `gliner2-rs` crate (`crates/gliner2`); this module
+//! maps its entities onto the kernel's
 //! [`EntityKind`](crate::span::EntityKind)s, keeps the fail-closed rules, and
 //! exposes the recogniser the registry and the gate use.
 //!
