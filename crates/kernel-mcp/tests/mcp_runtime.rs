@@ -303,3 +303,63 @@ async fn a_loopback_http_server_is_discovered_and_mounted() {
     );
     handle.abort();
 }
+
+/// KMCP-HARDEN-a: the plain public `McpRuntime::start` must never mount a
+/// server that is not install-approved. It delegates to `start_with` with a
+/// pass-all filter (`&|_| Ok(())`), so an enabled `http` server with
+/// `approval = None` gets no install-approval gate at all — on main it is
+/// only stopped by the incidental SSRF refusal of the loopback test URL and
+/// is reported as an opaque `failed`, after the transport was already built.
+/// Desired: `start` refuses/quarantines the unapproved server up front with a
+/// clear state and never discovers it.
+#[tokio::test]
+async fn kmcp_harden_a_start_never_mounts_an_unapproved_http_server() {
+    let server = McpServerConfig {
+        id: "web".to_owned(),
+        catalog_id: None,
+        data_class: kernel_mcp::McpDataClass::Sensitive,
+        stdio_confirmed: false,
+        stdio_confirmation: None,
+        approval: None,
+        network: false,
+        transport: McpTransport::Http,
+        // Loopback: passes config validation, refused by the runtime SSRF
+        // guard on main, so the failure reason below is deterministic offline.
+        url: Some("http://127.0.0.1:9/mcp".to_owned()),
+        command: None,
+        args: Vec::new(),
+        env: Vec::new(),
+        enabled: true,
+        agents: [("main".to_owned(), vec!["HTTP_TOOL".to_owned()])]
+            .into_iter()
+            .collect(),
+    };
+    let runtime = McpRuntime::start(config(vec![server]), &BTreeMap::new()).await;
+    assert_eq!(runtime.statuses().len(), 1);
+    assert!(
+        matches!(
+            runtime.statuses()[0].state,
+            McpServerState::NeedsApproval | McpServerState::Quarantined
+        ),
+        "an enabled server with approval = None must be refused as unapproved \
+         (needs_approval/quarantined) before any transport is built, not sent into \
+         discovery: got {:?}",
+        runtime.statuses()[0]
+    );
+    assert!(
+        runtime.statuses()[0].reason.is_some(),
+        "the refusal must carry a clear, content-free reason"
+    );
+    assert_eq!(
+        runtime.tool_count(),
+        0,
+        "no tool of an unapproved server is mounted"
+    );
+    assert!(runtime.descriptors_for("web").is_empty());
+    let mut registry = ToolRegistry::new();
+    assert_eq!(
+        runtime.register_for_agent("main", &mut registry),
+        0,
+        "nothing is mounted for any agent"
+    );
+}

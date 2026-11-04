@@ -64,6 +64,7 @@ mod framing;
 mod limits;
 mod process;
 mod shared;
+mod snapshot;
 mod transport;
 
 pub use command::{

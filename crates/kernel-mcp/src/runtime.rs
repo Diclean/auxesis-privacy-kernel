@@ -98,13 +98,20 @@ impl McpRuntime {
         Self::default()
     }
 
-    /// Discover every enabled server of `config`, isolating each failure.
+    /// Report enabled servers as needing approval: this entry point has no
+    /// approval key or catalog pin. Use [`Self::start_with`] with the daemon's
+    /// approval policy to discover servers.
     ///
     /// `secrets` holds the resolved `~/.auxesis/.env` values for the declared
     /// `env` names; a name without a value fails only that server and is
     /// logged by name, never by value.
     pub async fn start(config: McpConfig, secrets: &BTreeMap<String, String>) -> Self {
-        Self::start_with(config, secrets, McpStartOptions::default(), &|_| Ok(())).await
+        // This convenience entry point has neither an approval key nor a
+        // catalog pin. It cannot establish approval for any enabled server.
+        Self::start_with(config, secrets, McpStartOptions::default(), &|_| {
+            Err(McpServerRefusal::needs_approval("not_approved"))
+        })
+        .await
     }
 
     /// Like [`McpRuntime::start`], with the daemon's per-server policy.
@@ -113,7 +120,8 @@ impl McpRuntime {
     /// quarantines that server — it is reported with the refusal's state and
     /// reason — and every other server still comes up. This is where the
     /// daemon applies the catalog/confirmation policy and the existing `[web]`
-    /// egress policy.
+    /// egress policy. The caller must verify install approval in this filter;
+    /// a permissive filter is not an approval policy.
     pub async fn start_with(
         config: McpConfig,
         secrets: &BTreeMap<String, String>,

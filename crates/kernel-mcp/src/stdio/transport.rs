@@ -22,6 +22,7 @@ use super::framing::encode;
 use super::limits::{StdioLimits, MAX_PENDING_REQUESTS};
 use super::process::read_loop;
 use super::shared::{lock, Exit, PendingGuard, Shared};
+use super::snapshot::PreparedProgram;
 use super::StdioSandbox;
 
 /// One complete, newline-terminated frame accepted by the sole stdin writer.
@@ -33,6 +34,7 @@ struct WriteFrame {
 
 /// One running stdio session. The writer task exclusively owns child stdin.
 struct Conn {
+    _snapshot: PreparedProgram,
     writer: mpsc::Sender<WriteFrame>,
     writer_task: tokio::task::JoinHandle<()>,
     reader: tokio::task::JoinHandle<()>,
@@ -41,6 +43,7 @@ struct Conn {
 /// A stdio transport for one pinned local MCP server.
 pub struct StdioTransport {
     command: StdioCommand,
+    verified_sha: String,
     limits: StdioLimits,
     /// When set, the child is spawned under the macOS Seatbelt profile shared
     /// with the shell tool (item 3): `~/.auxesis` and the store are denied, and
@@ -97,9 +100,14 @@ impl StdioTransport {
     ) -> Result<Self, McpError> {
         command.validate()?;
         limits.validate()?;
+        let verified_sha = command
+            .verified_sha
+            .clone()
+            .unwrap_or_else(|| crate::config::binary_sha256(command.program()));
         let (exit, _receiver) = watch::channel(Exit::Running);
         Ok(Self {
             command,
+            verified_sha,
             limits,
             sandbox: None,
             shared: Arc::new(Shared {
@@ -215,10 +223,23 @@ impl StdioTransport {
         if self.shared.dead.load(Ordering::SeqCst) {
             return Err(McpError::ProcessGone);
         }
+        // Use the sealed system volume or a private, verified executable copy.
+        let source = self.command.program().to_owned();
+        let parent = self
+            .sandbox
+            .as_ref()
+            .map_or_else(std::env::temp_dir, |sandbox| sandbox.temp_path().to_owned());
+        let expected = self.verified_sha.clone();
+        let snapshot = tokio::task::spawn_blocking(move || {
+            PreparedProgram::create(&source, &parent, &expected)
+        })
+        .await
+        .map_err(|_| McpError::ProcessGone)?
+        .map_err(|err| McpError::Io { kind: err.kind() })?;
         let mut command = match &self.sandbox {
-            Some(sandbox) => sandbox.command(self.command.program(), &self.command.args),
+            Some(sandbox) => sandbox.command(snapshot.program(), &self.command.args),
             None => {
-                let mut command = Command::new(self.command.program());
+                let mut command = Command::new(snapshot.program());
                 command.args(&self.command.args);
                 command
             }
@@ -244,9 +265,21 @@ impl StdioTransport {
         for (key, value) in &self.command.declared_env {
             command.env(key, value);
         }
-        let mut child = command
-            .spawn()
-            .map_err(|err| McpError::Io { kind: err.kind() })?;
+        // Verify the actual executable again immediately before spawning it.
+        // Keep both disk hashing and the spawn on the blocking pool.
+        let expected = self.verified_sha.clone();
+        let (mut child, snapshot) = tokio::task::spawn_blocking(move || {
+            if crate::config::binary_sha256(snapshot.program()) != expected {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "program hash changed",
+                ));
+            }
+            command.spawn().map(|child| (child, snapshot))
+        })
+        .await
+        .map_err(|_| McpError::ProcessGone)?
+        .map_err(|err| McpError::Io { kind: err.kind() })?;
         if let Some(pid) = child.id() {
             self.shared.pgid.store(pid as usize, Ordering::SeqCst);
         }
@@ -258,6 +291,7 @@ impl StdioTransport {
         let (writer, receiver) = mpsc::channel(self.limits.max_inflight.min(MAX_PENDING_REQUESTS));
         let writer_task = tokio::spawn(write_loop(stdin, receiver, Arc::clone(&self.shared)));
         *guard = Some(Conn {
+            _snapshot: snapshot,
             writer,
             writer_task,
             reader,

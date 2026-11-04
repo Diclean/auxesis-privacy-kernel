@@ -32,10 +32,10 @@ pub(super) fn confirmation_digest(
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_else(|_| command.to_owned());
     let mut hasher = blake3::Hasher::new_keyed(blake3::hash(secret).as_bytes());
-    // v2: tagged, length-prefixed and counted, exactly like the approval
-    // digest, so an args/env swap (or a tool moving between agents) invalidates
-    // the confirmation instead of reusing the old bytes.
-    hasher.update(b"mcp-confirmation-v2\0");
+    // v3 also binds the identity; v2 cannot safely be migrated because it
+    // contains no evidence of which server the owner confirmed.
+    hasher.update(b"mcp-confirmation-v3\0");
+    hash_field(&mut hasher, b"id:", &server.id);
     hash_field(&mut hasher, b"command:", &canonical);
     hash_count(&mut hasher, b"args:", server.args.len());
     for arg in &server.args {
@@ -266,7 +266,8 @@ mod tests {
         confirmed.stdio_confirmed = true;
         confirmed.stdio_confirmation = confirmation;
         assert!(confirmed.stdio_is_confirmed_with(secret));
-        assert!(confirmed.is_install_approved(Some(secret), None));
+        // A launch confirmation is not an install approval.
+        assert!(!confirmed.is_install_approved(Some(secret), None));
 
         // Execute-only: the file cannot be read, so it cannot be hashed.
         std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o111)).unwrap();
@@ -340,5 +341,88 @@ mod tests {
             !confirmed.stdio_is_confirmed_with(secret),
             "a replacement that cannot be hashed must never be confirmed"
         );
+    }
+
+    /// KMCP-HARDEN-c: the confirmation digest must bind the server `id`, so
+    /// renaming a confirmed server invalidates the stored confirmation
+    /// instead of carrying it over to the new id.
+    #[test]
+    fn kmcp_harden_c_edited_server_id_invalidates_confirmation() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("server");
+        std::fs::write(&bin, b"program").unwrap();
+        let mut server = McpServerConfig {
+            id: "alpha".into(),
+            catalog_id: None,
+            data_class: McpDataClass::Sensitive,
+            stdio_confirmed: true,
+            stdio_confirmation: None,
+            approval: None,
+            network: false,
+            transport: McpTransport::Stdio,
+            url: None,
+            command: Some(bin.to_string_lossy().into_owned()),
+            args: args(&["--stdio"]),
+            env: vec![],
+            enabled: true,
+            agents: Default::default(),
+        };
+        let secret = b"daemon-token";
+        server.stdio_confirmation = server.confirmation_binding(secret);
+        assert!(
+            server.stdio_is_confirmed_with(secret),
+            "the unedited launch is confirmed"
+        );
+
+        let mut renamed = server.clone();
+        renamed.id = "beta".into();
+        assert!(
+            !renamed.stdio_is_confirmed_with(secret),
+            "editing the server id after confirmation must invalidate the confirmation: \
+             the digest does not cover the id, so the old confirmation still matches the rename"
+        );
+    }
+
+    #[test]
+    fn unbound_v2_confirmation_requires_fresh_approval_even_for_original_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("server");
+        std::fs::write(&bin, b"program").unwrap();
+        let mut server = McpServerConfig {
+            id: "alpha".into(),
+            catalog_id: None,
+            data_class: McpDataClass::Sensitive,
+            stdio_confirmed: true,
+            stdio_confirmation: None,
+            approval: None,
+            network: false,
+            transport: McpTransport::Stdio,
+            url: None,
+            command: Some(bin.to_string_lossy().into_owned()),
+            args: vec![],
+            env: vec![],
+            enabled: true,
+            agents: Default::default(),
+        };
+        let secret = b"daemon-token";
+        // The exact v2 encoding had no id, so even the original id cannot be
+        // distinguished from a renamed copy of the same configuration.
+        let mut hash = blake3::Hasher::new_keyed(blake3::hash(secret).as_bytes());
+        hash.update(b"mcp-confirmation-v2\0");
+        let canonical = std::fs::canonicalize(&bin).unwrap();
+        hash_field(&mut hash, b"command:", &canonical.to_string_lossy());
+        hash_count(&mut hash, b"args:", 0);
+        hash_count(&mut hash, b"env:", 0);
+        hash_flag(&mut hash, b"network:", false);
+        hash_field(&mut hash, b"class:", "sensitive");
+        hash_field(&mut hash, b"transport:", "stdio");
+        hash_count(&mut hash, b"agents:", 0);
+        hash_field(&mut hash, b"sha256:", &binary_sha256(&bin));
+        server.stdio_confirmation = Some(hash.finalize().to_hex().to_string());
+        assert!(!server.stdio_is_confirmed_with(secret));
+        assert!(!server.is_install_approved(Some(secret), None));
+        server.id = "beta".into();
+        assert!(!server.stdio_is_confirmed_with(secret));
+        assert!(!server.is_install_approved(Some(secret), None));
     }
 }
