@@ -42,6 +42,88 @@ struct AuditRecord {
     executed_args_sha256: Option<String>,
 }
 
+/// The fields every audit row of one call shares, whatever the decision.
+struct RowContext<'a> {
+    agent: &'a str,
+    tool: &'a str,
+    risk: Risk,
+    tainted: bool,
+    taint_source: Option<String>,
+    mode: ExecutionMode,
+}
+
+impl RowContext<'_> {
+    /// One decision's row; approval, error and hashes are set by struct update.
+    fn record(
+        &self,
+        action: Action,
+        outcome: &'static str,
+        reason: &str,
+        rule: Option<usize>,
+    ) -> AuditRecord {
+        AuditRecord {
+            agent: self.agent.to_string(),
+            tool: self.tool.to_string(),
+            risk: self.risk,
+            action: action.as_str(),
+            outcome,
+            reason: reason.to_string(),
+            rule,
+            approved: None,
+            error: None,
+            tainted: self.tainted,
+            taint_source: self.taint_source.clone(),
+            mode: self.mode.as_str(),
+            original_args_sha256: None,
+            executed_args_sha256: None,
+        }
+    }
+}
+
+/// Why a matching `allow` must still ask, or `None`. Four bars, in order: the
+/// skill floor (a skill-only tool inside a skill asks at minimum); unsandboxed
+/// (no `allow` rule, and no persisted "always allow", may auto-run it, ever);
+/// networked (every socket open: the same bar, though the filesystem is still
+/// confined); taint (a consequential call must be approved; an explicit
+/// read-only declaration is the only exemption). `Risk` is deliberately not
+/// consulted: a tool that under-reports its risk must still ask.
+fn forced_reason(
+    tool: &str,
+    skill_floor: bool,
+    unsandboxed: bool,
+    networked: bool,
+    tainted: bool,
+    read_only: bool,
+    taint_source: Option<&str>,
+) -> Option<String> {
+    let source = taint_source.unwrap_or("unknown");
+    if skill_floor {
+        Some(format!(
+            "`{tool}` is skill-only and may run only inside a skill"
+        ))
+    } else if unsandboxed {
+        Some(if tainted {
+            format!("`{tool}` runs unsandboxed and the conversation is tainted ({source})")
+        } else {
+            format!("`{tool}` runs unsandboxed")
+        })
+    } else if networked {
+        Some(if tainted {
+            format!(
+                "`{tool}` runs with the network enabled and the conversation is tainted ({source})"
+            )
+        } else {
+            format!("`{tool}` runs with the network enabled (all sockets open)")
+        })
+    } else if tainted && !read_only {
+        Some(format!(
+            "the conversation is tainted ({source}) and `{tool}` is consequential"
+        ))
+    } else {
+        None
+    }
+}
+
 /// The inputs of one authorization call, all required.
 ///
 /// Every bar the broker applies is named here: there is no `Default` and no
@@ -193,28 +275,21 @@ impl Broker {
         let taint_source = taint.summary();
         let unsandboxed = mode.is_unsandboxed();
         let networked = mode.is_networked();
+        let row = RowContext {
+            agent,
+            tool,
+            risk,
+            tainted,
+            taint_source,
+            mode,
+        };
 
         // Hardline floor: a skill-only tool
         // requested without a skill context is refused here, before any rule
         // match and before the approver is asked anything.
         if skill_only && skill.is_none() {
             let reason = SKILL_ONLY_REASON.to_string();
-            self.audit(AuditRecord {
-                agent: agent.to_string(),
-                tool: tool.to_string(),
-                risk,
-                action: Action::Deny.as_str(),
-                outcome: "denied",
-                reason: reason.clone(),
-                rule: None,
-                approved: None,
-                error: None,
-                tainted,
-                taint_source,
-                mode: mode.as_str(),
-                original_args_sha256: None,
-                executed_args_sha256: None,
-            })?;
+            self.audit(row.record(Action::Deny, "denied", &reason, None))?;
             return Ok(Authorization::Denied { reason });
         }
 
@@ -232,50 +307,18 @@ impl Broker {
             None if read_only_default => (None, Action::Allow),
             None => (None, Action::Ask),
         };
-        // Three independent bars can raise an `allow` rule to `ask`:
-        // - taint: untrusted content is in the conversation, so a
-        //   consequential call must be approved (an explicit read-only
-        //   declaration is the only exemption);
-        // - unsandboxed: the call will escape its sandbox, so no `allow`
-        //   rule — and no persisted "always allow" — may auto-run it, ever;
-        // - networked: the sandbox has every socket open, so the same bar
-        //   applies even though the filesystem is still confined.
-        // `Risk` is deliberately not consulted for either: a tool that
-        // under-reports its risk must still ask.
-        //
-        // The skill floor is the fourth: a skill-only tool running inside a
-        // skill asks at minimum, so an `allow` rule cannot lift it either.
+        // Four independent bars can raise an `allow` rule to `ask`; see
+        // [`forced_reason`].
         let skill_floor = skill_only && skill.is_some();
-        let forced_reason = if skill_floor {
-            Some(format!(
-                "`{tool}` is skill-only and may run only inside a skill"
-            ))
-        } else if unsandboxed {
-            Some(if tainted {
-                format!(
-                    "`{tool}` runs unsandboxed and the conversation is tainted ({})",
-                    taint_source.as_deref().unwrap_or("unknown")
-                )
-            } else {
-                format!("`{tool}` runs unsandboxed")
-            })
-        } else if networked {
-            Some(if tainted {
-                format!(
-                    "`{tool}` runs with the network enabled and the conversation is tainted ({})",
-                    taint_source.as_deref().unwrap_or("unknown")
-                )
-            } else {
-                format!("`{tool}` runs with the network enabled (all sockets open)")
-            })
-        } else if tainted && !read_only {
-            Some(format!(
-                "the conversation is tainted ({}) and `{tool}` is consequential",
-                taint_source.as_deref().unwrap_or("unknown")
-            ))
-        } else {
-            None
-        };
+        let forced_reason = forced_reason(
+            tool,
+            skill_floor,
+            unsandboxed,
+            networked,
+            tainted,
+            read_only,
+            row.taint_source.as_deref(),
+        );
         let forced = rule_action == Action::Allow && forced_reason.is_some();
         let action = if forced { Action::Ask } else { rule_action };
         let label = match (rule_index, forced) {
@@ -306,22 +349,7 @@ impl Broker {
                     "denied"
                 };
                 let reason = format!("{label}: {action}");
-                self.audit(AuditRecord {
-                    agent: agent.to_string(),
-                    tool: tool.to_string(),
-                    risk,
-                    action: action.as_str(),
-                    outcome,
-                    reason: reason.clone(),
-                    rule: rule_index,
-                    approved: None,
-                    error: None,
-                    tainted,
-                    taint_source,
-                    mode: mode.as_str(),
-                    original_args_sha256: None,
-                    executed_args_sha256: None,
-                })?;
+                self.audit(row.record(action, outcome, &reason, rule_index))?;
                 Ok(if action == Action::Allow {
                     Authorization::Allowed {
                         reason,
@@ -340,7 +368,7 @@ impl Broker {
                     risk,
                     arguments: requested.clone(),
                     tainted,
-                    taint_source: taint_source.clone(),
+                    taint_source: row.taint_source.clone(),
                     web_approval: taint.source().and_then(|source| source.web_approval),
                     unsandboxed,
                     networked,
@@ -363,22 +391,13 @@ impl Broker {
                                             "{label}: ask, approved, but the edited draft exceeds the {MAX_EDITED_ARGUMENTS_BYTES} byte cap, denied"
                                         );
                                         self.audit(AuditRecord {
-                                            agent: agent.to_string(),
-                                            tool: tool.to_string(),
-                                            risk,
-                                            action: Action::Ask.as_str(),
-                                            outcome: "denied",
-                                            reason: reason.clone(),
-                                            rule: rule_index,
                                             approved: Some(true),
                                             error: Some("edited_arguments_too_large".to_string()),
-                                            tainted,
-                                            taint_source,
-                                            mode: mode.as_str(),
                                             original_args_sha256: Some(arguments_sha256(
                                                 &requested,
                                             )),
                                             executed_args_sha256: Some(arguments_sha256(&edited)),
+                                            ..row.record(Action::Ask, "denied", &reason, rule_index)
                                         })?;
                                         return Ok(Authorization::Denied { reason });
                                     }
@@ -393,20 +412,10 @@ impl Broker {
                             };
                         let reason = format!("{label}: ask, approved");
                         self.audit(AuditRecord {
-                            agent: agent.to_string(),
-                            tool: tool.to_string(),
-                            risk,
-                            action: Action::Ask.as_str(),
-                            outcome: "allowed",
-                            reason: reason.clone(),
-                            rule: rule_index,
                             approved: Some(true),
-                            error: None,
-                            tainted,
-                            taint_source,
-                            mode: mode.as_str(),
                             original_args_sha256,
                             executed_args_sha256,
+                            ..row.record(Action::Ask, "allowed", &reason, rule_index)
                         })?;
                         Ok(Authorization::Allowed {
                             reason,
@@ -417,20 +426,8 @@ impl Broker {
                     Ok(_) => {
                         let reason = format!("{label}: ask, denied");
                         self.audit(AuditRecord {
-                            agent: agent.to_string(),
-                            tool: tool.to_string(),
-                            risk,
-                            action: Action::Ask.as_str(),
-                            outcome: "denied",
-                            reason: reason.clone(),
-                            rule: rule_index,
                             approved: Some(false),
-                            error: None,
-                            tainted,
-                            taint_source,
-                            mode: mode.as_str(),
-                            original_args_sha256: None,
-                            executed_args_sha256: None,
+                            ..row.record(Action::Ask, "denied", &reason, rule_index)
                         })?;
                         Ok(Authorization::Denied { reason })
                     }
@@ -439,20 +436,9 @@ impl Broker {
                         let reason =
                             format!("{label}: ask, approver failed, denied (fail closed): {err}");
                         self.audit(AuditRecord {
-                            agent: agent.to_string(),
-                            tool: tool.to_string(),
-                            risk,
-                            action: Action::Ask.as_str(),
-                            outcome: "denied",
-                            reason: reason.clone(),
-                            rule: rule_index,
                             approved: Some(false),
                             error: Some(err.to_string()),
-                            tainted,
-                            taint_source,
-                            mode: mode.as_str(),
-                            original_args_sha256: None,
-                            executed_args_sha256: None,
+                            ..row.record(Action::Ask, "denied", &reason, rule_index)
                         })?;
                         Ok(Authorization::Denied { reason })
                     }
