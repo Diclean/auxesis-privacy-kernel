@@ -6,6 +6,11 @@ use std::sync::{Arc, Mutex};
 
 use tokio::sync::{oneshot, watch, Notify, Semaphore};
 
+use kernel_core::sync::lock_recover;
+
+#[cfg(test)]
+pub(super) use kernel_core::sync::lock_recover as lock;
+
 use crate::error::McpError;
 use crate::jsonrpc::JsonRpcResponse;
 
@@ -41,7 +46,7 @@ pub(super) struct PendingGuard {
 
 impl Drop for PendingGuard {
     fn drop(&mut self) {
-        lock(&self.shared.pending).remove(&self.id);
+        lock_recover(&self.shared.pending).remove(&self.id);
     }
 }
 
@@ -57,11 +62,4 @@ pub(super) enum Exit {
     Failed,
     /// The reaped status.
     Reaped(std::process::ExitStatus),
-}
-
-/// Lock without letting a poisoned mutex poison the transport.
-pub(super) fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }

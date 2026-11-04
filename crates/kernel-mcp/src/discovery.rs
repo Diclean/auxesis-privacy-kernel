@@ -33,6 +33,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use kernel_broker::Risk;
+use kernel_core::sync::{rwlock_read_recover, rwlock_write_recover};
 use serde_json::Value;
 
 use crate::descriptor::{risk_from_tags, sanitize_schema, McpTag, McpToolDescriptor};
@@ -433,7 +434,7 @@ impl DiscoveryCache {
     /// An expired entry is evicted on read.
     pub fn get(&self, server: &str) -> Option<Arc<ToolCatalog>> {
         let now = (self.clock)();
-        let mut entries = self.entries.write().unwrap_or_else(|e| e.into_inner());
+        let mut entries = rwlock_write_recover(&self.entries);
         let entry = entries.get(server)?;
         if now.saturating_duration_since(entry.stored_at) < self.ttl {
             Some(Arc::clone(&entry.catalog))
@@ -447,7 +448,7 @@ impl DiscoveryCache {
     pub fn put(&self, server: &str, catalog: ToolCatalog) -> Arc<ToolCatalog> {
         let shared = Arc::new(catalog);
         let now = (self.clock)();
-        let mut entries = self.entries.write().unwrap_or_else(|e| e.into_inner());
+        let mut entries = rwlock_write_recover(&self.entries);
         entries.insert(
             server.to_owned(),
             CacheEntry {
@@ -460,24 +461,17 @@ impl DiscoveryCache {
 
     /// Drop one server's entry; `true` when something was removed.
     pub fn invalidate(&self, server: &str) -> bool {
-        self.entries
-            .write()
-            .unwrap_or_else(|e| e.into_inner())
-            .remove(server)
-            .is_some()
+        rwlock_write_recover(&self.entries).remove(server).is_some()
     }
 
     /// Drop every entry.
     pub fn invalidate_all(&self) {
-        self.entries
-            .write()
-            .unwrap_or_else(|e| e.into_inner())
-            .clear();
+        rwlock_write_recover(&self.entries).clear();
     }
 
     /// The servers currently cached, in stable order.
     pub fn servers(&self) -> Vec<String> {
-        let entries = self.entries.read().unwrap_or_else(|e| e.into_inner());
+        let entries = rwlock_read_recover(&self.entries);
         let mut servers: Vec<String> = entries.keys().cloned().collect();
         servers.sort();
         servers
@@ -486,7 +480,7 @@ impl DiscoveryCache {
     /// Number of cached entries (including an entry that has not been read past
     /// its TTL yet).
     pub fn len(&self) -> usize {
-        self.entries.read().unwrap_or_else(|e| e.into_inner()).len()
+        rwlock_read_recover(&self.entries).len()
     }
 
     /// Whether the cache holds no entries.

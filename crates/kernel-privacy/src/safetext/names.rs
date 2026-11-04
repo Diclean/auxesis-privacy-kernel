@@ -4,6 +4,8 @@
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::{Arc, OnceLock};
 
+use kernel_core::sync::lock_recover;
+
 use super::detector::Detector;
 use super::report::DetectError;
 use crate::recognizer::span_is_well_formed;
@@ -96,7 +98,7 @@ impl BoundedSpotter {
     }
 
     fn sender(&self) -> Option<std::sync::mpsc::Sender<SpotJob>> {
-        let mut worker = self.worker.lock().unwrap_or_else(|p| p.into_inner());
+        let mut worker = lock_recover(&self.worker);
         if worker.is_none() {
             let (tx, rx) = std::sync::mpsc::channel::<SpotJob>();
             let inner = Arc::clone(&self.inner);
@@ -137,7 +139,7 @@ impl NameSpotter for BoundedSpotter {
             .is_some_and(|tx| tx.send((text.to_string(), reply)).is_ok());
         if !sent {
             self.busy.store(false, Ordering::Release);
-            *self.worker.lock().unwrap_or_else(|p| p.into_inner()) = None;
+            *lock_recover(&self.worker) = None;
             return self.skip(1, "the local name model worker is not running");
         }
         match answer.recv_timeout(self.deadline) {

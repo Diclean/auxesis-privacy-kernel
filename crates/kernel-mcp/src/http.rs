@@ -50,6 +50,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use kernel_core::sync::lock_recover;
 use reqwest::header::{HeaderMap, ACCEPT, CONTENT_TYPE};
 use reqwest::{Response, Url};
 use serde_json::Value;
@@ -247,17 +248,17 @@ impl HttpTransport {
 
     /// The `Mcp-Session-Id` the server handed back, if any.
     pub fn session_id(&self) -> Option<String> {
-        lock(&self.session_id).clone()
+        lock_recover(&self.session_id).clone()
     }
 
     /// The last SSE event id seen. Kept for resumption; unused for now.
     pub fn last_event_id(&self) -> Option<String> {
-        lock(&self.last_event_id).clone()
+        lock_recover(&self.last_event_id).clone()
     }
 
     /// The negotiated MCP protocol revision, if `initialize` has run.
     pub fn protocol_version(&self) -> Option<String> {
-        lock(&self.protocol_version).clone()
+        lock_recover(&self.protocol_version).clone()
     }
 
     /// Refuse to act on a URL whose origin differs from the pinned one.
@@ -341,12 +342,12 @@ impl HttpTransport {
         let version = if is_notification {
             None
         } else {
-            lock(&self.protocol_version).clone()
+            lock_recover(&self.protocol_version).clone()
         };
         if let Some(version) = version {
             builder = builder.header(PROTOCOL_VERSION_HEADER, version);
         }
-        if let Some(session) = lock(&self.session_id).clone() {
+        if let Some(session) = lock_recover(&self.session_id).clone() {
             builder = builder.header(SESSION_ID_HEADER, session);
         }
 
@@ -361,7 +362,7 @@ impl HttpTransport {
                 .get(SESSION_ID_HEADER)
                 .and_then(|value| value.to_str().ok())
             {
-                *lock(&self.session_id) =
+                *lock_recover(&self.session_id) =
                     Some(Sanitized::with_cap(value, MAX_SESSION_ID_BYTES).into_string());
             }
         }
@@ -412,7 +413,7 @@ impl HttpTransport {
                 .and_then(Value::as_str)
                 .filter(|version| is_valid_protocol_version(version))
             {
-                *lock(&self.protocol_version) =
+                *lock_recover(&self.protocol_version) =
                     Some(Sanitized::with_cap(version, MAX_SESSION_ID_BYTES).into_string());
             }
         }
@@ -522,7 +523,7 @@ async fn read_sse_bounded(
         }
     };
     if let Some(id) = parser.last_event_id.take() {
-        *lock(last_event_id) = Some(id);
+        *lock_recover(last_event_id) = Some(id);
     }
     outcome
 }
@@ -758,13 +759,6 @@ fn strip_one_space(value: &[u8]) -> &[u8] {
 /// Map a body-read failure to a secret-free typed error (never the URL).
 fn body_error(_: reqwest::Error) -> McpError {
     McpError::protocol(INTERNAL_ERROR, "response body failed")
-}
-
-/// Lock without letting a poisoned mutex poison the transport.
-fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 #[cfg(test)]

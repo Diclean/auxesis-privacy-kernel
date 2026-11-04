@@ -1,6 +1,8 @@
 //! Classifies whether a value is secret-shaped, including through repeated
 //! percent-decoding, so callers can refuse to echo it.
 
+use kernel_core::text::hex_value;
+
 use super::*;
 
 /// What an echo of a value may show.
@@ -85,6 +87,12 @@ fn decoded_copy_state(
 
 /// One percent-decoding round: the bytes of `text` with every valid `%XX`
 /// escape replaced by its byte. A malformed escape is kept as written.
+///
+/// This is the broker's echo decoder. It keeps raw bytes because it compares a
+/// decoded value against secret bytes, where any byte can matter. The privacy
+/// crate has its own decoder that only yields printable ASCII or valid UTF-8,
+/// so a detector never sees a broken byte sequence. The two are separate on
+/// purpose; do not merge them.
 fn decode_once(text: &str) -> Vec<u8> {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -107,16 +115,6 @@ fn decode_once(text: &str) -> Vec<u8> {
 fn hex_pair(pair: &[u8]) -> Option<u8> {
     match pair {
         [high, low] => Some((hex_value(*high)? << 4) | hex_value(*low)?),
-        _ => None,
-    }
-}
-
-/// The value of one hex digit.
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
         _ => None,
     }
 }

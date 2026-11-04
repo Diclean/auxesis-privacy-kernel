@@ -25,6 +25,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
+use kernel_core::sync::{rwlock_read_recover, rwlock_write_recover};
 use kernel_privacy::SafeValue;
 use serde_json::{json, Value};
 
@@ -215,7 +216,7 @@ impl HttpMcpClient {
 #[async_trait]
 impl McpClient for HttpMcpClient {
     async fn initialize(&self) -> Result<ServerInfo, McpError> {
-        let seed = lock_read(&self.info).clone();
+        let seed = rwlock_read_recover(&self.info).clone();
         seed.validate()?;
         let requested = if seed.protocol_version.is_empty() {
             PROTOCOL_VERSION
@@ -234,7 +235,7 @@ impl McpClient for HttpMcpClient {
             .await?
             .into_result()?;
         let negotiated = parse_server_info(&value, &seed)?;
-        *lock_write(&self.info) = negotiated.clone();
+        *rwlock_write_recover(&self.info) = negotiated.clone();
 
         // Fire-and-forget completion notification. A server that does not
         // answer it is not an error (Streamable HTTP returns 202/empty). The
@@ -253,7 +254,7 @@ impl McpClient for HttpMcpClient {
         // any request goes out; never clone the (server-controlled)
         // `capabilities` value on the hot path.
         let (max_tools, deadline) = {
-            let info = lock_read(&self.info);
+            let info = rwlock_read_recover(&self.info);
             info.validate()?;
             (info.max_tools, info.list_tools_deadline)
         };
@@ -550,15 +551,6 @@ fn parse_tools(value: &Value) -> (Vec<RemoteTool>, usize) {
         }
     }
     (tools, dropped)
-}
-
-fn lock_read<T>(lock: &RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
-    lock.read().unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-fn lock_write<T>(lock: &RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
-    lock.write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 #[cfg(test)]

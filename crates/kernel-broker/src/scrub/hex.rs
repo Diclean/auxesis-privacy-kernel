@@ -2,6 +2,7 @@
 //! escapes, and `xxd`/`od`/`hexdump` dumps matched through the same automaton.
 
 use aho_corasick::AhoCorasick;
+use kernel_core::text::hex_value;
 
 use super::MIN_KNOWN_SECRET_LEN;
 
@@ -48,16 +49,7 @@ impl HexDecode {
 pub(super) fn text_may_hold_hex(bytes: &[u8]) -> bool {
     bytes
         .windows(2)
-        .any(|pair| hex_digit(pair[0]).is_some() && hex_digit(pair[1]).is_some())
-}
-
-fn hex_digit(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
+        .any(|pair| hex_value(pair[0]).is_some() && hex_value(pair[1]).is_some())
 }
 
 /// Every span of `text` that is a hex spelling of a registered needle: the
@@ -130,8 +122,8 @@ pub(super) fn hex_unit_at(bytes: &[u8], p: usize) -> Option<(u32, usize, usize)>
         Some(b'0') if matches!(bytes.get(p + 1), Some(b'x' | b'X')) => q = p + 2,
         _ => {}
     }
-    let hi = hex_digit(*bytes.get(q)?)?;
-    let lo = hex_digit(*bytes.get(q + 1)?)?;
+    let hi = hex_value(*bytes.get(q)?)?;
+    let lo = hex_value(*bytes.get(q + 1)?)?;
     Some((u32::from((hi << 4) | lo), p, q + 2))
 }
 
@@ -147,7 +139,7 @@ pub(super) fn unicode_unit_at(bytes: &[u8], p: usize) -> Option<(u32, usize, usi
         braced = true;
         q += 1;
         let mut digits = 0usize;
-        while let Some(digit) = hex_digit(*bytes.get(q)?) {
+        while let Some(digit) = hex_value(*bytes.get(q)?) {
             value = value.checked_mul(16)?.checked_add(u32::from(digit))?;
             digits += 1;
             q += 1;
@@ -161,7 +153,7 @@ pub(super) fn unicode_unit_at(bytes: &[u8], p: usize) -> Option<(u32, usize, usi
         q += 1;
     } else {
         for _ in 0..width {
-            let digit = hex_digit(*bytes.get(q)?)?;
+            let digit = hex_value(*bytes.get(q)?)?;
             value = value.checked_mul(16)?.checked_add(u32::from(digit))?;
             q += 1;
         }
@@ -174,7 +166,7 @@ pub(super) fn unicode_unit_at(bytes: &[u8], p: usize) -> Option<(u32, usize, usi
             low_q += 2;
             let mut low = 0u32;
             for _ in 0..4 {
-                let digit = hex_digit(*bytes.get(low_q)?)?;
+                let digit = hex_value(*bytes.get(low_q)?)?;
                 low = low.checked_mul(16)?.checked_add(u32::from(digit))?;
                 low_q += 1;
             }
@@ -251,7 +243,7 @@ fn dump_line_into(
     while second_start < line_end && matches!(bytes[second_start], b' ' | b'\t') {
         second_start += 1;
     }
-    let mut cursor = if hex_digit(bytes[start]).is_some()
+    let mut cursor = if hex_value(bytes[start]).is_some()
         && second_start < line_end
         && is_offset_token(&bytes[start..first_end])
     {
@@ -284,15 +276,15 @@ fn dump_line_into(
             if seg_end > seg_start {
                 let segment = &bytes[seg_start..seg_end];
                 if !segment.len().is_multiple_of(2)
-                    || !segment.iter().all(|byte| hex_digit(*byte).is_some())
+                    || !segment.iter().all(|byte| hex_value(*byte).is_some())
                 {
                     broken = true;
                     break;
                 }
                 let mut k = 0usize;
                 while k < segment.len() {
-                    let hi = hex_digit(segment[k]).unwrap_or(0);
-                    let lo = hex_digit(segment[k + 1]).unwrap_or(0);
+                    let hi = hex_value(segment[k]).unwrap_or(0);
+                    let lo = hex_value(segment[k + 1]).unwrap_or(0);
                     run.push((hi << 4) | lo, seg_start + k, seg_start + k + 2);
                     any = true;
                     k += 2;
@@ -326,5 +318,5 @@ fn is_offset_token(token: &[u8]) -> bool {
     } else {
         token
     };
-    !token.is_empty() && token.len() <= 16 && token.iter().all(|byte| hex_digit(*byte).is_some())
+    !token.is_empty() && token.len() <= 16 && token.iter().all(|byte| hex_value(*byte).is_some())
 }

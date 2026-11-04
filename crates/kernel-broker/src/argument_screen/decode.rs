@@ -3,6 +3,7 @@
 
 use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE_NO_PAD};
 use base64::Engine as _;
+use kernel_core::text::hex_value;
 
 use super::encoded::looks_encoded;
 use super::{Unscreened, MAX_DECODED_PER_LEAF, MAX_DECODE_ROUNDS, MIN_ENCODED_LEN};
@@ -121,17 +122,17 @@ fn hex_decode(bytes: &[u8]) -> Option<Vec<u8>> {
         .collect()
 }
 
-/// The value of one hex digit.
-fn hex_value(byte: u8) -> Option<u8> {
-    (byte as char).to_digit(16).map(|digit| digit as u8)
-}
-
 /// The text of `bytes` when they are valid UTF-8.
 fn utf8(bytes: Vec<u8>) -> Option<String> {
     String::from_utf8(bytes).ok()
 }
 
 /// `%XX` escapes decoded. A malformed escape is kept as written.
+///
+/// This builds the decoded views screened for an argument leaf: it decodes every
+/// raw byte and replaces invalid UTF-8 lossily, because a hidden secret can be
+/// split across escapes. The privacy crate's decoder is separate on purpose: it
+/// only yields printable ASCII or valid UTF-8 so detection offsets stay exact.
 fn percent_decode(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());

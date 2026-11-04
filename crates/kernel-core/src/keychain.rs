@@ -17,6 +17,8 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::sync::lock_recover;
+
 /// Whether this process may query the macOS Keychain.
 ///
 /// **Default deny:** true only when `AUXESIS_ALLOW_KEYCHAIN=1` is set
@@ -97,9 +99,7 @@ static SECURITY_TEST_LAUNCHER: std::sync::Mutex<Option<SecurityTestLauncher>> =
 /// it; tests use this instead of executing `/usr/bin/security`.
 #[doc(hidden)]
 pub fn set_security_test_launcher(launcher: Option<SecurityTestLauncher>) {
-    *SECURITY_TEST_LAUNCHER
-        .lock()
-        .unwrap_or_else(|err| err.into_inner()) = launcher;
+    *lock_recover(&SECURITY_TEST_LAUNCHER) = launcher;
 }
 
 /// Run `security` with a hard 5-second timeout, unless the Keychain is not
@@ -115,9 +115,7 @@ pub fn run_security(args: &[&str]) -> Result<std::process::Output, String> {
     if !keychain_allowed() {
         return Err("the Keychain is not queried in this context".to_string());
     }
-    if let Some(result) = SECURITY_TEST_LAUNCHER
-        .lock()
-        .unwrap_or_else(|err| err.into_inner())
+    if let Some(result) = lock_recover(&SECURITY_TEST_LAUNCHER)
         .as_ref()
         .map(|launcher| launcher(args))
     {

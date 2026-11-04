@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use kernel_core::sync::lock_recover;
 use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 use tokio::process::{ChildStdin, Command};
@@ -21,7 +22,7 @@ use super::command::StdioCommand;
 use super::framing::encode;
 use super::limits::{StdioLimits, MAX_PENDING_REQUESTS};
 use super::process::read_loop;
-use super::shared::{lock, Exit, PendingGuard, Shared};
+use super::shared::{Exit, PendingGuard, Shared};
 use super::snapshot::PreparedProgram;
 use super::StdioSandbox;
 
@@ -469,7 +470,7 @@ impl Transport for StdioTransport {
         // allocated and never reused, so an existing key here is a bug, not a
         // normal collision.
         let collision = {
-            let mut pending = lock(&self.shared.pending);
+            let mut pending = lock_recover(&self.shared.pending);
             match pending.entry(req.id) {
                 std::collections::hash_map::Entry::Vacant(entry) => {
                     entry.insert(tx);

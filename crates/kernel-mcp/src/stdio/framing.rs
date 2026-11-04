@@ -5,11 +5,13 @@ use std::sync::atomic::Ordering;
 use serde_json::{Map, Value};
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
 
+use kernel_core::sync::lock_recover;
+
 use crate::error::{McpError, INVALID_REQUEST, PARSE_ERROR};
 use crate::jsonrpc::{JsonRpcRequest, JsonRpcResponse};
 
 use super::limits::StdioLimits;
-use super::shared::{lock, Shared};
+use super::shared::Shared;
 
 /// Encode one JSON-RPC envelope as a single line.
 ///
@@ -124,7 +126,7 @@ pub(super) fn dispatch(line: &[u8], shared: &Shared) -> Result<(), McpError> {
         }
         return Ok(());
     };
-    if let Some(sender) = lock(&shared.pending).remove(&id) {
+    if let Some(sender) = lock_recover(&shared.pending).remove(&id) {
         let _ = sender.send(Ok(response));
     } else if shared.unsolicited.fetch_add(1, Ordering::SeqCst) + 1 >= 3 {
         // An id that matches no waiter is rejected and counted, never handed
@@ -140,7 +142,10 @@ pub(super) fn dispatch(line: &[u8], shared: &Shared) -> Result<(), McpError> {
 /// Fail every unanswered request with `err` (dropping a sender does the same,
 /// but this keeps the precise reason).
 pub(super) fn fail_pending(shared: &Shared, err: McpError) {
-    let drained: Vec<_> = lock(&shared.pending).drain().map(|(_, tx)| tx).collect();
+    let drained: Vec<_> = lock_recover(&shared.pending)
+        .drain()
+        .map(|(_, tx)| tx)
+        .collect();
     for sender in drained {
         let _ = sender.send(Err(err.clone()));
     }
