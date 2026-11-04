@@ -1,5 +1,6 @@
 //! Digit values, the OCR confusable fold and the numeric-run helpers.
 
+use super::super::digits::DIGIT_ZEROS;
 use super::super::{ascii_digits, numeric_runs, unicode_digit_value, NormalizedText};
 
 #[test]
@@ -9,6 +10,34 @@ fn unicode_digits_map_to_ascii() {
     assert_eq!(unicode_digit_value('٤'), Some(4));
     assert_eq!(unicode_digit_value('a'), None);
     assert_eq!(unicode_digit_value('Ⅷ'), None);
+}
+
+/// Each table entry starts ten numeric chars, in order and without overlap,
+/// and every block of the union (broker blocks, Myanmar Extended-C, Tolong
+/// Siki) maps to its value.
+#[test]
+fn digit_table_is_sorted_blocks_of_ten() {
+    for pair in DIGIT_ZEROS.windows(2) {
+        assert!(
+            pair[0] + 10 <= pair[1],
+            "U+{:X} overlaps U+{:X}",
+            pair[0],
+            pair[1]
+        );
+    }
+    for zero in DIGIT_ZEROS {
+        for value in 0..10 {
+            let ch = char::from_u32(zero + value).expect("valid code point");
+            assert!(ch.is_numeric(), "U+{:X} is not numeric", zero + value);
+            assert_eq!(unicode_digit_value(ch), Some(value));
+        }
+    }
+    for zero in [
+        0x10D40, 0x11950, 0x11BF0, 0x11F50, 0x16130, 0x16AC0, 0x16D70, 0x1CCF0, 0x1E4F0, 0x1E5F1,
+        0x116D0, 0x116DA, 0x11DE0,
+    ] {
+        assert!(DIGIT_ZEROS.contains(&zero), "U+{zero:X} missing");
+    }
 }
 
 #[test]

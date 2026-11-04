@@ -38,7 +38,7 @@ mod fold;
 mod view;
 
 pub(crate) use charset::{holds_line_break, is_unicode_space};
-pub(crate) use digits::unicode_digit_value;
+pub use digits::unicode_digit_value;
 pub(crate) use view::SharedViews;
 
 /// The most line breaks a separator run may hold and still fold to one space.
