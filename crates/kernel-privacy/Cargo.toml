@@ -59,7 +59,7 @@ gliner2-rs = { package = "auxesis-gliner2", path = "../gliner2", version = "0.1.
 # token map, and `getrandom` supplies the key and nonces. Both already sit in the
 # lock through other crates, so this adds no new implementation to the tree.
 # (`zeroize`, declared above, also wipes the vault's keys and values.)
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 getrandom = "0.2"
 
 [dev-dependencies]
