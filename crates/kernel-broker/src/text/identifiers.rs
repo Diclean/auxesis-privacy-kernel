@@ -119,6 +119,14 @@ const MAX_DIGIT_GAP: usize = 4;
 /// kept at eight digits or more: `415.555.1234` has the shape of one. Real versions
 /// (`1.2.3`, `rustc 1.90.0`) have fewer than eight digits and are never masked.
 pub(super) fn redact_grouped_phone_numbers(text: &str) -> String {
+    grouped_phone::redact(text)
+}
+
+/// The grouped-phone scan: fold the text into units, drop the combining marks
+/// a digit owns, then mask the digit candidates.
+mod grouped_phone {
+    use super::MAX_DIGIT_GAP;
+
     #[derive(Clone, Copy)]
     struct Unit {
         ch: char,
@@ -399,98 +407,118 @@ pub(super) fn redact_grouped_phone_numbers(text: &str) -> String {
         candidate.is_ascii() && (clock(bytes) || date(bytes) || ipv4_readable(candidate, before))
     }
 
-    let mut units: Vec<Unit> = Vec::with_capacity(text.len());
-    let mut i = 0;
-    while i < text.len() {
-        let (ch, end) = escaped_char(text, i).unwrap_or_else(|| {
-            let ch = text[i..].chars().next().unwrap_or('\0');
-            (ch, i + ch.len_utf8())
-        });
-        if let Some(digit) = decimal_digit(ch) {
-            units.push(Unit {
-                ch: digit,
-                start: i,
-                end,
+    pub(super) fn redact(text: &str) -> String {
+        let units = phone_units(text);
+        let units = drop_combining_units(units);
+        mask_grouped_numbers(text, &units)
+    }
+
+    /// Fold `text` into units: digits normalised, escapes decoded, zero-width
+    /// format characters dropped.
+    fn phone_units(text: &str) -> Vec<Unit> {
+        let mut units: Vec<Unit> = Vec::with_capacity(text.len());
+        let mut i = 0;
+        while i < text.len() {
+            let (ch, end) = escaped_char(text, i).unwrap_or_else(|| {
+                let ch = text[i..].chars().next().unwrap_or('\0');
+                (ch, i + ch.len_utf8())
             });
-        } else if !is_format_or_zero_width(ch) {
-            units.push(Unit { ch, start: i, end });
+            if let Some(digit) = decimal_digit(ch) {
+                units.push(Unit {
+                    ch: digit,
+                    start: i,
+                    end,
+                });
+            } else if !is_format_or_zero_width(ch) {
+                units.push(Unit { ch, start: i, end });
+            }
+            i = end;
         }
-        i = end;
+        units
     }
 
-    // A combining mark is dropped when the nearest non-mark character on
-    // either side is a digit, so an accent cannot split a number.
-    let marks: Vec<bool> = units.iter().map(|unit| is_combining(unit.ch)).collect();
-    let mut dropped = vec![false; units.len()];
-    let mut after_digit = false;
-    for (index, unit) in units.iter().enumerate() {
-        if marks[index] {
-            dropped[index] = after_digit;
-        } else {
-            after_digit = unit.ch.is_ascii_digit();
+    /// Drop every combining mark a digit neighbours, so an accent cannot split
+    /// a number.
+    fn drop_combining_units(units: Vec<Unit>) -> Vec<Unit> {
+        // A combining mark is dropped when the nearest non-mark character on
+        // either side is a digit, so an accent cannot split a number.
+        let marks: Vec<bool> = units.iter().map(|unit| is_combining(unit.ch)).collect();
+        let mut dropped = vec![false; units.len()];
+        let mut after_digit = false;
+        for (index, unit) in units.iter().enumerate() {
+            if marks[index] {
+                dropped[index] = after_digit;
+            } else {
+                after_digit = unit.ch.is_ascii_digit();
+            }
         }
-    }
-    let mut before_digit = false;
-    for (index, unit) in units.iter().enumerate().rev() {
-        if marks[index] {
-            dropped[index] |= before_digit;
-        } else {
-            before_digit = unit.ch.is_ascii_digit();
+        let mut before_digit = false;
+        for (index, unit) in units.iter().enumerate().rev() {
+            if marks[index] {
+                dropped[index] |= before_digit;
+            } else {
+                before_digit = unit.ch.is_ascii_digit();
+            }
         }
+        let units: Vec<Unit> = units
+            .into_iter()
+            .zip(dropped)
+            .filter_map(|(unit, gone)| (!gone).then_some(unit))
+            .collect();
+        units
     }
-    let units: Vec<Unit> = units
-        .into_iter()
-        .zip(dropped)
-        .filter_map(|(unit, gone)| (!gone).then_some(unit))
-        .collect();
 
-    let mut out = String::with_capacity(text.len());
-    let mut cursor = 0;
-    let mut u = 0;
-    while u < units.len() {
-        if !units[u].ch.is_ascii_digit() {
-            u += 1;
-            continue;
-        }
-        let start_u = u;
-        let mut end_u = u + 1;
-        let mut digit_count = 1;
-        while end_u < units.len() {
-            if units[end_u].ch.is_ascii_digit() {
-                digit_count += 1;
-                end_u += 1;
+    /// Mask every candidate of eight or more digits that is not a readable
+    /// date, clock time or IPv4 endpoint.
+    fn mask_grouped_numbers(text: &str, units: &[Unit]) -> String {
+        let mut out = String::with_capacity(text.len());
+        let mut cursor = 0;
+        let mut u = 0;
+        while u < units.len() {
+            if !units[u].ch.is_ascii_digit() {
+                u += 1;
                 continue;
             }
-            let sep_start = end_u;
-            while end_u < units.len()
-                && end_u - sep_start < MAX_DIGIT_GAP
-                && !units[end_u].ch.is_ascii_digit()
-                && !units[end_u].ch.is_alphanumeric()
-                && !matches!(units[end_u].ch, '\n' | '\r')
-            {
+            let start_u = u;
+            let mut end_u = u + 1;
+            let mut digit_count = 1;
+            while end_u < units.len() {
+                if units[end_u].ch.is_ascii_digit() {
+                    digit_count += 1;
+                    end_u += 1;
+                    continue;
+                }
+                let sep_start = end_u;
+                while end_u < units.len()
+                    && end_u - sep_start < MAX_DIGIT_GAP
+                    && !units[end_u].ch.is_ascii_digit()
+                    && !units[end_u].ch.is_alphanumeric()
+                    && !matches!(units[end_u].ch, '\n' | '\r')
+                {
+                    end_u += 1;
+                }
+                if end_u == sep_start || end_u == units.len() || !units[end_u].ch.is_ascii_digit() {
+                    end_u = sep_start;
+                    break;
+                }
+                digit_count += 1;
                 end_u += 1;
             }
-            if end_u == sep_start || end_u == units.len() || !units[end_u].ch.is_ascii_digit() {
-                end_u = sep_start;
-                break;
+            let first = units[start_u].start;
+            let last = units[end_u - 1].end;
+            if digit_count >= 8 {
+                let normalized: String = units[start_u..end_u].iter().map(|unit| unit.ch).collect();
+                if !allowed(&normalized, &text[..first]) {
+                    out.push_str(&text[cursor..first]);
+                    out.push_str("<number>");
+                    cursor = last;
+                }
             }
-            digit_count += 1;
-            end_u += 1;
+            u = end_u;
         }
-        let first = units[start_u].start;
-        let last = units[end_u - 1].end;
-        if digit_count >= 8 {
-            let normalized: String = units[start_u..end_u].iter().map(|unit| unit.ch).collect();
-            if !allowed(&normalized, &text[..first]) {
-                out.push_str(&text[cursor..first]);
-                out.push_str("<number>");
-                cursor = last;
-            }
-        }
-        u = end_u;
+        out.push_str(&text[cursor..]);
+        out
     }
-    out.push_str(&text[cursor..]);
-    out
 }
 
 /// Is `bytes[start..end]` the fraction of a clock time (`22:28:46.123456789`,
