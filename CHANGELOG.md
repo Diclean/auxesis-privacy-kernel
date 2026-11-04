@@ -8,8 +8,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.1.3] - 2026-11-04
 
-The v0.1.1 and v0.1.2 tags were made without a section in this file, so this
-section lists the changes since 0.1.0.
+The v0.1.1 and v0.1.2 tags were made without their own section in this
+file; their changes are listed here, together with the ones since v0.1.2.
 
 ### Added
 
@@ -47,7 +47,8 @@ section lists the changes since 0.1.0.
   `NerConfig::with_labels`, `threshold::default_floors`, a few read-only
   getters, one builder setter, and the name-lexicon version and counts. No
   detector, gate or egress decision changed.
-- `auxesis-kernel-net` no longer depends on an HTML parser it did not use.
+- `auxesis-kernel-net` drops an unused headless-browser stub and the
+  dependencies only it pulled in.
 
 ### Fixed
 
@@ -73,6 +74,14 @@ section lists the changes since 0.1.0.
   identity; an older confirmation without it asks for approval again.
 - The network guard refuses a host written as one bare number (a dotless IPv4
   address) and the ORCHID IPv6 ranges.
+
+## [0.1.2] - 2026-11-04
+
+Tagged without its own section; its changes are listed under 0.1.3.
+
+## [0.1.1] - 2026-11-03
+
+Tagged without its own section; its changes are listed under 0.1.3.
 
 ## [0.1.0] - 2026-11-01
 
