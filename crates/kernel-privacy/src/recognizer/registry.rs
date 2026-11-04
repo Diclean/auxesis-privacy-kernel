@@ -221,6 +221,28 @@ impl Registry {
         let mut candidates: Vec<Span> = Vec::new();
         let mut seeds: Vec<Span> = Vec::new();
         self.scan(text, None, &mut candidates, &mut seeds);
+        let runs = self.scan_decoded_views(text, &folded_views, &mut candidates, &mut seeds);
+        if let Some(layer) = layer {
+            candidates = layer.apply(text, candidates, &seeds);
+        }
+        self.scan_escaped_views(text, &folded_views, &mut candidates, &mut seeds);
+        // A value that touches a marker's run takes the whole run: dropping the
+        // marker may have joined or split it. A run no view finds a value in
+        // stays text (`⟦x + 1⟧`). A gate that keeps the session's own tokens
+        // blanks them before detection, so they are never runs.
+        widen_over_runs(&mut candidates, &runs);
+        self.resolve_regions(text, candidates)
+    }
+
+    /// Scan the decoded views of `text`, every fold of one and every fold of
+    /// the raw text, and compose decoding with folding. Returns the marker runs.
+    fn scan_decoded_views(
+        &self,
+        text: &str,
+        folded_views: &dyn Fn(&str) -> Vec<NormalizedText>,
+        candidates: &mut Vec<Span>,
+        seeds: &mut Vec<Span>,
+    ) -> Vec<(usize, usize)> {
         // A value written with HTML entities (`chimioth&eacute;rapie`,
         // `sk&#45;key`) is invisible to a recogniser on the raw bytes. The
         // recognisers read the decoded view too, and a span maps back to every
@@ -263,7 +285,7 @@ impl Registry {
         for view in views.into_iter().filter(|view| view.text() != text) {
             let decoded = Arc::new(view);
             let chain = [Step::Decoded(Arc::clone(&decoded))];
-            self.scan_chain(&chain, text, &mut candidates, &mut seeds);
+            self.scan_chain(&chain, text, candidates, seeds);
             // Still encoded at the pass cap: the whole token is masked.
             for &(start, end) in decoded.unresolved() {
                 candidates.push(Span::new(EntityKind::Secret, start, end, 1.0, "decode-cap"));
@@ -274,7 +296,7 @@ impl Registry {
             for folded in folded_views(decoded.text()) {
                 let mut folded_chain = chain.to_vec();
                 folded_chain.push(Step::Folded(folded));
-                self.scan_chain(&folded_chain, text, &mut candidates, &mut seeds);
+                self.scan_chain(&folded_chain, text, candidates, seeds);
                 frontier.push(folded_chain);
             }
             frontier.push(chain.to_vec());
@@ -283,20 +305,24 @@ impl Registry {
         // read as the ASCII they stand for, and a span maps back to every byte.
         for view in folded_views(text) {
             let chain = vec![Step::Folded(view)];
-            self.scan_chain(&chain, text, &mut candidates, &mut seeds);
+            self.scan_chain(&chain, text, candidates, seeds);
             frontier.push(chain);
         }
         // Decoding and folding compose.
-        self.compose(
-            &mut frontier,
-            text,
-            &folded_views,
-            &mut candidates,
-            &mut seeds,
-        );
-        if let Some(layer) = layer {
-            candidates = layer.apply(text, candidates, &seeds);
-        }
+        self.compose(&mut frontier, text, folded_views, candidates, seeds);
+
+        runs
+    }
+
+    /// Scan the escape-decoded views of `text`. Callers run this after the
+    /// e-mail layer so a new view cannot displace a mask it selected.
+    fn scan_escaped_views(
+        &self,
+        text: &str,
+        folded_views: &dyn Fn(&str) -> Vec<NormalizedText>,
+        candidates: &mut Vec<Span>,
+        seeds: &mut Vec<Span>,
+    ) {
         // Append the new decoded views after the original pipeline, so they
         // cannot displace a mask selected by the existing e-mail layer.
         let escaped = text
@@ -315,20 +341,20 @@ impl Registry {
                 }
                 if view.text() != text {
                     let chain = vec![Step::Decoded(Arc::new(view))];
-                    self.scan_chain(&chain, text, &mut candidates, &mut seeds);
+                    self.scan_chain(&chain, text, candidates, seeds);
                     for folded in folded_views(chain_text(&chain)) {
                         let mut next = chain.clone();
                         next.push(Step::Folded(folded));
-                        self.scan_chain(&next, text, &mut candidates, &mut seeds);
+                        self.scan_chain(&next, text, candidates, seeds);
                     }
                 }
             }
         }
-        // A value that touches a marker's run takes the whole run: dropping the
-        // marker may have joined or split it. A run no view finds a value in
-        // stays text (`⟦x + 1⟧`). A gate that keeps the session's own tokens
-        // blanks them before detection, so they are never runs.
-        widen_over_runs(&mut candidates, &runs);
+    }
+
+    /// Merge the candidates into masked regions, adding the name-widened
+    /// regions when this registry drops names before the merge.
+    fn resolve_regions(&self, text: &str, mut candidates: Vec<Span>) -> Vec<Span> {
         let regions = |spans: Vec<Span>| {
             let expanded = expand_person_spans(text, extend_hyphenated_persons(text, spans));
             split_long_spans(text, resolve_overlaps(expanded))
