@@ -29,7 +29,7 @@ libc = "0.2"
 serde.workspace = true
 # Approval-edit audit: SHA-256 of the requested and the executed arguments,
 # so the journal can name both without ever storing the arguments themselves.
-sha2 = "0.10"
+sha2 = "0.11"
 # B4-01/B4-02: the scrub layer must never rewrite non-secret JSON. With
 # `arbitrary_precision` a `Value` keeps each number's original lexeme
 # (`u64::MAX`, `1e22`, `0.1`, … bytes-exact), and `preserve_order` keeps
