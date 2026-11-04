@@ -1,6 +1,6 @@
 //! `RLIMIT_CORE=0` for private mode. A core dump is a copy of process memory,
-//! so it must never hold private values. Wave 1b calls
-//! [`disable_core_dumps`] once, at daemon start.
+//! so it must never hold private values. The daemon calls
+//! [`disable_core_dumps`] once, at start.
 
 /// Sets the core-dump limit, soft and hard, to zero.
 ///

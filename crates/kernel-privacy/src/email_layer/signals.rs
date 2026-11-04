@@ -99,7 +99,7 @@ pub(super) fn is_signature_or_header_range(text: &str, start: usize, end: usize)
         return true;
     }
     // A signature block: a closing line or a `--` separator in the lines above.
-    // GATE-PERF-1: walk up from this line instead of splitting the whole text,
+    // Walk up from this line instead of splitting the whole text,
     // so a text of many short lines costs linear time, not lines × bytes.
     let mut seen = 0usize;
     let mut cursor = line_start;

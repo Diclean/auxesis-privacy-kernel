@@ -243,7 +243,7 @@ static DEFAULT_DETECTOR: OnceLock<Arc<StandardDetector>> = OnceLock::new();
 pub(super) static PRIVATE_DETECTOR: OnceLock<Arc<dyn Detector>> = OnceLock::new();
 
 /// The detector of a production gate for `grant`. Private mode hides no
-/// person's or company's name (owner, 2026-10-19): a tokenising gate drops every
+/// person's or company's name: a tokenising gate drops every
 /// name span, whatever found it (the known-names dictionary, the e-mail layer's
 /// cues), and never runs the name model. The registry drops them before its
 /// overlap merge, so a name that overlaps a card, an IBAN, an ID, a secret, a

@@ -1,4 +1,4 @@
-//! Cooperative cancellation token for one turn (E-18).
+//! Cooperative cancellation token for one turn.
 //!
 //! The token lives in `kernel-broker` (not the engine) so tool implementations
 //! can observe it through [`ToolCtx::cancel`](crate::ToolCtx): the engine

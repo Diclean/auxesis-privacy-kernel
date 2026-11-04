@@ -74,7 +74,7 @@ impl BudgetCaps {
     }
 
     /// True when no kind has an explicit value in this set. Note that an
-    /// "unset" set still *enforces* the conservative defaults (E-17): only
+    /// "unset" set still *enforces* the conservative defaults: only
     /// [`Self::unlimited`] turns enforcement off.
     pub fn is_unset(&self) -> bool {
         self.tokens_in.is_none()

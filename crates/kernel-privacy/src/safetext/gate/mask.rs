@@ -19,7 +19,7 @@ use crate::safetext::residue::{
 use crate::safetext::tokens::{blank_minted, strip_tokens, token_ranges, TokenRange};
 
 /// A person's `span` without a trailing `'s`: a token is keyed by its surface, so
-/// `Mira Fictive's` would be a second person (TOK-CONSISTENT-1).
+/// `Mira Fictive's` would be a second person.
 fn without_possessive(text: &str, span: Span) -> Span {
     if span.kind != EntityKind::Person {
         return span;
@@ -46,7 +46,7 @@ impl Gate {
         match self.session_tokens.clone() {
             Some(minted) => self.mask_keeping(text, &minted),
             // A tokenising gate reads a foreign token's text both ways too, so
-            // a value it splits is still masked (TOK-FP).
+            // a value it splits is still masked.
             None if self.policy == GrantPolicy::Tokenised => {
                 self.mask_keeping(text, &BTreeSet::new())
             }
@@ -164,7 +164,7 @@ impl Gate {
         if self.policy == GrantPolicy::Passthrough && view.as_ref() != text {
             // The blanked view holds no token, so it never sees one that splices
             // a word: that run fails closed on the text itself, as the registry
-            // and the tokenising gate read it (GATE-REGISTRY-GAP-1).
+            // and the tokenising gate read it.
             let raw = self.detector.residue(text)?;
             extra.extend(raw.into_iter().filter(|span| span.recognizer == MARKER_RUN));
         }
@@ -184,7 +184,7 @@ impl Gate {
     /// Mask `spans` of `text` and scan what is left in clear, then mask
     /// `extra` on top of that.
     ///
-    /// SECRET-LEAK-294B: the residue rounds re-read the masked view, and what
+    /// The residue rounds re-read the masked view, and what
     /// they find depends on what was masked first, so a span added up front
     /// can make them hide less. `extra` is added only once main's rounds have
     /// settled: the rounds run again from main's final spans plus `extra`, and
@@ -246,7 +246,7 @@ impl Gate {
             // A residue hit is a value left in clear, unless every character of it is a
             // masked token's stand-in: then it is that token's own place. An address
             // reads its line, and a stand-in starts a new line, so the residue view
-            // can read one the text never held: it never refuses (ADDR-DET-1).
+            // can read one the text never held: it never refuses.
             let residue = self.detector.residue(&clear)?;
             let hits: Vec<&Span> = residue
                 .iter()
@@ -258,11 +258,11 @@ impl Gate {
             if hits.is_empty() {
                 return Ok((masked, true));
             }
-            // K-REFUSALS: a value the residue view reads in clear is masked, never
+            // A value the residue view reads in clear is masked, never
             // refused (private = tokenise). Masking changes what a clear quote next
             // to a stand-in pairs with, so the view can own more than the text did;
             // and a stand-in's line break starts a line, so a number glued to a
-            // masked value reads as a phone or an MRZ line there (FIN-5: bank
+            // masked value reads as a phone or an MRZ line there (bank
             // files). A hit still there after the last round refuses.
             if round == RESIDUE_ROUNDS {
                 return Ok((masked, false));

@@ -36,7 +36,7 @@ fn is_confusable(ch: char) -> bool {
 }
 
 /// Fold `O`/`o` → `0` and `l`/`I` → `1`, but only a single confusable that sits
-/// between two digit groups or touches a digit directly (P3-4).
+/// between two digit groups or touches a digit directly.
 ///
 /// A whole letter word is never rewritten: `Ilo` after a number, `om` and
 /// `IBAN-ra` stay intact because no confusable in them has a digit on both

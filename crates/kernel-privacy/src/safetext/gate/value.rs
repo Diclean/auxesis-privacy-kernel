@@ -75,7 +75,7 @@ impl Gate {
         };
         let synthetic = format!("{key}: {probe}");
         let value_start = key.len() + ": ".len();
-        // TODO(DECODE-HARDEN-3): any Secret span touching the value promotes it,
+        // TODO: any Secret span touching the value promotes it,
         // so a marker-word span in a plain `body` masks the whole body; promote
         // only when the key itself gave the secret context.
         let secret = self

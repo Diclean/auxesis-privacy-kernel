@@ -33,7 +33,7 @@ pub struct ShellConfig {
     pub timeout_secs: u64,
 }
 
-/// Default wall-clock cap on one shell command (SHELL-JUDGE, maintainer OK).
+/// Default wall-clock cap on one shell command (a maintainer decision).
 pub const DEFAULT_SHELL_TIMEOUT_SECS: u64 = 30;
 
 /// The longest `[shell] timeout_secs` a config may set: one hour.
