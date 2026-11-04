@@ -3,6 +3,7 @@
 use std::sync::Mutex;
 
 use gliner2_rs::{Gliner2, Options};
+use kernel_core::sync::lock_recover;
 
 use crate::recognizer::Recognizer;
 use crate::span::{EntityKind, Span};
@@ -89,10 +90,7 @@ impl GlinerRecognizer {
     /// The error recorded by the infallible [`Recognizer::analyze`] adapter, if
     /// any, clearing it. `analyze_report` does not record anything.
     pub fn take_error(&self) -> Option<GlinerError> {
-        self.failure
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .take()
+        lock_recover(&self.failure).take()
     }
 
     /// Run the model over `text`, chunking it when it does not fit one window.
@@ -148,10 +146,7 @@ impl Recognizer for GlinerRecognizer {
         match self.analyze_report(text) {
             Ok(report) => report.spans,
             Err(error) => {
-                *self
-                    .failure
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(error);
+                *lock_recover(&self.failure) = Some(error);
                 vec![Span::new(
                     EntityKind::NationalId,
                     0,

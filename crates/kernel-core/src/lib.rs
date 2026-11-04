@@ -41,7 +41,7 @@ pub use paths::{
     verified_child_path, verified_home, verified_home_for, verified_home_or_verify, SandboxHome,
     REAL_DAEMON_PORT,
 };
-pub use sync::lock_recover;
+pub use sync::{lock_recover, rwlock_read_recover, rwlock_write_recover};
 pub use text::{clean_field, sanitize_text, truncate_chars};
 
 /// Version of the Auxesis workspace, taken from Cargo at build time.

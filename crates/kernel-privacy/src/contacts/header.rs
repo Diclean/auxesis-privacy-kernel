@@ -6,6 +6,7 @@
 //! detection, so the index already knows the people the message names. Nothing
 //! here reads a gold label; it only reads what a mail client shows.
 
+use kernel_core::text::hex_value;
 use zeroize::Zeroizing;
 
 use super::fold::folded_text;
@@ -698,15 +699,6 @@ fn quoted_printable_decode(input: &str) -> Vec<u8> {
         index += 1;
     }
     out
-}
-
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
 }
 
 #[cfg(test)]

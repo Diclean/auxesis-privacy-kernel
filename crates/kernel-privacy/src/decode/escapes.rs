@@ -1,5 +1,7 @@
 //! Escape parsing: percent runs, backslash escapes and UTF-8 widths.
 
+use kernel_core::text::hex_value;
+
 use super::html_entities::decode_entity;
 
 pub(super) type EscapeParser<'a> = dyn Fn(&str, usize) -> Option<(char, usize)> + 'a;
@@ -85,6 +87,12 @@ pub(super) fn percent_run_end(source: &str, index: usize) -> usize {
 /// sequence decodes; anything else — a truncated `%8`, a `%ZZ`, a lone
 /// continuation byte — is kept exactly as written. Returns the decoded text and
 /// whether at least one escape decoded.
+///
+/// This is the privacy detector's decoder. It refuses bytes that would not form
+/// valid, printable text so a decoded view can still be scanned with exact
+/// source offsets. The broker and MCP decoders are separate on purpose: they
+/// keep every raw byte because they compare against secret bytes, where a broken
+/// sequence can still be part of the secret.
 pub(super) fn decode_percent_run(run: &str) -> (String, bool) {
     let bytes = run.as_bytes();
     let mut out = String::with_capacity(run.len());
@@ -176,16 +184,6 @@ fn utf8_width(byte: u8) -> Option<usize> {
         0xC2..=0xDF => Some(2),
         0xE0..=0xEF => Some(3),
         0xF0..=0xF4 => Some(4),
-        _ => None,
-    }
-}
-
-/// The numeric value of a hex digit.
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
         _ => None,
     }
 }

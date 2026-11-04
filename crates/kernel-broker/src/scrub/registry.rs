@@ -7,6 +7,7 @@ use std::path::Path;
 use std::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use aho_corasick::AhoCorasick;
+use kernel_core::sync::{rwlock_read_recover, rwlock_write_recover};
 use zeroize::Zeroizing;
 
 use super::variants::secret_variants;
@@ -118,11 +119,11 @@ fn registry() -> &'static RwLock<Registry> {
 pub(super) fn read_registry() -> RwLockReadGuard<'static, Registry> {
     // A poisoned lock means a panic elsewhere; the registry itself is still
     // consistent (every mutation happens under the same lock).
-    registry().read().unwrap_or_else(|err| err.into_inner())
+    rwlock_read_recover(registry())
 }
 
 pub(super) fn write_registry() -> RwLockWriteGuard<'static, Registry> {
-    registry().write().unwrap_or_else(|err| err.into_inner())
+    rwlock_write_recover(registry())
 }
 
 /// Register one known secret value. Returns `true` when it was new.

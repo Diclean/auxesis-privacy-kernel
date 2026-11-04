@@ -1,5 +1,7 @@
 //! Secret-safe rendering of server ids and agent names in refusals.
 
+use kernel_core::text::hex_value;
+
 use super::secrets::looks_like_secret;
 
 /// A server id or agent name as a refusal may show it: debug-quoted, or
@@ -95,21 +97,21 @@ pub(super) fn percent_decoded(value: &str) -> String {
 /// The bytes of `value` after one percent-decoding round: every valid `%XX`
 /// escape replaced by its byte. An invalid or truncated escape is left
 /// exactly as written.
+///
+/// This is the MCP refusal path: it checks whether a server id or agent name
+/// reads as a credential once decoded. It decodes raw bytes and converts them
+/// lossily, because a key may not be valid UTF-8. The privacy crate's decoder is
+/// separate on purpose: it only yields printable ASCII or valid UTF-8, so a
+/// detector never sees a broken byte sequence.
 fn percent_decode_bytes(value: &str) -> Vec<u8> {
-    fn hex(byte: u8) -> Option<u8> {
-        match byte {
-            b'0'..=b'9' => Some(byte - b'0'),
-            b'a'..=b'f' => Some(byte - b'a' + 10),
-            b'A'..=b'F' => Some(byte - b'A' + 10),
-            _ => None,
-        }
-    }
     let bytes = value.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut index = 0;
     while index < bytes.len() {
         if bytes[index] == b'%' && index + 2 < bytes.len() {
-            if let (Some(high), Some(low)) = (hex(bytes[index + 1]), hex(bytes[index + 2])) {
+            if let (Some(high), Some(low)) =
+                (hex_value(bytes[index + 1]), hex_value(bytes[index + 2]))
+            {
                 out.push(high * 16 + low);
                 index += 3;
                 continue;

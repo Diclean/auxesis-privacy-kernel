@@ -7,7 +7,7 @@
 //! it came from, so a match in the folded string maps back to an exact byte
 //! span of the original text.
 
-use kernel_core::text::is_invisible;
+use kernel_core::text::{hex_value, is_invisible};
 use unicode_normalization::char::is_combining_mark;
 use unicode_normalization::UnicodeNormalization;
 
@@ -269,10 +269,15 @@ pub(crate) fn plain_address(lower: &Folded) -> Folded {
 
 /// The length in bytes and the letter of the spelling at the start of `rest`,
 /// when one starts there.
+///
+/// The `%XX` arm is the contact folder's reader: one printable ASCII escape
+/// folded to a lowercase letter, so an obfuscated address still matches the same
+/// person. It is separate from the general percent decoders on purpose: it is a
+/// character fold that keeps a source span, not a text decoder.
 fn spelling_at(rest: &str) -> Option<(usize, char)> {
     let bytes = rest.as_bytes();
     if bytes.first() == Some(&b'%') && bytes.len() >= 3 {
-        let value = (hex_digit(bytes[1])? << 4) | hex_digit(bytes[2])?;
+        let value = (hex_value(bytes[1])? << 4) | hex_value(bytes[2])?;
         if (0x21..=0x7e).contains(&value) {
             return Some((3, char::from(value).to_ascii_lowercase()));
         }
@@ -282,11 +287,6 @@ fn spelling_at(rest: &str) -> Option<(usize, char)> {
         .chain(DOT_SPELLINGS)
         .find(|(spelling, _)| rest.starts_with(spelling))
         .map(|(spelling, letter)| (spelling.len(), *letter))
-}
-
-/// The value of one ASCII hex digit.
-fn hex_digit(byte: u8) -> Option<u8> {
-    (byte as char).to_digit(16).map(|digit| digit as u8)
 }
 
 /// Decompose a letter (compatibility form, so full-width letters and ligatures

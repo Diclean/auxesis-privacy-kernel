@@ -2,6 +2,13 @@
 
 /// Zero code points of the Unicode decimal-digit blocks, so every `Nd`
 /// character maps to its value. The list is the Unicode `Nd` block starts.
+///
+/// This is deliberately a subset of the broker table in
+/// `kernel-broker/src/text/identifiers.rs`: it lacks ten Unicode 16 block
+/// starts (U+10D40, U+11950, U+11BF0, U+11F50, U+16130, U+16AC0, U+16D70,
+/// U+1CCF0, U+1E4F0, U+1E5F1). Taking the union here would mask more, so it
+/// is a detection change that needs a privacy seal; do not merge the tables
+/// in this cleanup.
 const DIGIT_ZEROS: &[u32] = &[
     0x0030, 0x0660, 0x06F0, 0x07C0, 0x0966, 0x09E6, 0x0A66, 0x0AE6, 0x0B66, 0x0BE6, 0x0C66, 0x0CE6,
     0x0D66, 0x0DE6, 0x0E50, 0x0ED0, 0x0F20, 0x1040, 0x1090, 0x17E0, 0x1810, 0x1946, 0x19D0, 0x1A80,

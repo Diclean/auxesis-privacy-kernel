@@ -132,6 +132,14 @@ pub(super) fn redact_grouped_phone_numbers(text: &str) -> String {
         // tables of the toolchain knowing the newest blocks. The last rows add
         // the mathematical sets (U+1D7D8, U+1D7E2, U+1D7EC, U+1D7F6; U+1D7CE is
         // the bold set) and the Unicode 16 blocks.
+        //
+        // This table is not the same as the privacy table in
+        // `kernel_privacy::normalize::digits`: it has ten more block starts
+        // (U+10D40, U+11950, U+11BF0, U+11F50, U+16130, U+16AC0, U+16D70,
+        // U+1CCF0, U+1E4F0, U+1E5F1). Keeping the difference is deliberate in
+        // this cleanup: using the union on the privacy side would mask more,
+        // which is a detection change that needs a privacy seal. Do not merge
+        // the two tables here.
         const ZEROES: &[u32] = &[
             0x0030, 0x0660, 0x06f0, 0x07c0, 0x0966, 0x09e6, 0x0a66, 0x0ae6, 0x0b66, 0x0be6, 0x0c66,
             0x0ce6, 0x0d66, 0x0de6, 0x0e50, 0x0ed0, 0x0f20, 0x1040, 0x1090, 0x17e0, 0x1810, 0x1946,

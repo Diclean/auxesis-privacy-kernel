@@ -7,6 +7,20 @@
 //! arbitrarily large. These primitives are the single implementation used by
 //! `kernel-broker`, the daemon API, the CLI and the UI.
 
+/// The value of one ASCII hex digit, in either case.
+///
+/// Returns `None` for every other byte. One implementation for the kernel's
+/// percent, hex, escape and contact decoders, so they cannot drift on case
+/// handling or on the value of a digit.
+pub fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 /// Noncharacters: reserved code points that never render (U+FDD0-FDEF and
 /// the last two points of every plane).
 fn is_noncharacter(c: char) -> bool {
@@ -122,6 +136,17 @@ pub fn truncate_chars(text: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hex_value_reads_both_cases_and_refuses_other_bytes() {
+        assert_eq!(hex_value(b'0'), Some(0));
+        assert_eq!(hex_value(b'9'), Some(9));
+        assert_eq!(hex_value(b'a'), Some(10));
+        assert_eq!(hex_value(b'F'), Some(15));
+        for byte in [b'g', b'G', b'/', b' ', 0x80, 0xff] {
+            assert_eq!(hex_value(byte), None, "0x{byte:02x}");
+        }
+    }
 
     #[test]
     fn strips_control_and_invisible_characters() {
