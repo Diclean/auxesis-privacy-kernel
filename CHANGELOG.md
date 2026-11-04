@@ -26,6 +26,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - An IBAN glued to text on both sides, or wrapped over two lines, is hidden.
+- The built-in model prices match the providers' pricing pages, at their
+  highest standard rate. `deepseek-flash` was below DeepSeek's price, so the
+  money cap could bind too late.
 
 ## [0.1.0] - 2026-11-01
 
