@@ -85,8 +85,7 @@ pub use config::{
     MAX_MCP_URL_BYTES, UNAVAILABLE_SHA256,
 };
 pub use descriptor::{
-    risk_from_tags, sanitize_description, sanitize_schema, McpTag, McpToolDescriptor,
-    ToolkitClassifier, ToolkitMap,
+    risk_from_tags, sanitize_description, sanitize_schema, McpTag, McpToolDescriptor, ToolkitMap,
 };
 pub use discovery::{AgentTools, DiscoveryCache, DiscoveryStats, ToolCatalog, PER_AGENT_TOOL_CAP};
 pub use error::{sanitize_untrusted, McpError, McpResult, Sanitized, MAX_UNTRUSTED_BYTES};

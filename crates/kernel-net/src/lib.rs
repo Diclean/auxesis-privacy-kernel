@@ -1,5 +1,5 @@
-//! The one place where an outbound HTTP request is made: the client factory,
-//! the web egress policy and the loopback proxy for sandboxed extensions.
+//! Guarded HTTP clients, web egress policy and a loopback proxy for
+//! sandboxed extensions.
 //!
 //! - **The guard.** [`build_client`] is the only factory that builds a
 //!   `reqwest` client. It refuses a host *shape* first (`localhost`,
