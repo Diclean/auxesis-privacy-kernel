@@ -25,3 +25,5 @@ crates/kernel-privacy/src/vault/tests/recovery.rs | fs::write( | test fixture: c
 crates/kernel-privacy/src/vault/tests/recovery.rs | fs::remove_file( | test fixture: removes the manifest of a temp vault dir (a #[cfg(test)] module split out of vault.rs)
 crates/kernel-privacy/src/ner/tests/vetting.rs | fs::create_dir_all( | test fixture: builds a fake model dir under a temp HOME (a #[cfg(test)] module split out of ner.rs)
 crates/kernel-privacy/src/ner/tests/vetting.rs | fs::write( | test fixture: writes fake model/tokenizer files in a temp dir (a #[cfg(test)] module split out of ner.rs)
+crates/kernel-mcp/src/stdio/snapshot.rs | OpenOptions::new( | KMCP-HARDEN-FIX: writes the verified private program copy in a fresh 0700 dir under the sandbox temp dir (or the OS temp dir); never the Auxesis home
+crates/kernel-mcp/src/stdio/snapshot.rs | fs::remove_dir_all( | KMCP-HARDEN-FIX: removes only the snapshot's own random .aux-mcp-exec-* dir it created; never the Auxesis home
