@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::anonymize::{PLACEHOLDER_CLOSE, PLACEHOLDER_OPEN};
+#[cfg(feature = "ner-gliner")]
 use crate::known_names::NameDictionary;
 use crate::recognizer::resolve_overlaps;
 use crate::safetext::prohibited::consolidate_mask_spans;
