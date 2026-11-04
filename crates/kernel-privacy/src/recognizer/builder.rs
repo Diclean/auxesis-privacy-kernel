@@ -47,12 +47,6 @@ impl RegistryBuilder {
         self
     }
 
-    /// Mount a custom email-aware layer.
-    pub fn email_layer(mut self, email_layer: EmailLayer) -> Self {
-        self.email_layer = Some(email_layer);
-        self
-    }
-
     /// Turn the email-aware layer off, reproducing the pre-1e pipeline.
     pub fn without_email_layer(mut self) -> Self {
         self.email_layer = None;
