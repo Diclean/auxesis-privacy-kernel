@@ -19,8 +19,8 @@ const FUNCTION_WORDS: &str = "which that then please but so if as when where whi
 /// three digit groups over one kind of `-`, `/` or `.`, read year first
 /// (`yyyy-mm-dd`, `yy-mm-dd`) or year last (`dd-mm-yyyy`, `mm-dd-yy`), with a
 /// month of 1 to 12 and a day of 1 to 31 in one of those readings. A
-/// `number`-linked label's value is never one (`licence number: 2024-10-01`,
-/// ID-LABEL-1); `99-99-99` or `12-34-56` is no date, so it stays an ID.
+/// `number`-linked label's value is never one (`licence number: 2024-10-01`);
+/// `99-99-99` or `12-34-56` is no date, so it stays an ID.
 pub(super) fn is_date(value: &str) -> bool {
     let Some(sep) = value.chars().find(|c| matches!(c, '-' | '/' | '.')) else {
         return false;
@@ -40,7 +40,7 @@ pub(super) fn is_date(value: &str) -> bool {
     let year_last = lens[0] <= 2 && lens[1] <= 2 && (lens[2] == 4 || lens[2] <= 2);
     year_first && date(n[1], n[2]) || year_last && (date(n[1], n[0]) || date(n[0], n[1]))
 }
-/// The words of a passport label, folded (ID-LABEL-2): the spaced CN passport
+/// The words of a passport label, folded: the spaced CN passport
 /// number is read behind one of these and behind no other ID label.
 const PASSPORT_WORDS: &str = "passport passportno passportnumber passports passeport \
     pasaporte 护照 护照号 护照号码";
@@ -48,7 +48,7 @@ const PASSPORT_WORDS: &str = "passport passportno passportnumber passports passe
 /// The end of a secret value at `start` on a line ending at `line`, and how far the
 /// read went. A quoted value runs to its closing quote, or the line end when it has
 /// none. Else one token, secret-shaped, or after a prose link a plain word that is
-/// no stopword, then its clause (K-SECRET-TAIL). No byte cap: the registry splits a
+/// no stopword, then its clause. No byte cap: the registry splits a
 /// long span.
 pub(super) fn secret(
     text: &str,
@@ -114,7 +114,7 @@ pub(super) fn cookie(text: &str, start: usize, line: usize) -> Option<usize> {
 /// the sign's letters are two of them — and reads exactly as it reads on main.
 /// Only a sign main's reading cannot see past (`n°12AB34567`, where `°` ends
 /// the alphanumeric run) is read from behind the sign, and there the sign's own
-/// letters count toward `min` as well (ID-LABEL-2). The mask starts at the
+/// letters count toward `min` as well. The mask starts at the
 /// label's own `start` either way, so it covers the sign and the digits behind
 /// it.
 pub(super) fn number(text: &str, start: usize, min: usize) -> Option<usize> {
@@ -186,7 +186,7 @@ fn glued_sign(text: &str, start: usize) -> usize {
 
 /// The end of a CN passport number written spaced behind a **passport** label:
 /// one or two capital letters, then two groups of four digits
-/// (`E 1234 5678`, ID-LABEL-2). The shape is a passport number's, so a tax or a
+/// (`E 1234 5678`). The shape is a passport number's, so a tax or a
 /// licence label does not claim it (`tax id: E 1234 5678` is a tax number and
 /// stays clear). It is read by hand because [`number`] joins a spaced group only
 /// to a value that already holds a digit, and the leading `E` holds none.

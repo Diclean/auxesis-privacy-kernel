@@ -1,4 +1,4 @@
-//! Shared normalisation layer for scanning (P2-1, P2-2, P2-3).
+//! Shared normalisation layer for scanning.
 //!
 //! The deterministic recognisers scan a *normalised* view of the input so that
 //! a value written with Unicode digits, exotic spaces, dashes or OCR noise is

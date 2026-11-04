@@ -9,8 +9,8 @@ use super::report::DetectError;
 use crate::recognizer::span_is_well_formed;
 use crate::span::{EntityKind, Span};
 
-/// The second pass of a private gate (owner, 2026-10-14: "first round the
-/// dictionary, second round with what stays"): a local model that finds the
+/// The second pass of a private gate (first round the dictionary, second
+/// round with what stays): a local model that finds the
 /// person, organisation and address names the patterns and the dictionary do
 /// not know. It only ever adds spans; it can never remove one.
 pub trait NameSpotter: Send + Sync {
@@ -206,7 +206,7 @@ impl Detector for TwoPassDetector {
 }
 
 /// Words the name model tags as a person or an organisation on their own at
-/// its low name floor (TOK-FP: "Who wrote to me last?" lost its `Who`), beyond
+/// its low name floor ("Who wrote to me last?" lost its `Who`), beyond
 /// the closed function words. These are real given names too, so only a
 /// model span of the word alone is dropped: "May Smith" is still a name, and
 /// the owner's contacts (pass 1) are never filtered this way.

@@ -141,7 +141,7 @@ fn mark_honorifics(tokens: &[WordToken], text: &str, names: &NameSet<'_>, masked
 /// seed's own sequence (`Jean De`) must not turn it into a name. A
 /// non-structural seed token also matches a one-letter initial (`J. De`).
 ///
-/// One pass per length, not per seed (K-REGISTRY-PERF: a pass each was
+/// One pass per length, not per seed: a pass each was
 /// quadratic over a long log). A window token longer than one letter matches
 /// only an equal seed token, so a window is compared only with the sequences
 /// holding its rarest such token; a window of initials, with the sequences of

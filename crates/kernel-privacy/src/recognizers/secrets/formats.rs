@@ -51,7 +51,7 @@ fn mysql_values(text: &str) -> Vec<SecretValue> {
 
 /// Every secret-class value in `text`: the key-value pairs, the k8s pairs, the XML
 /// elements and the command-line flags. The prose rule and the MySQL flag add the
-/// values that do not overlap a name-assigned value, which wins on overlap (K10).
+/// values that do not overlap a name-assigned value, which wins on overlap.
 pub(super) fn secret_values(text: &str) -> Vec<SecretValue> {
     let mut values = key_values(text);
     values.extend(k8s_values(text));
@@ -75,8 +75,8 @@ pub(super) fn secret_values(text: &str) -> Vec<SecretValue> {
             values.push(value);
         }
     }
-    // Clause tails are added after the K10 overlap rule, never filtered by it: a tail
-    // only widens what is masked (K-SECRET-TAIL).
+    // Clause tails are added after the overlap rule, never filtered by it: a tail
+    // only widens what is masked.
     values.extend(tails);
     values
 }

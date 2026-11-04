@@ -1,4 +1,4 @@
-//! National IDs no label rule reaches (ID-LABEL).
+//! National IDs no label rule reaches.
 //!
 //! * A UK driving licence number by its structure, with no label needed:
 //!   five surname letters (`9` pads a short name), the birth decade, month
@@ -7,7 +7,7 @@
 //!   grouped 5-6-5 (`MORGA 753116 SM9IJ`). A product, part, order or reference
 //!   word right before it (`SKU …`, `Serial: …`) keeps it clear.
 //! * The same number under a licence word, in either case and any grouping: a
-//!   licence label reads `licence morga657054sm9ij` (ID-LABEL-2),
+//!   licence label reads `licence morga657054sm9ij`,
 //!   `Driving licence MORGA-753116-SM9IJ` and `licence MORGA\n753116 SM9IJ`
 //!   too. Those three spellings are too ambiguous to read with no label, so
 //!   they need the word.
@@ -55,7 +55,7 @@ const BUSINESS_CUES: &[&str] = &[
 const NUMBER_WORDS: &[&str] = &["no", "nr", "num", "number", "id"];
 /// How far back the cue is looked for, in bytes.
 const CUE_WINDOW: usize = 32;
-/// Words that make a licence-shaped code an identity's (ID-LABEL-2): folded,
+/// Words that make a licence-shaped code an identity's: folded,
 /// ASCII, so `driver_license_number`, `Driving licence` and `permis` all read
 /// one of them. A licence cue is never a business cue's word, so a code both
 /// names (`SKU licence MORGA…`) still reads as the label's.
@@ -157,7 +157,7 @@ fn uk_licences(text: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
     })
 }
 
-/// Every UK driving licence number a licence word introduces (ID-LABEL-2): the
+/// Every UK driving licence number a licence word introduces: the
 /// structure of [`uk_licences`] in either case, grouped over dashes, or split
 /// over one line break. Those spellings are read only under the word, so a code
 /// no label names keeps main's reading exactly.

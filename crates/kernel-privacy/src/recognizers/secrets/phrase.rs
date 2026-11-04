@@ -1,4 +1,4 @@
-//! The phrase scan (K-SECRET-PHRASE): a cue, its qualifier, its link and its
+//! The phrase scan: a cue, its qualifier, its link and its
 //! value, plus the clause tails that only add masks.
 
 use std::sync::LazyLock;
@@ -11,7 +11,7 @@ use super::key_names::{
 use super::key_values::Breaks;
 use super::prose::{bare_word, is_secret_shaped, value_word, PROSE_STOPWORDS};
 
-/// The cue of a secret in a sentence (K-SECRET-PHRASE): a password word, a key or token
+/// The cue of a secret in a sentence: a password word, a key or token
 /// name, a passcode, a PIN, a door or alarm code, `pw`, `pass` or `code`, as a whole word
 /// in any case. Group 1 is set for `passwords`, which also links with `are`; group 2 for
 /// a passphrase, whose value runs to the clause end; group 3 for a weak cue, whose value
@@ -156,7 +156,7 @@ pub(super) fn phrase_value(
     (value, read)
 }
 
-/// The values of secrets written in a sentence (K-SECRET-PHRASE). After a cue comes
+/// The values of secrets written in a sentence. After a cue comes
 /// either a value that looks like a secret (`pass Gx7#qq91`), or an optional qualifier
 /// that opens with a [`QUALIFIER_HEADS`] word (at most [`MAX_QUALIFIER_WORDS`] words
 /// ending within [`MAX_QUALIFIER_BYTES`] bytes of the cue), a link, and the value. When
@@ -197,7 +197,7 @@ pub(super) fn push_tail(
 }
 
 /// The phrase scan: its values, and the clause tails that only add to them
-/// (K-SECRET-TAIL): after a password, key or code value, the rest of its clause
+/// (clause tails): after a password, key or code value, the rest of its clause
 /// (`is correct horse battery staple`). The scan, its values and every cue it reads
 /// stay exactly main's, so a tail can only add a mask (strict superset by
 /// construction).
@@ -305,7 +305,7 @@ pub(super) fn phrase_scan(text: &str, breaks: &Breaks) -> (Vec<SecretValue>, Vec
                 let mut and = and_at(read);
                 if and.is_none() && !text[..read].ends_with(',') {
                     // A quoted item ends at its closing quote; the list goes on after
-                    // it (`are "A1xx" and "B2yy"`, K-PUBLIC-MISSES).
+                    // it (`are "A1xx" and "B2yy"`).
                     let close = text[read..]
                         .chars()
                         .next()
@@ -337,7 +337,7 @@ pub(super) fn phrase_scan(text: &str, breaks: &Breaks) -> (Vec<SecretValue>, Vec
             }
             continue;
         }
-        // `is set to 4521`, `was changed to 4521` (K-PUBLIC-MISSES): read on its own,
+        // `is set to 4521`, `was changed to 4521`: read on its own,
         // so the scan below runs as on main.
         values.extend(set_to_value(text, at, stop, need));
         let filler = at;
@@ -352,8 +352,8 @@ pub(super) fn phrase_scan(text: &str, breaks: &Breaks) -> (Vec<SecretValue>, Vec
             if text[..end].ends_with(':') {
                 let (value, read) = phrase_value(text, at, stop, need, true);
                 resume = resume.max(read);
-                // `is the same as before: Sunflower#88 horse battery staple` (seal r1
-                // of #143): the clause tail follows this value too.
+                // `is the same as before: Sunflower#88 horse battery staple`: the
+                // clause tail follows this value too.
                 if !phrase && need == Need::Any && !plural {
                     push_tail(text, value.as_ref(), stop, &mut tails, &mut tail_reach);
                 }

@@ -7,7 +7,7 @@ use super::pass::{decode_once, Markers};
 ///
 /// This is the same question [`DecodedText::unresolved`] asks of a view the
 /// *decoder* stopped on, asked here of any text. The registry's composition
-/// (NORM-2) stops after a fixed number of rounds of decode and fold, so a
+/// stops after a fixed number of rounds of decode and fold, so a
 /// spelling deeper than that is not read: the ranges this returns are masked
 /// whole rather than left clear.
 ///

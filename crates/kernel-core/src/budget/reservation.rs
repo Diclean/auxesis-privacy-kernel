@@ -18,7 +18,7 @@ use super::usage::UsageTotals;
 /// OpenAI-compatible adapter bounds a stream at
 /// `DEFAULT_TIMEOUT × STREAM_TOTAL_TIMEOUT_FACTOR` (120 s × 10 = 20 min with
 /// the defaults), and a reservation that expires while the provider is still
-/// generating lets a concurrent turn reserve the same headroom (I-02). 30
+/// generating lets a concurrent turn reserve the same headroom. 30
 /// minutes leaves a 10-minute margin over that ceiling; the engine asserts
 /// the relation in `the app's engine`.
 pub const RESERVATION_TTL: Duration = Duration::from_secs(1800);
@@ -62,7 +62,7 @@ pub struct Reservation {
     /// Daily caps the reservation was admitted under.
     ///
     /// [`ReservationLedger::settle`] uses them to latch the day closed when a
-    /// completed call reaches or crosses a cap (B-01R): a provider that
+    /// completed call reaches or crosses a cap: a provider that
     /// ignores its completion cap can no longer cause unbounded further spend.
     pub caps: BudgetCaps,
     /// Identity of the turn that owns this call. Every `usage` row this
@@ -98,7 +98,7 @@ pub enum ReserveOutcome {
 /// headroom instead of denying the call; callers pass the clamped value to
 /// the provider as `max_tokens`.
 ///
-/// Proven bound (B-01R):
+/// Proven bound:
 ///
 /// - A provider that honors `max_tokens` and reports usage honestly cannot
 ///   settle above the daily cap: every admitted output reservation fits under

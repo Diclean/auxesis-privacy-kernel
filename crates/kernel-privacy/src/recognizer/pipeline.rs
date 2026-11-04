@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::decode::{self, DecodedText};
 use crate::normalize::NormalizedText;
 
-/// Which folds a pipeline run reads (NORM-GLYPH).
+/// Which folds a pipeline run reads.
 #[derive(Clone, Copy)]
 pub(super) enum Folds {
     /// [`NormalizedText::folded_views`]: the views every scan reads.
@@ -80,7 +80,7 @@ pub(super) fn chain_bounds(chain: &[Step], start: usize, end: usize) -> Option<(
 }
 
 /// The source ranges of `chain` a further decode would still change, each grown
-/// to the whole source token around it. What NORM-2 masks at its pass cap.
+/// to the whole source token around it. What the decode-and-fold rounds mask
 pub(super) fn still_encoded(chain: &[Step]) -> Vec<(usize, usize)> {
     let Some(last) = chain.last() else {
         return Vec::new();

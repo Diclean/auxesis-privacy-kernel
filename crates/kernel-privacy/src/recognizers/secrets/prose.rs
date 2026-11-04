@@ -74,7 +74,7 @@ pub(super) fn value_word(word: &str) -> &str {
 }
 
 /// A value word without any closing mark, only to compare it with a stopword: the
-/// masked span keeps the marks, which may be part of the secret (K15 seal r1).
+/// masked span keeps the marks, which may be part of the secret.
 pub(super) fn bare_word(word: &str) -> &str {
     value_word(word).trim_end_matches(['`', '*', '_', '}', '\u{201d}', '\u{2019}', '\u{bb}'])
 }
@@ -103,8 +103,8 @@ pub(super) fn prose_values(text: &str) -> (Vec<SecretValue>, Vec<SecretValue>) {
             let stopword = PROSE_STOPWORDS
                 .iter()
                 .any(|stop| stop.eq_ignore_ascii_case(bare_word(word)));
-            // The key rule masks exactly what main masked (seal r3: any exclusion
-            // list let real values through); the phrase rule below only adds.
+            // The key rule masks exactly what the main scan masked (an exclusion
+            // list would let real values through); the phrase rule below only adds.
             if stopword || !is_value_word(word) {
                 return None;
             }
@@ -119,7 +119,7 @@ pub(super) fn prose_values(text: &str) -> (Vec<SecretValue>, Vec<SecretValue>) {
     // Both shapes may find the same value: keep it once.
     values.sort_by_key(|value| (value.start, value.end));
     values.dedup_by_key(|value| (value.start, value.end));
-    // A K-SECRET-TAIL-2 span equal to a value is that value: kept once.
+    // A clause-tail span equal to a value is that value: kept once.
     let key = |value: &SecretValue| (value.start, value.end);
     tails.extend(
         extra

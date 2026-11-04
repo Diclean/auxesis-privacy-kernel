@@ -10,9 +10,9 @@ const MAX_ROWS: usize = 10_000;
 /// Hides the secret cells of every table and returns its header lines. Rows
 /// are read twice: a line at a time, and as CSV records whose quoted cells may
 /// hold line breaks, so a record never hides less than its lines. Each is read
-/// again `wide`: no row cap (SECRET-LEAK-294B: filler rows pushed a password
+/// again `wide`: no row cap (filler rows pushed a password
 /// past [`MAX_ROWS`]), the wider header list, and a table kept across blank
-/// lines (SECRET-FR-HDR-1); its spans only add, its header lines are not kept.
+/// lines; its spans only add, its header lines are not kept.
 pub(super) fn columns(text: &str, spans: &mut Vec<(usize, usize)>) -> Vec<(usize, usize)> {
     let mut headers = Vec::new();
     // A header needs two cells: with no delimiter there is no table to read.
@@ -32,7 +32,7 @@ pub(super) fn columns(text: &str, spans: &mut Vec<(usize, usize)>) -> Vec<(usize
 /// password manager columns), read like the wide pair of [`columns`]. Not a
 /// part of [`lines_scan`](super::scan::lines_scan): the gate adds these spans on top of what main's
 /// scans and residue rounds already hide, so they can only hide more
-/// (SECRET-LEAK-294B).
+/// more.
 pub(crate) fn export_scan(text: &str) -> Vec<(usize, usize)> {
     let mut spans = Vec::new();
     if text.bytes().any(|b| b",\t;|".contains(&b)) {

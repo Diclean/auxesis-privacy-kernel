@@ -1,6 +1,6 @@
 //! UK National Insurance number recogniser (`AB 12 34 56 C` or `AB123456C`).
 //!
-//! Three passes — compact, FIN-6 separated and loose — joined by one span union.
+//! Three passes — compact, separated and loose — joined by one span union.
 
 mod compact;
 mod labels;

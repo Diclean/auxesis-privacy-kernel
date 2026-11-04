@@ -22,7 +22,7 @@ pub(super) struct Label {
     pub(super) class: Class,
     /// Only after `:`, `=`, `#` or a number word.
     pub(super) punct: bool,
-    /// Only when a number word comes first (`licence no.`, ID-LABEL-1).
+    /// Only when a number word comes first (`licence no.`).
     pub(super) numbered: bool,
     pub(super) cjk_start: bool,
     pub(super) cjk_end: bool,

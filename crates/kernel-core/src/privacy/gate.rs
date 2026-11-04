@@ -162,7 +162,7 @@ pub enum Decision {
 /// Decides whether `path` may run in `mode` for `ctx`.
 ///
 /// Unknown means closed in both modes: a path with no registry row is
-/// refused, never tolerated (soul rule 5). Private mode additionally denies
+/// refused, never tolerated. Private mode additionally denies
 /// any row that is not covered.
 #[must_use]
 pub fn admit(path: PathId, mode: PrivacyMode, ctx: &Context) -> Decision {

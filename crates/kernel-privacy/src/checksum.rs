@@ -50,7 +50,7 @@ pub(crate) fn iban_mod97(compact: &str) -> bool {
     remainder == 1
 }
 
-/// IBAN mod-97 over a raw value with separators, without allocating (P3-5).
+/// IBAN mod-97 over a raw value with separators, without allocating.
 ///
 /// Returns `None` when the value holds a character that is neither an ASCII
 /// alphanumeric nor a separator, or fewer than five alphanumerics.

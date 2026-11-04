@@ -95,7 +95,7 @@ pub(super) fn push_hu_rak(text: &str, words: &[Word], out: &mut Vec<Hit>) {
 const DISEASE_HEADS: &[(&str, &[&str], bool, bool)] = &[
     ("en", &["fever"], false, true),
     ("en", &["disease", "syndrome"], false, false),
-    // HEALTH-EPONYM-1: `Hashimoto thyroiditis`, `Bell's palsy`, `Hodgkin lymphoma`.
+    // `Hashimoto thyroiditis`, `Bell's palsy`, `Hodgkin lymphoma`.
     (
         "en",
         &["palsy", "lymphoma", "thyroiditis", "chorea", "sarcoma"],
@@ -126,7 +126,7 @@ const DISEASE_LEADS: &[(&str, bool)] = &[
     ("maladie", false),
     ("syndrome", false),
     ("fievre", true),
-    // HEALTH-EPONYM-1: `thyroïdite de Hashimoto`, `lymphome de Hodgkin`.
+    // `thyroïdite de Hashimoto`, `lymphome de Hodgkin`.
     ("thyroidite", false),
     ("lymphome", false),
     ("choree", false),

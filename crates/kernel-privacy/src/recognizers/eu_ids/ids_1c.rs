@@ -1,4 +1,4 @@
-//! EU-KERNEL-1c: Romania, Czechia and Slovakia, Greece and Bulgaria.
+//! Romania, Czechia and Slovakia, Greece and Bulgaria.
 
 use super::checks::{bg_egn_ok, cz_rodne_cislo_ok, gr_amka_ok, ro_cnp_ok};
 use super::scan::{compact, grouped, wrapped_runs};

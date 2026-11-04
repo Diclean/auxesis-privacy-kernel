@@ -29,8 +29,7 @@ pub(super) struct Token {
     pub(super) text: String,
     pub(super) stem: bool,
     pub(super) inflection: Inflection,
-    /// The words this row must not match: `FIV` is `FIV`, never `five`
-    /// (K-OVERMASK-FIVE).
+    /// The words this row must not match: `FIV` is `FIV`, never `five`.
     pub(super) excluded: Vec<String>,
 }
 

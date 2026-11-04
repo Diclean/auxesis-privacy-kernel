@@ -2,7 +2,7 @@
 
 use crate::span::{EntityKind, Span};
 
-/// Resolve overlaps into the union of every overlapping span (P1-1, P2-5).
+/// Resolve overlaps into the union of every overlapping span.
 ///
 /// Two spans become one region only when they overlap. Adjacent spans of
 /// different kinds stay separate, so a display name and the e-mail address
@@ -104,7 +104,7 @@ fn merge_regions(mut spans: Vec<Span>) -> Vec<Span> {
 /// A prohibited span ([`Span::is_prohibited`]) outranks every kind Open
 /// mode leaves in clear before any of this, so a region that holds a health
 /// term, an IBAN, an ID or a secret is removed in every mode, whatever e-mail,
-/// phone, URL or address it overlaps (K-SPAN-PRIORITY).
+/// phone, URL or address it overlaps.
 fn wins_over(candidate: &Span, current: &Span) -> bool {
     if candidate.is_prohibited() != current.is_prohibited() {
         return candidate.is_prohibited();

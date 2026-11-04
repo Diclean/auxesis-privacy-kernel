@@ -1,4 +1,4 @@
-//! SECRET-1: four secret forms the older scans miss. A session or auth cookie
+//! Four secret forms the older scans miss. A session or auth cookie
 //! value (`sessionid=…`, or any pair after `Cookie:` / `Set-Cookie:`), a value on
 //! the line after its label (`Passphrase` then the words), a value in a CSV/TSV
 //! column whose header names a secret, and a lower-case AWS access key id glued

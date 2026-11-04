@@ -98,7 +98,7 @@ impl Recognizer for PassportMrzRecognizer {
         let ids = uuid_tokens(original);
         // The strict shape masks by default. Without a cue or a valid check
         // digit, a candidate wholly inside a whole ASCII-delimited UUID is one
-        // of the id's fields and can be left in clear (MRZ-UUID-OVERMASK).
+        // of the id's fields and can be left in clear.
         let mut ibans = None;
         for found in STRICT_RE.find_iter(body) {
             let checked = check_score(found.as_str());
@@ -110,7 +110,7 @@ impl Recognizer for PassportMrzRecognizer {
                     source.filter(|&(start, end)| inside_uuid(&ids, start, end))
                 {
                     // Keep main's overlap result if another recognizer also
-                    // reads this UUID field. This avoids exposing a previously
+                    // reads this UUID field. This avoids exposing an IBAN candidate
                     // suppressed IBAN candidate when the passport guess drops.
                     let overlaps_iban = ibans
                         .get_or_insert_with(|| IbanRecognizer::new().analyze(text))

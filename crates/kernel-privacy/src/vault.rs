@@ -1,4 +1,4 @@
-//! Encrypted per-session vault for token ↔ value mappings (slice 3).
+//! Encrypted per-session vault for token ↔ value mappings.
 //!
 //! The vault keeps one sealed record per session: the [`TokenMap`] that
 //! [`Anonymizer::anonymize`](crate::Anonymizer::anonymize) produced for that

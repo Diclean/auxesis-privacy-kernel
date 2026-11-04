@@ -1,8 +1,8 @@
-//! SECRET-PROSE: a password, API key, PIN or cookie whose value follows its key
+//! A password, API key, PIN or cookie whose value follows its key
 //! through a prose link (`might be`, `,`, `is`, `will be`, `was`, `changed … to`,
 //! `set it to`, `use`, `as`, `such as`, `which is`, `:`), a key written with
 //! Markdown escapes (`api\_key`), and a cookie value (`Cookie:`, `Set-Cookie:`, a
-//! `name=value; Path=` pair). Like the K-SECRET-TAIL-4 link scan next to it, its
+//! `name=value; Path=` pair). Like the link scan next to it, its
 //! spans are only added to the older scans' spans; it never removes one.
 //!
 //! A value must look like a secret, so prose after a link stays clear: six or more

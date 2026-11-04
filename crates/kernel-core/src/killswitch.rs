@@ -43,7 +43,7 @@ pub fn is_stopped(home: &Path) -> bool {
 /// Idempotent: a marker that already exists (for any reason) is left
 /// untouched, and the call succeeds.
 pub fn engage(home: &Path) -> std::io::Result<()> {
-    // J-02 write gateway: the marker is created relative to the verified
+    // The write gateway: the marker is created relative to the verified
     // home directory fd, never through the home path string.
     // Production uses the process-wide verified home (re-verified on every
     // use); libraries/tests without one open the explicit path.
