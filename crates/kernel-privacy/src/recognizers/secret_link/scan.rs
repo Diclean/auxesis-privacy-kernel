@@ -1,10 +1,10 @@
 //! The linear secret-link scan and its span merge.
 
-use super::layout::line_table;
+use super::layout::{line_table, Pairs};
 use super::lex::{bounded, fold};
 use super::link::{link, weak_counts};
 use super::table::{columns, continuations, pipe_value};
-use super::{Kind, Shape, FLOOR, KEY_RE, WEAK};
+use super::{Kind, Line, Shape, FLOOR, KEY_RE, WEAK};
 
 /// The value spans of every linked key in `text`, one per physical line, sorted.
 /// Original offsets; `text` is read as it is (no view drops a character).
@@ -15,6 +15,25 @@ pub(crate) fn link_scan(text: &str) -> Vec<(usize, usize)> {
 /// `link_scan`, with the table spans of PR2 only when `tables` is set: they are
 /// only added, so the spans without them are a subset (P4).
 pub(super) fn scan(text: &str, tables: bool) -> Vec<(usize, usize)> {
+    let (folded, map, ascii) = folded_text(text);
+    // Most texts hold no key: they skip the line table.
+    if !KEY_RE.is_match(&folded) {
+        return Vec::new();
+    }
+    let original = |at: usize| if ascii { at } else { map[at] };
+    let (lines, pairs) = line_table(text);
+    let tail = text.trim_end().len();
+    let (mut spans, mut cells, mut upto) =
+        scan_keys(text, &folded, original, &lines, &pairs, tail, tables);
+    cells = table_spans(text, &lines, cells, tables);
+    let (openers, closes) = &pairs;
+    spans = mask_cells(spans, cells, closes, openers, tail, &mut upto);
+    opener_spans(text, &lines, openers, &upto, spans)
+}
+
+/// Fold `text` and map every folded byte back to its original offset. `ascii`
+/// says whether the folded text is the original, byte for byte.
+fn folded_text(text: &str) -> (String, Vec<usize>, bool) {
     let (mut folded, mut map, ascii) = (String::new(), Vec::new(), text.is_ascii());
     if ascii {
         let space = |byte: u8| {
@@ -36,18 +55,30 @@ pub(super) fn scan(text: &str, tables: bool) -> Vec<(usize, usize)> {
         }
     }
     map.push(text.len());
-    // Most texts hold no key: they skip the line table.
-    if !KEY_RE.is_match(&folded) {
-        return Vec::new();
-    }
-    let original = |at: usize| if ascii { at } else { map[at] };
-    let (lines, (openers, closes)) = line_table(text);
+    (folded, map, ascii)
+}
+
+/// A key scan's value spans, the table cells it saw and its opener stops.
+type KeyScan = (Vec<(usize, usize)>, Vec<(usize, usize)>, Vec<usize>);
+
+/// Scan every linked key: return its value spans, the table cells and the
+/// opener stops the value scan found.
+fn scan_keys(
+    text: &str,
+    folded: &str,
+    original: impl Fn(usize) -> usize,
+    lines: &[Line],
+    pairs: &Pairs,
+    tail: usize,
+    tables: bool,
+) -> KeyScan {
+    let (openers, closes) = pairs;
     let (mut spans, mut reach, mut index, mut cells) = (Vec::new(), 0, 0, Vec::new());
     let (mut nested_tails, mut nested_reach) = (Vec::new(), 0);
-    let (mut upto, mut cursor) = (vec![0; openers.len()], 0);
-    let tail = text.trim_end().len();
-    for found in KEY_RE.find_iter(&folded) {
-        let Some(key_end) = bounded(&folded, found.start(), found.end()) else {
+    let mut cursor = 0;
+    let mut upto = vec![0; openers.len()];
+    for found in KEY_RE.find_iter(folded) {
+        let Some(key_end) = bounded(folded, found.start(), found.end()) else {
             continue;
         };
         let (start, end) = (original(found.start()), original(key_end));
@@ -147,17 +178,39 @@ pub(super) fn scan(text: &str, tables: bool) -> Vec<(usize, usize)> {
         }
     }
     spans = union(spans, nested_tails);
+    (spans, cells, upto)
+}
+
+/// Add the table spans when `tables` is on: its cells, then their continuations.
+fn table_spans(
+    text: &str,
+    lines: &[Line],
+    mut cells: Vec<(usize, usize)>,
+    tables: bool,
+) -> Vec<(usize, usize)> {
     if tables {
         let mut table = Vec::new();
-        columns(text, &lines, &mut cells, &mut table);
+        columns(text, lines, &mut cells, &mut table);
         cells = union(cells, table);
-        let owned = continuations(text, &lines, &cells);
+        let owned = continuations(text, lines, &cells);
         cells = union(cells, owned);
     }
+    cells
+}
+
+/// Opener-mask the cells: a closer inside a cell, its opener before it.
+fn mask_cells(
+    mut spans: Vec<(usize, usize)>,
+    cells: Vec<(usize, usize)>,
+    closes: &[(usize, usize)],
+    openers: &[(usize, usize)],
+    tail: usize,
+    upto: &mut [usize],
+) -> Vec<(usize, usize)> {
     if !cells.is_empty() {
         // Opener mask for a cell: a closer inside it, its opener before it.
         let mut next = 0;
-        for &(close, id) in &closes {
+        for &(close, id) in closes {
             while cells.get(next).is_some_and(|cell| cell.1 <= close) {
                 next += 1;
             }
@@ -169,6 +222,17 @@ pub(super) fn scan(text: &str, tables: bool) -> Vec<(usize, usize)> {
         }
         spans = union(spans, cells);
     }
+    spans
+}
+
+/// Mask every line of a flagged opener up to its value.
+fn opener_spans(
+    text: &str,
+    lines: &[Line],
+    openers: &[(usize, usize)],
+    upto: &[usize],
+    spans: Vec<(usize, usize)>,
+) -> Vec<(usize, usize)> {
     // A flagged opener on an earlier line than its value (a fence, a multi-line quote)
     // is masked with every line up to the value: once the opener is masked, the
     // residue view would read that content (quotes inside a fence, a fence inside a
@@ -176,7 +240,7 @@ pub(super) fn scan(text: &str, tables: bool) -> Vec<(usize, usize)> {
     // Openers come in text order: one line cursor finds each opener's line, so a
     // same-line check is one comparison, not a rescan (N5: nested openers).
     let (mut extra, mut covered, mut row) = (Vec::new(), 0, 0);
-    for (&(start, end), &upto) in openers.iter().zip(&upto) {
+    for (&(start, end), &upto) in openers.iter().zip(upto) {
         if upto == 0 || start < covered {
             continue;
         }
