@@ -8,19 +8,19 @@ pub const ESTIMATED_UNIT: &str = "tokens_est";
 
 /// Default daily input-token cap for every agent when the config says nothing.
 ///
-/// Calibration (H-03): the owner chose 2,000,000 input tokens/day — the
+/// Calibration: the owner chose 2,000,000 input tokens/day — the
 /// previous 100,000 was hit during ordinary daily use. The shape of the cap
 /// (reservation, latch, warning, explicit `unlimited` opt-out) is unchanged.
 pub const DEFAULT_DAILY_TOKENS_IN: u64 = 2_000_000;
 
 /// Default daily output-token cap for every agent when the config says nothing.
 ///
-/// Calibration (H-03): raised with the input cap (400,000 output tokens/day).
+/// Calibration: raised with the input cap (400,000 output tokens/day).
 pub const DEFAULT_DAILY_TOKENS_OUT: u64 = 400_000;
 
 /// Default daily spend cap (cents) for every agent when the config says nothing.
 ///
-/// Calibration (H-03): 500 cents/day (the previous 50 cents/day was reached
+/// Calibration: 500 cents/day (the previous 50 cents/day was reached
 /// during ordinary daily use).
 pub const DEFAULT_DAILY_USD_CENTS: u64 = 500;
 

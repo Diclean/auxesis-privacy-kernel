@@ -4,7 +4,7 @@ use super::model::Config;
 use serde::{Deserialize, Serialize};
 
 /// Default wait before an unanswered approval is denied (`[approval]
-/// timeout_secs`). Calibration H-04: long enough for a human to notice the
+/// timeout_secs`). Calibration: long enough for a human to notice the
 /// card during daily use; the turn timeout still bounds it (see
 /// [`Config::approval_timeout`]).
 pub const DEFAULT_APPROVAL_TIMEOUT_SECS: u64 = 600;
@@ -16,14 +16,14 @@ pub enum ApprovalMode {
     /// Clean, sandboxed, local calls and `delegate` run without a card.
     #[default]
     Auto,
-    /// Every ask shows a card (the behaviour before APPROVAL-MODES).
+    /// Every ask shows a card (the behaviour before the approval modes).
     Ask,
 }
 
 /// Interactive approval settings (`[approval]` in `config.toml`).
 ///
 /// The approval timeout is a **fail-closed** bound: an unanswered card is a
-/// deny (H-04 keeps that). What changed is the value and where it comes
+/// deny (the calibration keeps that). What changed is the value and where it comes
 /// from — 600 s by default, owner-tunable, and always strictly below the
 /// turn timeout so the turn can still report the denial instead of being
 /// killed first ([`Config::approval_timeout`]).
@@ -34,7 +34,7 @@ pub struct ApprovalConfig {
     /// `0` falls back to [`DEFAULT_APPROVAL_TIMEOUT_SECS`]. Clamped strictly
     /// below the turn timeout (see [`Config::approval_timeout`]).
     pub timeout_secs: u64,
-    /// SHELL-JUDGE: under `approvals = "auto"`, a clean, sandboxed `shell`
+    /// Under `approvals = "auto"`, a clean, sandboxed `shell`
     /// ask with the network off goes to a judge model before the card (default
     /// true). A value that is not a boolean turns it off.
     #[serde(deserialize_with = "bool_or_off")]
@@ -66,7 +66,7 @@ fn bool_or_off<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<bool
 
 impl Config {
     /// The approval wait, never zero and always **strictly below** the turn
-    /// timeout (H-04).
+    /// timeout.
     ///
     /// An unanswered approval is a deny either way; the clamp only decides
     /// which bound reports it. If the approval timeout reached or crossed

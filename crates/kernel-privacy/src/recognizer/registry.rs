@@ -27,18 +27,18 @@ pub struct Registry {
     pub(super) recognizers: Vec<Box<dyn Recognizer>>,
     pub(super) context: ContextEnhancer,
     pub(super) thresholds: Thresholds,
-    /// The email-aware post-pass of slice 1e. `None` reproduces the pre-1e
-    /// behaviour exactly, which the eval harness uses as its "before" arm.
+    /// The email-aware post-pass. `None` reproduces the behaviour without it
+    /// exactly, which the eval harness uses as its "before" arm.
     pub(super) email_layer: Option<EmailLayer>,
     /// Whether person and organisation spans reach the overlap merge. A private
-    /// gate turns this off (NAMES-OFF): a name dropped only after the merge
+    /// gate turns this off: a name dropped only after the merge
     /// would take the hard value it overlapped with it.
     pub(super) keep_names: bool,
 }
 
 impl Registry {
     /// The default registry: every recogniser, default context and thresholds,
-    /// and the email-aware layer (slice 1e).
+    /// and the email-aware layer.
     ///
     /// The unverified rules (NIR, SIRET, passport MRZ) are mounted too: their
     /// spans are relabelled `NATIONAL_ID` at a lower score, never dropped.
@@ -121,7 +121,7 @@ impl Registry {
         if !glyph.get() {
             return main;
         }
-        // NORM-GLYPH: some view held a full-width `＆`, `＃` or `％`, so the glyph
+        // Some view held a full-width `＆`, `＃` or `％`, so the glyph
         // folds may read an escape the main folds leave alone. The whole pipeline
         // runs again on those folds, and the masks are the union of both runs:
         // every main region stays covered, with its prohibited kind
@@ -141,7 +141,7 @@ impl Registry {
     /// through this view, because the layer's name cues depend on the words
     /// around a value, and masking changes those words.
     ///
-    /// It reads the main folds only, never the NORM-GLYPH ones: a refusal comes
+    /// It reads the main folds only, never the glyph ones: a refusal comes
     /// from this scan, so what refuses is exactly what refused before the extra
     /// views existed.
     pub fn analyze_values(&self, text: &str) -> Vec<Span> {
@@ -257,7 +257,7 @@ impl Registry {
                 }
             }
         }
-        // NORM-1 and NORM-2: every decoded view, every fold of one and every
+        // Every decoded view, every fold of one and every
         // fold of the raw text are the first round of the composition below.
         let mut frontier: Vec<Chain> = Vec::new();
         for view in views.into_iter().filter(|view| view.text() != text) {
@@ -279,14 +279,14 @@ impl Registry {
             }
             frontier.push(chain.to_vec());
         }
-        // NORM-1: look-alike, full-width, mathematical and invisible characters
+        // Look-alike, full-width, mathematical and invisible characters
         // read as the ASCII they stand for, and a span maps back to every byte.
         for view in folded_views(text) {
             let chain = vec![Step::Folded(view)];
             self.scan_chain(&chain, text, &mut candidates, &mut seeds);
             frontier.push(chain);
         }
-        // NORM-2: decoding and folding compose.
+        // Decoding and folding compose.
         self.compose(
             &mut frontier,
             text,
@@ -340,7 +340,7 @@ impl Registry {
         // Open mode, hide every byte the merge with names gave a prohibited
         // region. Such a region is appended, tagged [`NAME_WIDENED`], when it
         // reads a letter or digit the regions without names leave clear; the
-        // gate masks it after its main rounds (GATE-REGISTRY-GAP-1).
+        // gate masks it after its main rounds.
         let named = regions(candidates.clone());
         candidates
             .retain(|span| !matches!(span.kind, EntityKind::Person | EntityKind::Organization));
@@ -375,7 +375,7 @@ impl Registry {
         );
     }
 
-    /// NORM-2: decoding and folding compose, because a fold creates escapes of
+    /// Decoding and folding compose, because a fold creates escapes of
     /// its own — `&#65286;` decodes to `＆`, whose fold supplies the `&` of
     /// `&#105;`, which a second decode reads as the `i` of `sk-proj`, and that
     /// folds again (`о` reads as `o`).

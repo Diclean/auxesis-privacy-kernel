@@ -74,7 +74,7 @@ pub(crate) fn fold(text: &str) -> Folded {
 /// folded to Latin inside a Latin word, so `C\u{430}mille` matches `Camille`.
 /// Every other word keeps its letters: a pure word is not read as Latin, so
 /// `папа` is not `Nana`. Cyrillic and Greek are out of Private mode's language
-/// scope (owner 2026-10-10), so no Cyrillic or Greek word folds to another letter.
+/// scope, so no Cyrillic or Greek word folds to another letter.
 pub(crate) fn fold_homoglyphs(text: &str) -> Folded {
     fold_with(text, false, true, true, true)
 }

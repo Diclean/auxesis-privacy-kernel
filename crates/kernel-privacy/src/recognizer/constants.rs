@@ -21,7 +21,7 @@ pub const MAX_SPAN_BYTES: usize = 128;
 /// still splits, so a token stays bounded.
 pub const MAX_KEY_SPAN_BYTES: usize = 512;
 
-/// Rounds of decode and fold the registry composes (NORM-2). A fold creates
+/// Rounds of decode and fold the registry composes. A fold creates
 /// escapes of its own (`＆` folds to `&`, so `&#105;` reads only after a second
 /// decode) and what that escape reads folds again. Real mail nests one or two
 /// layers; the cap keeps adversarial nesting a fixed number of linear passes.

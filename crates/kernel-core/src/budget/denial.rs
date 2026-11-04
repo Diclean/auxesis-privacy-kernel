@@ -27,7 +27,7 @@ pub enum DenialReason {
     /// local day. Written by
     /// [`ReservationLedger::settle`](super::reservation::ReservationLedger::settle)
     /// when a provider
-    /// settles above its admitted reservation (B-01R).
+    /// settles above its admitted reservation.
     FailClosed {
         /// Why the day was closed (which kind reached its cap, and where).
         message: String,

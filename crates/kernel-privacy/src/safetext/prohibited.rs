@@ -78,7 +78,7 @@ pub(super) fn is_hash_fragment(text: &str, span: &Span) -> bool {
 /// Keep each full overlap union and its best prohibited label, so masking or
 /// removal cannot leave the tail of a prohibited-containing region clear.
 /// The ranges the gate hides as secrets on top of its detector's spans, in
-/// both modes: the export columns of a table (SECRET-LEAK-294B). Public for the
+/// both modes: the export columns of a table. Public for the
 /// tests' exact reader of an Open output.
 #[doc(hidden)]
 pub fn export_column_ranges(text: &str) -> Vec<(usize, usize)> {
@@ -95,7 +95,7 @@ pub(super) fn export_spans(text: &str) -> Vec<Span> {
 
 /// Remove and return the [`NAME_WIDENED`] regions of `spans`: the gate masks
 /// them once its main rounds have settled, as `extra`, so they never change
-/// what those rounds hide (SECRET-LEAK-294B, GATE-REGISTRY-GAP-1).
+/// what those rounds hide.
 pub(super) fn take_widened(spans: &mut Vec<Span>) -> Vec<Span> {
     let (widened, rest) = std::mem::take(spans)
         .into_iter()

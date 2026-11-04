@@ -3,7 +3,7 @@
 //! Everything lives under the *Auxesis home*: `$AUXESIS_HOME` when set,
 //! otherwise `$HOME/.auxesis`.
 //!
-//! # The sandbox guard (J-02)
+//! # The sandbox guard
 //!
 //! [`ensure_sandbox_guard`] is the single entry point every workspace binary
 //! calls before it reads or creates anything. It resolves the real home from

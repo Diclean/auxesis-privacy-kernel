@@ -25,7 +25,7 @@ pub const GLINER_PII_LABELS: [&str; 12] = [
 pub const DEFAULT_THRESHOLD: f32 = 0.5;
 
 /// Score floor for the labels only the model can see: names, organisations and
-/// addresses (NER-THRESH, 2026-10-14). Private mode tokenises and never
+/// addresses. Private mode tokenises and never
 /// refuses, so an extra mask is cheap while a missed name leaks. On the EN
 /// messy-email split, name recall rises from 0.85 to 0.91 (bare first names
 /// 0.68 to 0.82) for a precision drop from 0.83 to 0.79; clean EN recall is

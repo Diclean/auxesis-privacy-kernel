@@ -2,10 +2,10 @@
 //!
 //! A data path either passes the privacy kernel (its registry row is `Allow`
 //! and, in private mode, `Covered`) or is disabled. A path with no row is
-//! disabled in **both** modes: unknown means closed (soul rule 5).
+//! disabled in **both** modes: unknown means closed.
 //!
-//! This module is the library half of Wave 1a. Wave 1b wires it into the
-//! tool engine, the channels, the providers and the daemon: each choke point
+//! This module is the library half of the privacy gate: the tool engine, the
+//! channels, the providers and the daemon wire it in, each choke point
 //! calls [`admit_call`] (for a call) or [`may_mount`] (for a registration).
 //! The wiring table lives in `the daemon's privacy_wiring`.
 //!
@@ -20,7 +20,7 @@
 //!   conversation.
 //! * [`disable_core_dumps`]: `RLIMIT_CORE=0`, so a crash leaves no memory image.
 //!
-//! ## Wave 1b wiring
+//! ## The wiring
 //!
 //! Every choke point calls [`admit_call`] before a call (or [`may_mount`]
 //! before a registration). The provider, channel and tool wrappers live next
@@ -32,8 +32,8 @@
 //! The mode a long-running choke point uses is a [`ModeFn`], read again at
 //! each call, never a value captured when the turn or job started.
 //!
-//! Not in Wave 1b (see the PR body): the broker mint for an approved `Ask`,
-//! and executors that take `&Grant` together with SafeText (#169).
+//! Not wired here: the broker mint for an approved `Ask`, and executors that
+//! take `&Grant` together with SafeText.
 
 mod core_dumps;
 mod gate;

@@ -50,7 +50,7 @@ impl<'a> BudgetGuard<'a> {
     ///
     /// Only an explicit `unlimited = true` enforces nothing and allows
     /// without touching the ledger; absent or zero fields fall back to the
-    /// conservative per-kind defaults (E-17).
+    /// conservative per-kind defaults.
     pub fn check(&self, agent: &str) -> Decision {
         let caps = self.budgets.caps_for(agent);
         if caps.is_unlimited() {

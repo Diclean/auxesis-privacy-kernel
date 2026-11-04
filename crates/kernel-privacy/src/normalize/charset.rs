@@ -26,7 +26,7 @@ pub(super) fn normalize_char(ch: char) -> Option<char> {
 /// Fold the fullwidth ASCII block U+FF01–U+FF5E to ASCII `!`–`~`.
 ///
 /// This covers the fullwidth letters, the commercial `＠`, and the fullwidth
-/// punctuation this layer used to leak (`．` U+FF0E, `＋` U+FF0B, `－` U+FF0D,
+/// punctuation this layer folds to ASCII (`．` U+FF0E, `＋` U+FF0B, `－` U+FF0D,
 /// `／` U+FF0F, `：` U+FF1A, `（`/`）` U+FF08/U+FF09). Fullwidth digits are
 /// already handled by [`unicode_digit_value`], which runs first.
 fn fullwidth_ascii(ch: char) -> Option<char> {

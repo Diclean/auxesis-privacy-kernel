@@ -71,7 +71,7 @@ pub(super) const PACKAGE_READ_BACK_FILES: &[&str] = &[
 /// globs at interpreter startup — without it every `ruby`/`gem`/`bundler`
 /// call dies with `EPERM`.
 ///
-/// H-07 (calibration): Homebrew's own `Library/Homebrew` tree is here too —
+/// Homebrew's own `Library/Homebrew` tree is here too —
 /// that is where the `brew` executable lives and where `brew --version`,
 /// `brew list` and `brew info` read their own code and formula metadata from.
 /// Without it every `brew` call dies on `EPERM`. The rest of `Library` stays
@@ -91,7 +91,7 @@ pub(super) const READ_BACK_DIRS: &[&str] = &[
 /// Directories whose programs may be **executed** after the deny, in addition
 /// to the read-back above.
 ///
-/// H-07: `brew` is a shell script that re-execs its own vendored Ruby out of
+/// `brew` is a shell script that re-execs its own vendored Ruby out of
 /// `Library/Homebrew` (`vendor/portable-ruby/current/bin/ruby`); read access
 /// alone still fails when that binary is run. Both trees are read-only: the
 /// profile never grants a write under them, so `brew install`/`brew upgrade`

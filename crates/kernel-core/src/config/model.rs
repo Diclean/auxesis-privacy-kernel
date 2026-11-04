@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 /// Default hard cap on one API turn (`POST /v1/threads/{id}/messages`).
 ///
-/// Calibration H-05: 1,800 s. The previous 300 s cut real work (long tool
+/// Calibration: 1,800 s. The previous 300 s cut real work (long tool
 /// loops, slow providers) mid-turn; the cap still exists, it is just no
 /// longer the first thing that fires.
 pub const DEFAULT_TURN_TIMEOUT_SECS: u64 = 1800;
@@ -38,7 +38,7 @@ pub struct Config {
     ///
     /// Absent fields keep the conservative defaults: a fresh install is
     /// capped, never silently unlimited. An empty `[budgets.default]` table
-    /// (what every pre-E-17 config carries) also keeps them.
+    /// (what every older config carries) also keeps them.
     pub budgets: Budgets,
     /// Per-model prices (`[prices.models.<model>]`), in whole cents per
     /// million tokens. Used to record `usd_cents` spend from token counts
@@ -57,7 +57,7 @@ pub struct Config {
     /// tainted calls and explicit `[[rules]]` still decide. `ask` is the
     /// card for every ask.
     pub approvals: ApprovalMode,
-    /// ACP agent backends (`[acp]`), off by default (ACP-A0 ships behind a
+    /// ACP agent backends (`[acp]`), off by default (they ship behind a
     /// flag until the security review passes).
     pub acp: AcpConfig,
     /// Web egress policy (`[web]`). A GET is egress, not a local read.
@@ -86,10 +86,10 @@ impl Default for Config {
         Self {
             version: 1,
             log_level: "info".to_string(),
-            // The chief (AGENT-DEFAULT): the owner talks to Aux, which
+            // The chief: the owner talks to Aux, which
             // delegates to the domain agents.
             default_agent: "aux".to_string(),
-            // E-17: the default posture is capped, not unlimited. The values
+            // The default posture is capped, not unlimited. The values
             // are documented in `budget::BudgetCaps::conservative_default`.
             budgets: Budgets::default(),
             prices: PriceTable::default(),
