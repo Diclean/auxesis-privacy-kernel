@@ -139,6 +139,7 @@ pub fn env_key_declared(key: &str) -> bool {
 #[derive(Clone)]
 pub struct StdioCommand {
     program: PathBuf,
+    pub(super) verified_sha: Option<String>,
     pub(super) args: Vec<OsString>,
     pub(super) env: BTreeMap<&'static str, OsString>,
     /// User-declared secret names from `mcp.toml` (`env = [...]`), resolved
@@ -162,10 +163,17 @@ impl StdioCommand {
         }
         Ok(Self {
             program,
+            verified_sha: None,
             args: Vec::new(),
             env: BTreeMap::new(),
             declared_env: BTreeMap::new(),
         })
+    }
+
+    /// Carry the exact hash used for confirmation into the spawn path.
+    pub(crate) fn verified_sha(mut self, sha: String) -> Self {
+        self.verified_sha = Some(sha);
+        self
     }
 
     /// Append one argument, passed to the child verbatim.

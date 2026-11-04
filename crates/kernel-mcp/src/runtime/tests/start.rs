@@ -45,10 +45,10 @@ async fn runtime_start_refuses_an_unconfirmed_stdio_server_by_default() {
     assert_eq!(runtime.statuses().len(), 1);
     assert_eq!(
         runtime.statuses()[0].state,
-        McpServerState::Failed,
-        "the default options must refuse an unconfirmed stdio spawn"
+        McpServerState::NeedsApproval,
+        "the default options must refuse an unapproved stdio server first"
     );
-    assert_eq!(runtime.statuses()[0].reason, Some("command_refused"));
+    assert_eq!(runtime.statuses()[0].reason, Some("not_approved"));
     assert_eq!(runtime.tool_count(), 0);
 }
 
@@ -58,7 +58,6 @@ async fn runtime_start_refuses_an_unconfirmed_stdio_server_by_default() {
 /// straight into discovery/spawn; only incidental checks (the empty default
 /// confirmation key) stop a `stdio` one, reported as an opaque `failed`.
 #[tokio::test]
-#[ignore = "KMCP-HARDEN-a: fails until the fix lands"]
 async fn kmcp_harden_a_start_never_mounts_an_unapproved_stdio_server() {
     let mut server = stdio_server("s", "/usr/local/bin/tool");
     server.approval = None;

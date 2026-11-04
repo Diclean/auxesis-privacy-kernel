@@ -313,7 +313,6 @@ async fn a_loopback_http_server_is_discovered_and_mounted() {
 /// Desired: `start` refuses/quarantines the unapproved server up front with a
 /// clear state and never discovers it.
 #[tokio::test]
-#[ignore = "KMCP-HARDEN-a: fails until the fix lands"]
 async fn kmcp_harden_a_start_never_mounts_an_unapproved_http_server() {
     let server = McpServerConfig {
         id: "web".to_owned(),

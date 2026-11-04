@@ -25,7 +25,6 @@ use kernel_mcp::{
 };
 
 #[tokio::test]
-#[ignore = "KMCP-HARDEN-b: fails until the fix lands"]
 async fn kmcp_harden_b_replaced_program_before_first_spawn_is_refused() {
     let dir = tempfile::tempdir().unwrap();
     let bin = dir.path().join("server");

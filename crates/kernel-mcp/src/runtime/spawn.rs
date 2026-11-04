@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::config::McpServerConfig;
+use crate::config::{binary_sha256, McpServerConfig};
 use crate::stdio::{StdioCommand, StdioLimits, StdioTransport};
 
 use super::status::McpStartError;
@@ -45,12 +45,18 @@ pub(super) fn build_stdio_transport(
     // SHA-256, so a binary swapped after confirmation is refused here.
     // Item 6 (defence in depth): a missing key is not a bypass — with
     // no key nothing can be confirmed, so the spawn is refused.
+    let sha = binary_sha256(std::path::Path::new(&canonical));
     match confirmation_secret {
-        Some(secret) if launch.stdio_is_confirmed_with(secret) => {}
+        Some(secret)
+            if launch.stdio_confirmed
+                && launch.stdio_confirmation.is_some()
+                && launch.confirmation_binding_for_sha(secret, &sha)
+                    == launch.stdio_confirmation => {}
         _ => return Err(McpStartError::Command("confirmation_missing")),
     }
     let mut pinned = StdioCommand::new(canonical.as_str())
         .map_err(|_| McpStartError::Command("invalid absolute command"))?
+        .verified_sha(sha)
         .args(server.args.iter().cloned());
     for name in &server.env {
         let Some(value) = secrets.get(name) else {
