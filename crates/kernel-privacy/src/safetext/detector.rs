@@ -185,31 +185,19 @@ impl Detector for StandardDetector {
 /// The assistant's own names, never a person: the product and its chief.
 pub const ASSISTANT_NAMES: &[&str] = &["Aux", "Auxesis"];
 
-/// A detector that drops the person spans naming the assistant itself. The
-/// owner's own contacts always win: a span the known-names dictionary produced
-/// stays masked, whatever the terms say.
-pub(super) struct NonPersonTerms {
-    pub(super) inner: Arc<dyn Detector>,
-    /// Folded terms.
-    pub(super) terms: BTreeSet<String>,
+/// A detector that runs `inner` and passes every span list it returns through
+/// `filter`, on every [`Detector`] method. Name coverage is `inner`'s, unchanged.
+struct Filtered<F> {
+    inner: Arc<dyn Detector>,
+    filter: F,
 }
 
-impl NonPersonTerms {
-    fn filter(&self, text: &str, mut spans: Vec<Span>) -> Vec<Span> {
-        spans.retain(|span| {
-            span.kind != EntityKind::Person
-                || span.recognizer == crate::known_names::KNOWN_NAMES
-                || !text
-                    .get(span.start..span.end)
-                    .is_some_and(|value| self.terms.contains(&crate::public_terms::fold(value)))
-        });
-        spans
-    }
-}
-
-impl Detector for NonPersonTerms {
+impl<F> Detector for Filtered<F>
+where
+    F: Fn(&str, Vec<Span>) -> Vec<Span> + Send + Sync,
+{
     fn detect(&self, text: &str) -> Result<Vec<Span>, DetectError> {
-        Ok(self.filter(text, self.inner.detect(text)?))
+        Ok((self.filter)(text, self.inner.detect(text)?))
     }
 
     fn checks_names(&self) -> bool {
@@ -218,25 +206,47 @@ impl Detector for NonPersonTerms {
 
     fn detect_covered(&self, text: &str) -> Result<(Vec<Span>, bool), DetectError> {
         let (spans, covered) = self.inner.detect_covered(text)?;
-        Ok((self.filter(text, spans), covered))
+        Ok(((self.filter)(text, spans), covered))
     }
 
     fn detect_pair_covered(&self, first: &str, second: &str) -> Result<DetectionPair, DetectError> {
         let ((first_spans, first_covered), (second_spans, second_covered)) =
             self.inner.detect_pair_covered(first, second)?;
         Ok((
-            (self.filter(first, first_spans), first_covered),
-            (self.filter(second, second_spans), second_covered),
+            ((self.filter)(first, first_spans), first_covered),
+            ((self.filter)(second, second_spans), second_covered),
         ))
     }
 
     fn detect_patterns(&self, text: &str) -> Result<Vec<Span>, DetectError> {
-        Ok(self.filter(text, self.inner.detect_patterns(text)?))
+        Ok((self.filter)(text, self.inner.detect_patterns(text)?))
     }
 
     fn residue(&self, text: &str) -> Result<Vec<Span>, DetectError> {
-        Ok(self.filter(text, self.inner.residue(text)?))
+        Ok((self.filter)(text, self.inner.residue(text)?))
     }
+}
+
+/// `inner` without the person spans naming the assistant itself (`terms` are
+/// folded). The owner's own contacts always win: a span the known-names
+/// dictionary produced stays masked, whatever the terms say.
+pub(super) fn non_person_terms(
+    inner: Arc<dyn Detector>,
+    terms: BTreeSet<String>,
+) -> Arc<dyn Detector> {
+    Arc::new(Filtered {
+        inner,
+        filter: move |text: &str, mut spans: Vec<Span>| {
+            spans.retain(|span| {
+                span.kind != EntityKind::Person
+                    || span.recognizer == crate::known_names::KNOWN_NAMES
+                    || !text
+                        .get(span.start..span.end)
+                        .is_some_and(|value| terms.contains(&crate::public_terms::fold(value)))
+            });
+            spans
+        },
+    })
 }
 
 static DEFAULT_DETECTOR: OnceLock<Arc<StandardDetector>> = OnceLock::new();
@@ -257,57 +267,74 @@ pub(super) fn egress_detector(grant: &Grant, standard: StandardDetector) -> Arc<
 }
 
 /// The private-mode form of `standard`: names dropped before the merge, and
-/// [`WithoutNames`] behind it.
+/// [`without_names_guard`] behind it.
 pub(super) fn without_names(standard: StandardDetector) -> Arc<dyn Detector> {
-    Arc::new(WithoutNames(Arc::new(standard.without_names())))
+    without_names_guard(Arc::new(standard.without_names()))
 }
 
 /// `inner` without its person and organisation spans: a second guard behind
 /// [`Registry::without_names`], for any span a wrapped detector adds after the
 /// registry ran.
-struct WithoutNames(Arc<dyn Detector>);
-
-impl WithoutNames {
-    fn keep(mut spans: Vec<Span>) -> Vec<Span> {
-        spans.retain(|span| !matches!(span.kind, EntityKind::Person | EntityKind::Organization));
-        spans
-    }
-}
-
-impl Detector for WithoutNames {
-    fn detect(&self, text: &str) -> Result<Vec<Span>, DetectError> {
-        Ok(Self::keep(self.0.detect(text)?))
-    }
-
-    fn checks_names(&self) -> bool {
-        self.0.checks_names()
-    }
-
-    fn detect_covered(&self, text: &str) -> Result<(Vec<Span>, bool), DetectError> {
-        let (spans, covered) = self.0.detect_covered(text)?;
-        Ok((Self::keep(spans), covered))
-    }
-
-    fn detect_pair_covered(&self, first: &str, second: &str) -> Result<DetectionPair, DetectError> {
-        let ((first_spans, first_covered), (second_spans, second_covered)) =
-            self.0.detect_pair_covered(first, second)?;
-        Ok((
-            (Self::keep(first_spans), first_covered),
-            (Self::keep(second_spans), second_covered),
-        ))
-    }
-
-    fn detect_patterns(&self, text: &str) -> Result<Vec<Span>, DetectError> {
-        Ok(Self::keep(self.0.detect_patterns(text)?))
-    }
-
-    fn residue(&self, text: &str) -> Result<Vec<Span>, DetectError> {
-        Ok(Self::keep(self.0.residue(text)?))
-    }
+fn without_names_guard(inner: Arc<dyn Detector>) -> Arc<dyn Detector> {
+    Arc::new(Filtered {
+        inner,
+        filter: |_: &str, mut spans: Vec<Span>| {
+            spans
+                .retain(|span| !matches!(span.kind, EntityKind::Person | EntityKind::Organization));
+            spans
+        },
+    })
 }
 
 pub(super) fn default_detector() -> Arc<dyn Detector> {
     DEFAULT_DETECTOR
         .get_or_init(|| Arc::new(StandardDetector::new()))
         .clone()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::known_names::KNOWN_NAMES;
+
+    /// A fixed span list on every method, with name coverage claimed.
+    struct Fixed;
+
+    impl Detector for Fixed {
+        fn detect(&self, _: &str) -> Result<Vec<Span>, DetectError> {
+            Ok(vec![
+                Span::new(EntityKind::Person, 0, 3, 0.9, "stub"),
+                Span::new(EntityKind::Person, 4, 9, 0.9, KNOWN_NAMES),
+                Span::new(EntityKind::Organization, 10, 13, 0.8, "stub"),
+                Span::new(EntityKind::Email, 14, 21, 1.0, "stub"),
+            ])
+        }
+
+        fn checks_names(&self) -> bool {
+            true
+        }
+    }
+
+    /// Both guards filter every method's spans the same way and keep the
+    /// inner detector's name coverage.
+    #[test]
+    fn filtered_guards_apply_on_every_method() {
+        let text = "Aux Alice Acm a@b.co";
+        let terms = BTreeSet::from(["aux".to_string(), "alice".to_string()]);
+        let terms = non_person_terms(Arc::new(Fixed), terms);
+        let names = without_names_guard(Arc::new(Fixed));
+        for (detector, kept) in [(terms, vec![4, 10, 14]), (names, vec![14])] {
+            let ((first, covered), (second, _)) = detector.detect_pair_covered(text, text).unwrap();
+            assert!(covered && detector.checks_names());
+            let (spans, covered) = detector.detect_covered(text).unwrap();
+            assert!(covered);
+            let patterns = detector.detect_patterns(text).unwrap();
+            let residue = detector.residue(text).unwrap();
+            let detect = detector.detect(text).unwrap();
+            for spans in [first, second, spans, patterns, residue, detect] {
+                let starts: Vec<usize> = spans.iter().map(|span| span.start).collect();
+                assert_eq!(starts, kept);
+            }
+        }
+    }
 }

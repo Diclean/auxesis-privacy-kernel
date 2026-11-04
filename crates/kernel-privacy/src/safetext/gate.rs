@@ -12,7 +12,7 @@ use serde_json::Value;
 #[cfg(feature = "ner-gliner")]
 use super::deep::{DeepAdder, NameStack};
 use super::detector::{
-    default_detector, egress_detector, without_names, Detector, NonPersonTerms, StandardDetector,
+    default_detector, egress_detector, non_person_terms, without_names, Detector, StandardDetector,
     PRIVATE_DETECTOR,
 };
 use super::report::{DetectionReport, GateError};
@@ -144,10 +144,7 @@ impl Gate {
             }
         }
         if !folded.is_empty() {
-            self.detector = Arc::new(NonPersonTerms {
-                inner: self.detector,
-                terms: folded,
-            });
+            self.detector = non_person_terms(self.detector, folded);
         }
         self
     }
