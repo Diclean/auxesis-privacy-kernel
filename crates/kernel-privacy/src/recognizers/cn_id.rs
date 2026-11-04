@@ -47,21 +47,13 @@ const CHECK_CHARS: [char; 11] = ['1', '0', 'X', '9', '8', '7', '6', '5', '4', '3
 
 /// The Chinese resident identity card number, both the eighteen-character form
 /// and the legacy fifteen-character form.
-#[derive(Clone, Copy, Debug)]
-pub struct CnResidentIdRecognizer {
-    verified: bool,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CnResidentIdRecognizer;
 
 impl CnResidentIdRecognizer {
     /// Build the recogniser.
     pub fn new() -> Self {
-        Self { verified: true }
-    }
-}
-
-impl Default for CnResidentIdRecognizer {
-    fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -114,10 +106,6 @@ impl Recognizer for CnResidentIdRecognizer {
 
     fn name(&self) -> &'static str {
         "cn_resident_id"
-    }
-
-    fn verified(&self) -> bool {
-        self.verified
     }
 }
 

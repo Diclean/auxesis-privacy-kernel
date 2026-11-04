@@ -27,21 +27,13 @@ const TAJ_CUE_WINDOW: usize = 40;
 /// The label depends only on a cue: without a cue the registry masks the value
 /// as the generic `NATIONAL_ID` (never dropping a checksum-valid number);
 /// with a cue (`TAJ`, `társadalombiztosítási`) it keeps `HU_TAJ`.
-#[derive(Clone, Copy, Debug)]
-pub struct HuTajRecognizer {
-    verified: bool,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct HuTajRecognizer;
 
 impl HuTajRecognizer {
     /// Build the recogniser.
     pub fn new() -> Self {
-        Self { verified: true }
-    }
-}
-
-impl Default for HuTajRecognizer {
-    fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -80,10 +72,6 @@ impl Recognizer for HuTajRecognizer {
     fn name(&self) -> &'static str {
         "hu_taj"
     }
-
-    fn verified(&self) -> bool {
-        self.verified
-    }
 }
 
 /// Whether a TAJ cue appears within [`TAJ_CUE_WINDOW`] characters before
@@ -103,21 +91,13 @@ fn near_taj_cue(text: &str, start: usize) -> bool {
 ///
 /// As with TAJ, a cueless value is masked as `NATIONAL_ID`; only a cue
 /// (`adóazonosító`, `adószám`, `tax`) keeps the specific `HU_TAX_ID` label.
-#[derive(Clone, Copy, Debug)]
-pub struct HuTaxIdRecognizer {
-    verified: bool,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct HuTaxIdRecognizer;
 
 impl HuTaxIdRecognizer {
     /// Build the recogniser.
     pub fn new() -> Self {
-        Self { verified: true }
-    }
-}
-
-impl Default for HuTaxIdRecognizer {
-    fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -144,10 +124,6 @@ impl Recognizer for HuTaxIdRecognizer {
 
     fn name(&self) -> &'static str {
         "hu_taxid"
-    }
-
-    fn verified(&self) -> bool {
-        self.verified
     }
 }
 
@@ -241,5 +217,30 @@ mod tests {
         assert_eq!(HuTajRecognizer::new().name(), "hu_taj");
         assert_eq!(HuTaxIdRecognizer::new().kinds(), &[EntityKind::HuTaxId]);
         assert_eq!(HuTaxIdRecognizer::new().name(), "hu_taxid");
+    }
+
+    #[test]
+    fn every_hu_recogniser_keeps_its_kind_and_score() {
+        let taj = HuTajRecognizer::new().analyze("TAJ 123456788");
+        assert_eq!(taj.len(), 1);
+        assert_eq!(
+            (taj[0].kind, taj[0].score),
+            (EntityKind::HuTaj, AMBIGUOUS_SCORE)
+        );
+        // A cued TAJ with a bad check digit is kept for the cue, lower.
+        let typo = HuTajRecognizer::new().analyze("TAJ 123456789");
+        assert_eq!(
+            (typo[0].kind, typo[0].score),
+            (EntityKind::HuTaj, INVALID_TAJ_SCORE)
+        );
+        assert!(HuTajRecognizer::new().analyze("szám 123456789").is_empty());
+
+        let tax = HuTaxIdRecognizer::new().analyze("adóazonosító 8123456786");
+        assert_eq!(tax.len(), 1);
+        assert_eq!(
+            (tax[0].kind, tax[0].score),
+            (EntityKind::HuTaxId, AMBIGUOUS_SCORE)
+        );
+        assert!(HuTaxIdRecognizer::new().analyze("8123456787").is_empty());
     }
 }

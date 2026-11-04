@@ -22,21 +22,13 @@ pub const INVALID_SCORE: f32 = 0.55;
 
 /// NIR: thirteen digits or fifteen with the key (`97 - n mod 97`), Corsica
 /// `2A`/`2B` handled. The structure must hold; the key only sets the score.
-#[derive(Clone, Copy, Debug)]
-pub struct FrNirRecognizer {
-    verified: bool,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FrNirRecognizer;
 
 impl FrNirRecognizer {
     /// Build the recogniser (unverified, disabled by default).
     pub fn new() -> Self {
-        Self { verified: false }
-    }
-}
-
-impl Default for FrNirRecognizer {
-    fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -91,26 +83,18 @@ impl Recognizer for FrNirRecognizer {
     }
 
     fn verified(&self) -> bool {
-        self.verified
+        false
     }
 }
 
 /// SIREN: nine digits, Luhn-valid.
-#[derive(Clone, Copy, Debug)]
-pub struct FrSirenRecognizer {
-    verified: bool,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FrSirenRecognizer;
 
 impl FrSirenRecognizer {
     /// Build the recogniser.
     pub fn new() -> Self {
-        Self { verified: true }
-    }
-}
-
-impl Default for FrSirenRecognizer {
-    fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -131,28 +115,16 @@ impl Recognizer for FrSirenRecognizer {
     fn name(&self) -> &'static str {
         "fr_siren"
     }
-
-    fn verified(&self) -> bool {
-        self.verified
-    }
 }
 
 /// SIRET: fourteen digits, Luhn with the La Poste digit-sum exception.
-#[derive(Clone, Copy, Debug)]
-pub struct FrSiretRecognizer {
-    verified: bool,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FrSiretRecognizer;
 
 impl FrSiretRecognizer {
     /// Build the recogniser (unverified, disabled by default).
     pub fn new() -> Self {
-        Self { verified: false }
-    }
-}
-
-impl Default for FrSiretRecognizer {
-    fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -191,26 +163,18 @@ impl Recognizer for FrSiretRecognizer {
     }
 
     fn verified(&self) -> bool {
-        self.verified
+        false
     }
 }
 
 /// French VAT, numeric-key form (`FR` + key + SIREN).
-#[derive(Clone, Copy, Debug)]
-pub struct FrVatRecognizer {
-    verified: bool,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FrVatRecognizer;
 
 impl FrVatRecognizer {
     /// Build the recogniser.
     pub fn new() -> Self {
-        Self { verified: true }
-    }
-}
-
-impl Default for FrVatRecognizer {
-    fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -230,10 +194,6 @@ impl Recognizer for FrVatRecognizer {
 
     fn name(&self) -> &'static str {
         "fr_vat"
-    }
-
-    fn verified(&self) -> bool {
-        self.verified
     }
 }
 
@@ -814,5 +774,34 @@ mod tests {
         let spans = registry.analyze("TVA FR83404833048");
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].kind, EntityKind::FrVat);
+    }
+
+    #[test]
+    fn every_fr_recogniser_keeps_its_kind_and_score() {
+        let nir = FrNirRecognizer::new().analyze("NIR 202022A01806376");
+        assert_eq!((nir[0].kind, nir[0].score), (EntityKind::FrNir, 1.0));
+        // A shape-valid NIR with a wrong key still masks, at the doubt score.
+        let typo = FrNirRecognizer::new().analyze("NIR 202022A01806377");
+        assert_eq!(
+            (typo[0].kind, typo[0].score),
+            (EntityKind::FrNir, INVALID_SCORE)
+        );
+
+        let siren = FrSirenRecognizer::new().analyze("SIREN 732829320");
+        assert_eq!((siren[0].kind, siren[0].score), (EntityKind::FrSiren, 1.0));
+        assert!(FrSirenRecognizer::new().analyze("732829321").is_empty());
+
+        let siret = FrSiretRecognizer::new().analyze("73282932000074");
+        assert_eq!((siret[0].kind, siret[0].score), (EntityKind::FrSiret, 1.0));
+        // A fourteen-digit value with a bad key is kept, at the doubt score.
+        let typo = FrSiretRecognizer::new().analyze("35600000049838");
+        assert_eq!(
+            (typo[0].kind, typo[0].score),
+            (EntityKind::FrSiret, INVALID_SCORE)
+        );
+
+        let vat = FrVatRecognizer::new().analyze("TVA FR83404833048");
+        assert_eq!((vat[0].kind, vat[0].score), (EntityKind::FrVat, 1.0));
+        assert!(FrVatRecognizer::new().analyze("FR84404833048").is_empty());
     }
 }
