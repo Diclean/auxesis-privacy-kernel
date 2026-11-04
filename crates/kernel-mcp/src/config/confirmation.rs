@@ -426,3 +426,19 @@ mod tests {
         assert!(!server.is_install_approved(Some(secret), None));
     }
 }
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn old_version_vector_program() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("program");
+        std::fs::write(&file, b"fixed program\n").unwrap();
+        assert_eq!(
+            binary_sha256(&file),
+            "4a1176c9bbe0bde1a37765f9d69a79cc6eea2d04ea0af30c245368dcea65bdc8"
+        );
+    }
+}

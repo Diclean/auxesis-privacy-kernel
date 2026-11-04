@@ -42,7 +42,7 @@ kernel-net = { package = "auxesis-kernel-net", path = "../kernel-net", version =
 blake3 = "1"
 # Item 4: the confirmation digest pins the SHA-256 of the binary at the
 # canonical path, computed at confirm time and re-checked at spawn.
-sha2 = "0.10"
+sha2 = "0.11.1"
 libc = "0.2"
 reqwest = { workspace = true }
 serde.workspace = true
