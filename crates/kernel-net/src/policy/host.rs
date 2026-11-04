@@ -50,7 +50,9 @@ pub(crate) fn bare_host(url: &reqwest::Url) -> Option<String> {
 }
 
 /// True for a numeric spelling that is *not* a valid IP literal but is an
-/// attempt to smuggle one (`2130706433`, `0177.0.0.1`, `127.1`, `0x7f.1`).
+/// attempt to smuggle one: a single all-digit number (`2130706433`,
+/// `017700000001`), a dotted numeric form (`0177.0.0.1`, `127.1`) or a
+/// `0x`-prefixed form (`0x7f.1`, `0x7f000001`).
 pub(super) fn is_obfuscated_numeric_host(host: &str) -> bool {
     if host.is_empty() {
         return false;
@@ -58,5 +60,7 @@ pub(super) fn is_obfuscated_numeric_host(host: &str) -> bool {
     if host.starts_with("0x") || host.split('.').any(|label| label.starts_with("0x")) {
         return true;
     }
-    host.chars().all(|c| c.is_ascii_digit() || c == '.') && host.contains('.')
+    let all_digits = host.chars().all(|c| c.is_ascii_digit());
+    let dotted_numeric = host.chars().all(|c| c.is_ascii_digit() || c == '.') && host.contains('.');
+    all_digits || dotted_numeric
 }

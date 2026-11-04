@@ -31,8 +31,12 @@ fn wb_obfuscated_numeric_host_spellings() {
     assert!(is_obfuscated_numeric_host("0x7f000001"));
     assert!(is_obfuscated_numeric_host("0177.0.0.1"));
     assert!(is_obfuscated_numeric_host("127.1"));
-    // The dotless integer spelling is NOT caught here (no `.`): through
-    // `WebGate::check` the URL parser normalises it to an IPv4 literal
-    // first. The shape-check gap on the raw spelling is KNET-WB-1.
-    assert!(!is_obfuscated_numeric_host("2130706433"));
+    // A dotless all-digit spelling is refused here directly: it no longer
+    // relies on the URL parser normalising it to an IPv4 literal first.
+    assert!(is_obfuscated_numeric_host("2130706433"));
+    assert!(is_obfuscated_numeric_host("017700000001"));
+    // Names that merely contain digits are not numeric spellings.
+    for host in ["123.example", "web1.example.com", "a1b2.example"] {
+        assert!(!is_obfuscated_numeric_host(host), "{host}");
+    }
 }
