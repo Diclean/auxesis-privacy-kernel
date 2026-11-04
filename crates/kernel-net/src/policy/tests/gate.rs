@@ -106,6 +106,74 @@ fn url_and_query_caps_refuse_never_truncate() {
 }
 
 #[test]
+fn wb_unparseable_input_is_refused_as_not_http() {
+    let gate = web_gate(WebConfig::default());
+    assert_eq!(gate.check("not a url").unwrap_err(), DenyReason::NotHttp);
+    assert_eq!(gate.check("https://").unwrap_err(), DenyReason::NotHttp);
+}
+
+#[test]
+fn wb_numeric_spellings_are_ip_literals_after_url_normalisation() {
+    // The url crate parses these hosts as IPv4 (WHATWG rules) before the
+    // gate sees them, so the shape check classifies them as IpLiteral.
+    let gate = web_gate(WebConfig::default());
+    for url in [
+        "https://2130706433/",
+        "https://0177.0.0.1/",
+        "https://127.1/",
+        "https://0x7f.1/",
+    ] {
+        assert_eq!(gate.check(url).unwrap_err(), DenyReason::IpLiteral, "{url}");
+    }
+}
+
+#[test]
+#[ignore = "KNET-WB-1: check_host_shape misses the dotless integer spelling `2130706433` (is_obfuscated_numeric_host requires a `.`); today only the url-crate normalisation in check() catches it — see PR"]
+fn wb_dotless_integer_host_shape_is_refused() {
+    let gate = web_gate(WebConfig::default());
+    assert_eq!(
+        gate.check_host_shape("2130706433").unwrap_err(),
+        DenyReason::ObfuscatedHost
+    );
+}
+
+#[test]
+fn wb_no_known_port_is_not_http() {
+    let gate = web_gate(WebConfig::default());
+    // A non-special scheme has no known default port; refused before any DNS.
+    let url = reqwest::Url::parse("foo://example.com/").unwrap();
+    assert!(url.port_or_known_default().is_none());
+    assert_eq!(
+        gate.check_after_resolve(&url).unwrap_err(),
+        DenyReason::NotHttp
+    );
+}
+
+#[test]
+fn wb_empty_host_shape_is_not_http() {
+    let gate = web_gate(WebConfig::default());
+    assert_eq!(gate.check_host_shape("").unwrap_err(), DenyReason::NotHttp);
+}
+
+#[test]
+fn wb_host_of_text_hash_and_mode_label_support_the_audit_row() {
+    let gate = web_gate(WebConfig {
+        mode: kernel_core::WebMode::AlwaysAsk,
+        ..WebConfig::default()
+    });
+    assert_eq!(
+        gate.host_of("https://Example.COM/x"),
+        Some("example.com".to_string())
+    );
+    assert_eq!(gate.host_of("not a url"), None);
+    assert_eq!(gate.mode_label(), "always_ask");
+    let hash = gate.text_sha256("owner-private-notes");
+    assert_eq!(hash.len(), 64);
+    assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    assert_ne!(hash, "owner-private-notes");
+}
+
+#[test]
 fn permissive_test_gate_allows_loopback_but_keeps_deny_and_caps() {
     let gate = WebGate::permissive_for_tests(WebConfig {
         deny_domains: vec!["bad.example".to_string()],

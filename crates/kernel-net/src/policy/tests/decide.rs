@@ -317,6 +317,55 @@ fn allowlisted_hosts_are_silent_even_in_always_ask() {
 }
 
 #[test]
+fn wb_smart_allows_a_seen_origin_without_a_judge() {
+    // Smart with a seen origin allows; only the unseen case falls back to
+    // Ask(SmartJudgeUnavailable).
+    let gate = web_gate(WebConfig {
+        mode: WebMode::Smart,
+        ..WebConfig::default()
+    });
+    assert_eq!(
+        gate.decide(
+            "https://example.com/",
+            &EgressContext {
+                seen_origin: true,
+                ..EgressContext::default()
+            }
+        ),
+        EgressDecision::Allow
+    );
+}
+
+#[test]
+fn wb_decision_labels_are_stable_for_the_audit_row() {
+    assert_eq!(AskReason::SensitiveTurn.as_str(), "sensitive_turn");
+    assert_eq!(AskReason::ModeAlwaysAsk.as_str(), "mode_always_ask");
+    assert_eq!(
+        AskReason::ModeAskOncePerSite.as_str(),
+        "mode_ask_once_per_site"
+    );
+    assert_eq!(
+        AskReason::SmartJudgeUnavailable.as_str(),
+        "smart_judge_unavailable"
+    );
+    assert_eq!(
+        DenyReason::OriginNotApproved.to_string(),
+        "origin_not_approved"
+    );
+    assert_eq!(DenyReason::ObfuscatedHost.to_string(), "obfuscated_host");
+    assert_eq!(DenyReason::BudgetHost.to_string(), "budget_host");
+    assert_eq!(EgressDecision::Allow.as_str(), "allow");
+    assert_eq!(
+        EgressDecision::Ask(AskReason::ModeAlwaysAsk).as_str(),
+        "ask"
+    );
+    assert_eq!(EgressDecision::Deny(DenyReason::BudgetDay).as_str(), "deny");
+    assert_eq!(BudgetKind::Host.deny_reason(), DenyReason::BudgetHost);
+    assert_eq!(BudgetKind::Turn.deny_reason(), DenyReason::BudgetTurn);
+    assert_eq!(BudgetKind::Day.deny_reason(), DenyReason::BudgetDay);
+}
+
+#[test]
 fn an_allowlist_never_bypasses_the_sensitive_turn_ask_rule() {
     // The allowlisted-domain abuse (Cowork's own
     // allowlisted domain was used to exfiltrate) is why the sensitive-turn
