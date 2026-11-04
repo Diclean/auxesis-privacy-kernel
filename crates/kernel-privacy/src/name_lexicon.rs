@@ -7,7 +7,7 @@
 //! address position outside signature context; the two closed lists below are
 //! only part of that evidence. Any token the lexicons do not know stays masked.
 //!
-//! Both files are hand-curated and versioned ([`NAME_LEXICON_VERSION`]); a name
+//! Both files are hand-curated; a name
 //! is stored folded (lowercase, marks dropped) and one language is listed per
 //! line. `email_layer` has no language detector, so the lookup is over the
 //! union of every supported language: a token that is a given name in any of
@@ -19,12 +19,6 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use crate::public_terms::fold;
-
-/// Version of the bundled name lexicons. Bump it with the data files.
-///
-/// * `2` — strict vocative rule: adds the verified given/surname collisions the
-///   earlier lists missed (`Grace`, `János` and its family forms, `Halloran`, …).
-pub const NAME_LEXICON_VERSION: &str = "2";
 
 /// Common given names (EN, FR, AF, HU, ZH-pinyin, DE, NL).
 const GIVEN_NAMES: &str = include_str!("../data/given-names-v1.txt");
@@ -65,25 +59,14 @@ pub fn is_surname(folded: &str) -> bool {
     SURNAMES_SET.contains(folded)
 }
 
-/// The number of distinct given names loaded.
-pub fn given_name_count() -> usize {
-    GIVEN_NAMES_SET.len()
-}
-
-/// The number of distinct surnames loaded.
-pub fn surname_count() -> usize {
-    SURNAMES_SET.len()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn lexicons_load_and_are_versioned() {
-        assert_eq!(NAME_LEXICON_VERSION, "2");
-        assert!(given_name_count() >= 600, "{}", given_name_count());
-        assert!(surname_count() >= 400, "{}", surname_count());
+    fn lexicons_load() {
+        assert!(GIVEN_NAMES_SET.len() >= 600, "{}", GIVEN_NAMES_SET.len());
+        assert!(SURNAMES_SET.len() >= 400, "{}", SURNAMES_SET.len());
     }
 
     #[test]

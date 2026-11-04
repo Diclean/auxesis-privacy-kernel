@@ -251,16 +251,6 @@ impl DecodedText {
         &self.text
     }
 
-    /// The decoded byte offset of each decoded character.
-    pub fn char_starts(&self) -> &[usize] {
-        &self.char_starts
-    }
-
-    /// The original byte range of each decoded character.
-    pub fn char_bounds(&self) -> &[(usize, usize)] {
-        &self.char_bounds
-    }
-
     /// Map a byte range in the decoded view back to the original bytes.
     ///
     /// Returns `None` when the range is empty, out of bounds or not on a char

@@ -4,7 +4,7 @@ use std::fmt;
 
 use super::ContactIndex;
 
-/// Where a contact index is kept between sessions.
+/// Where a contact index is kept between sessions; the app can implement this trait.
 ///
 /// **The persistent store must be the encrypted local store (SQLCipher, slice
 /// 4), never plain files.** A contact index holds real names, e-mail addresses

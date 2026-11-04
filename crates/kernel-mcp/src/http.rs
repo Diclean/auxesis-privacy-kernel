@@ -256,11 +256,6 @@ impl HttpTransport {
         lock_recover(&self.last_event_id).clone()
     }
 
-    /// The negotiated MCP protocol revision, if `initialize` has run.
-    pub fn protocol_version(&self) -> Option<String> {
-        lock_recover(&self.protocol_version).clone()
-    }
-
     /// Refuse to act on a URL whose origin differs from the pinned one.
     fn check_origin(&self, url: &Url) -> Result<(), McpError> {
         let resolved = Origin::of(url).ok_or_else(|| McpError::OriginRefused {

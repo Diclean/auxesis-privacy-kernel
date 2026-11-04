@@ -44,11 +44,6 @@ impl ContextEnhancer {
         self
     }
 
-    /// The cue lists currently installed.
-    pub fn cues(&self) -> &[(EntityKind, &'static [&'static str])] {
-        &self.cues
-    }
-
     /// Boost `span` in place when a cue for its kind precedes it.
     pub fn enhance(&self, text: &str, span: &mut Span) {
         if span.start > text.len() || !text.is_char_boundary(span.start) {

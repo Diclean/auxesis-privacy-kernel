@@ -49,11 +49,6 @@ impl EmailLayer {
         self.mask_first_names
     }
 
-    /// The allowlist in force.
-    pub fn public_terms(&self) -> &PublicTerms {
-        &self.public_terms
-    }
-
     /// Run the layer with no seeds from another recogniser.
     pub fn analyze(&self, text: &str) -> Vec<Span> {
         self.apply(text, Vec::new(), &[])
