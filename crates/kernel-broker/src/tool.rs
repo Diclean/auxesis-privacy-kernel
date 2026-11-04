@@ -330,7 +330,7 @@ pub trait Tool: Send + Sync {
     /// Risk classification of this tool.
     fn risk(&self) -> Risk;
 
-    /// The privacy path this tool runs on (`docs/phase1.md` §2).
+    /// The privacy path this tool runs on (a row of the coverage matrix).
     ///
     /// Required, with no default: a new tool does not compile until it names
     /// its row. The registry drops the tool in private mode when that row is

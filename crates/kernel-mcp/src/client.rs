@@ -1,7 +1,7 @@
 //! The high-level MCP client: `initialize` → `tools/list` → `tools/call`.
 //!
 //! The client owns request ids and the pagination loop; the [`Transport`]
-//! (S1 ships [`crate::http::HttpTransport`], tests ship stubs) owns bytes. It
+//! ([`crate::http::HttpTransport`] in production, stubs in tests) owns bytes. It
 //! is deliberately vendor-free: it knows the MCP methods only.
 //!
 //! # Discovery is bounded hard

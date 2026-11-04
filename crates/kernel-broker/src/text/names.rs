@@ -31,7 +31,7 @@ const TOKEN_PREFIXES: &[&str] = &[
 const STRONG_NAME_COMPONENTS: &[&str] = &[
     "password",
     "passwd",
-    // E5-03/round 6: `DB_PASS`, `PASS`, `PW` are the same credential; the
+    // `DB_PASS`, `PASS`, `PW` are the same credential; the
     // exact-component match keeps `bypass`/`compass`/`passenger` readable
     // (the all-caps suffix rule is the only way these can appear glued).
     "pass",
@@ -45,7 +45,7 @@ const STRONG_NAME_COMPONENTS: &[&str] = &[
     "apikey",
     "authtoken",
     "authorization",
-    // B3-05: cookie-jar names carry session credentials without a
+    // Cookie-jar names carry session credentials without a
     // `Cookie:` header in front of them.
     "session",
     "sessionid",
@@ -60,7 +60,7 @@ const STRONG_NAME_COMPONENTS: &[&str] = &[
 const WEAK_NAME_COMPONENTS: &[&str] = &["key", "url", "uri", "webhook", "auth"];
 
 /// Components that name a digest, not a credential: `public_key_sha256` is a
-/// hash of public material and must stay readable (B2-08).
+/// hash of public material and must stay readable.
 const HASH_NAME_COMPONENTS: &[&str] = &[
     "sha1",
     "sha256",
@@ -108,7 +108,7 @@ pub(crate) struct NameInfo {
 /// Classify one assignment name. No allocation: names can be long and there
 /// can be many of them on an adversarial input.
 ///
-/// B5-02: leading/trailing padding is ignored — `{" api_key " : …}` names the
+/// Leading/trailing padding is ignored — `{" api_key " : …}` names the
 /// same credential as `{"api_key": …}`.
 pub(crate) fn classify_name(name: &str) -> NameInfo {
     let name = name.trim();
@@ -203,7 +203,7 @@ pub(crate) fn classify_name(name: &str) -> NameInfo {
         info.aux_key = true;
         info.strength = Strength::Strong;
     }
-    // B3-07: a name that ends in `id`/`uuid` names an identifier, not the
+    // A name that ends in `id`/`uuid` names an identifier, not the
     // credential itself (`token_id`, `session_id`, `access_key_id`). The
     // `AUX_KEY_` env shape keeps its own rule.
     if !info.aux_key
@@ -224,7 +224,7 @@ pub(crate) fn classify_name(name: &str) -> NameInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum HeaderGate {
     /// Redact when the value looks like an opaque secret (`Authorization:
-    /// none` must survive, P3-10).
+    /// none` must survive.
     Shaped,
     /// Redact the whole value: the header is a credential by definition.
     Whole,

@@ -10,7 +10,7 @@
 //! [`read_frame`] reads until the reader reports EOF. It **cannot** tell a
 //! complete body from a truncated-but-valid prefix: knowing whether a
 //! `Content-Length` was satisfied or an SSE stream delivered its terminal
-//! event is the transport's (S1's) job, not this crate's. Truncation
+//! event is the transport's job, not this crate's. Truncation
 //! detection therefore lives in the transport; `read_frame` alone never proves
 //! completeness.
 //!
@@ -225,7 +225,7 @@ pub fn read_frame<R: Read>(reader: &mut R, limit: usize) -> Result<Vec<u8>, McpE
 /// `fill_buf` windows is read as two lines (the CR ends the first, the LF is an
 /// empty second line); the streaming transport uses its own chunk-fed parser
 /// that holds a trailing CR back to cover the split, so this bounded helper
-/// exists only for the S0 line-bound tests.
+/// exists only for the line-bound tests.
 ///
 /// The reader cannot re-sync past an over-limit line, so a returned
 /// [`McpError::FrameTooLarge`] is terminal: the connection must be dropped,

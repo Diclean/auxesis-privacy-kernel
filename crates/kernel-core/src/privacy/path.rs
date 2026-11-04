@@ -1,5 +1,4 @@
-//! Stable ids for the data paths in the coverage matrix
-//! (`docs/phase1.md` §2).
+//! Stable ids for the data paths in the coverage matrix.
 
 use std::str::FromStr;
 

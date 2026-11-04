@@ -43,7 +43,7 @@
 //!   credentials are exposed, and the runtime cannot start without it, so this
 //!   is accepted.
 //! - The installer (app side) must refuse symlinks and hardlinks inside an
-//!   extension archive before extraction (implemented in the app WO-13b). The
+//!   extension archive before extraction (implemented in the app). The
 //!   sandbox trusts `install_dir` to hold the vetted tree; a link that escaped
 //!   it would otherwise let a path outside the install tree be read or
 //!   executed.

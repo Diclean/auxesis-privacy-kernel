@@ -4,9 +4,9 @@ use crate::tools::{MAX_TOOL_DESCRIPTION_BYTES, MAX_TOOL_SCHEMA_BYTES};
 
 /// Hard cap on a descriptor description, in bytes.
 pub const MAX_DESCRIPTION_BYTES: usize = MAX_TOOL_DESCRIPTION_BYTES;
-/// Hard cap on a remote tool name, in bytes (S1's parse-time cap).
+/// Hard cap on a remote tool name, in bytes (parse-time cap).
 pub const MAX_NAME_BYTES: usize = 48;
-/// Hard cap on a serialised input schema, in bytes (S1's parse-time cap).
+/// Hard cap on a serialised input schema, in bytes (parse-time cap).
 pub const MAX_SCHEMA_BYTES: usize = MAX_TOOL_SCHEMA_BYTES;
 
 /// Deepest schema nesting the sanitiser walks before it stops.

@@ -1,9 +1,9 @@
-//! stdio transport for a locally launched MCP server (M2.6 P1).
+//! stdio transport for a locally launched MCP server.
 //!
 //! Spawns one pinned command and speaks newline-delimited JSON-RPC 2.0 over
 //! its stdin/stdout. A single bounded-channel writer owns stdin and completes
 //! every accepted frame independently of caller cancellation. This is the
-//! transport seam P1 adds; the broker and the
+//! transport seam; the broker and the
 //! agent tools are deliberately **not** wired to it yet.
 //!
 //! # No shell, no inherited environment, no PATH lookup

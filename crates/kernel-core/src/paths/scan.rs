@@ -59,12 +59,12 @@ impl StartupScanFs for RealStartupScanFs {
     }
 }
 
-/// Refuse a sandbox home that contains a symlink at depth ≤ `depth`
-/// (J-02 round 5): sandbox homes are fresh temp directories and never need
-/// one, and a pre-planted `<home>/whatsapp -> outside` must not redirect
+/// Refuse a sandbox home that contains a symlink at depth ≤ `depth`:
+/// sandbox homes are fresh temp directories and never need one, and a
+/// pre-planted `<home>/whatsapp -> outside` must not redirect
 /// session/audit/voice reads or writes.
 ///
-/// FLAKY-03: an entry that disappears between `readdir` and `fstatat`
+/// An entry that disappears between `readdir` and `fstatat`
 /// (ENOENT) is skipped, not fatal. Another `aux` process closing the SQLite
 /// store unlinks `store.db-wal`/`store.db-shm` exactly while the daemon scans, and
 /// a name that no longer exists cannot be the symlink we would follow. Every

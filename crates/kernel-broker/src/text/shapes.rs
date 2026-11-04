@@ -22,7 +22,7 @@ pub(super) fn is_value_delim(c: char) -> bool {
 }
 
 /// Conservative "this is an opaque token, not an English word or code"
-/// test. Catches the B2-09 band: every 16–31 byte opaque run with a digit or
+/// test. Catches every 16–31 byte opaque run with a digit or
 /// punctuation, every run of ≥6 distinct bytes, and everything ≥32 bytes.
 pub(super) fn looks_like_secret(value: &str) -> bool {
     if value.starts_with("eyJ") && value.len() >= 12 {
@@ -53,10 +53,10 @@ pub(super) fn looks_like_secret(value: &str) -> bool {
 /// Loose value gate for the strongest names: any token-shaped value of at
 /// least six bytes that carries a digit, is all-caps/digit, has punctuation,
 /// or is long enough to be random. Keeps `short`, `None`, `required` and
-/// `parse(input)` readable (B2-08).
+/// `parse(input)` readable.
 ///
-/// B3-07 tightened the digit disjunct: an all-digit value of ten bytes or
-/// more is a numeric id or an epoch (`token: 1699999999999`), and a
+/// The digit disjunct is tight: an all-digit value of ten bytes or more
+/// is a numeric id or an epoch (`token: 1699999999999`), and a
 /// CamelCase identifier (`password: MySecretValue123`, a type name) is not
 /// key material by shape alone.
 fn plausible_token(value: &str) -> bool {
@@ -136,7 +136,7 @@ fn url_has_userinfo(value: &str) -> bool {
 }
 
 /// Start of the authority of a URL value: after `://`, or after a
-/// percent-encoded `%3A%2F%2F` scheme separator (B3-06). Case-insensitive.
+/// percent-encoded `%3A%2F%2F` scheme separator. Case-insensitive.
 fn url_authority_start(value: &str) -> Option<usize> {
     let bytes = value.as_bytes();
     let mut i = 0usize;
@@ -224,10 +224,10 @@ pub(super) fn value_is_secret(info: NameInfo, value: &str, quoted: bool) -> bool
     }
 }
 
-/// B5-03: a numeric JSON value under a strong secret name is key material
+/// A numeric JSON value under a strong secret name is key material
 /// once it is long enough to be one (the reported shape was an 18-digit
 /// `api_key`). Short numbers — ports, counters, epochs — stay readable, and
-/// the text tokenizer keeps its own B3-07 rule for `token: 1699999999999`.
+/// the text tokenizer keeps its own rule for `token: 1699999999999`.
 pub(super) fn numeric_secret(info: NameInfo, text: &str) -> bool {
     info.strength == Strength::Strong && text.bytes().filter(u8::is_ascii_digit).count() >= 16
 }

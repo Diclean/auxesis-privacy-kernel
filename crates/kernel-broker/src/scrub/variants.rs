@@ -16,7 +16,7 @@ use super::fold::is_scrub_noise;
 use super::*;
 
 /// Every searchable form of one secret: the value itself, its hex spelling
-/// (raw, `\xNN`-escaped, dump-separated — SB6-01), percent-encoded (both hex
+/// (raw, `\xNN`-escaped, dump-separated), percent-encoded (both hex
 /// cases), JSON-escaped, base64 (standard and URL-safe, padded and unpadded),
 /// base32 (RFC 4648, padded and unpadded), the whole-value case folds and the
 /// whitespace/zero-width-condensed form of each.
@@ -39,11 +39,11 @@ pub(super) fn secret_variants(value: &str) -> (BTreeSet<String>, bool) {
         }
     };
     // The secret and its whole-value case folds: Aho-Corasick is byte-exact,
-    // so a log shipper or DB that lowercases text must not defeat the layer
-    // (SB6-03). `to_lowercase`/`to_uppercase` are only added when they differ
+    // so a log shipper or DB that lowercases text must not defeat the layer.
+    // `to_lowercase`/`to_uppercase` are only added when they differ
     // (a no-op copy would just bloat the automaton).
     let mut bases: Vec<String> = vec![value.to_string()];
-    // R8: the value's own NFKC form is a needle too, so a registered value
+    // The value's own NFKC form is a needle too, so a registered value
     // containing a ligature or compatibility character still matches the
     // plain spelling (and vice versa through the folded scan).
     let nfkc: String = value.nfkc().collect();
@@ -55,7 +55,7 @@ pub(super) fn secret_variants(value: &str) -> (BTreeSet<String>, bool) {
             bases.push(folded);
         }
     }
-    // R9: spellings are a composition closure of the transform set, not a
+    // Spellings are a composition closure of the transform set, not a
     // fixed list. The primary base gets depth 2 (every pair of transforms:
     // base64-of-hex, hex-of-base64, percent-of-base64, percent-of-hex, …);
     // case folds keep depth 1, and the whole closure is budgeted per value.
@@ -152,7 +152,7 @@ pub(super) fn secret_variants(value: &str) -> (BTreeSet<String>, bool) {
     (variants, oversized.get())
 }
 
-/// One transform of the variant composition closure (R9).
+/// One transform of the variant composition closure.
 #[derive(Clone, Copy)]
 pub(super) enum Transform {
     Base64Std,

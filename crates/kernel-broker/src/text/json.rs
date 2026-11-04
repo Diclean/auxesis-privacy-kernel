@@ -10,7 +10,7 @@ use super::*;
 /// original bytes are kept: no formatting is invented), `Some(compact)` when
 /// the walk changed it, and `None` when the text is not a JSON document.
 ///
-/// B4-01: "clean" is decided by the *walk*, never by comparing
+/// "clean" is decided by the *walk*, never by comparing
 /// re-serialisations. Re-serialising a clean document would normalise
 /// whitespace, escape spelling and (before `arbitrary_precision`) every
 /// number through `f64`; a document with nothing to redact is returned
@@ -48,7 +48,7 @@ pub(super) fn scrub_embedded_json(text: &str) -> Option<String> {
             if let Some(end) = json_region_end(bytes, start, &mut budget) {
                 if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&text[start..end])
                 {
-                    // B4-01: replace the region only when the walk redacted
+                    // Replace the region only when the walk redacted
                     // something; a clean region stays byte-identical.
                     if scrub_json_value(&mut value) {
                         let serialised = serde_json::to_string(&value).unwrap_or_default();
@@ -131,8 +131,8 @@ const JSON_WALK_MAX_DEPTH: usize = 64;
 /// Returns `true` when anything was redacted. Callers that re-serialise a
 /// payload — activity digests, WS journal frames — run this *before* turning
 /// the value into a string, so a key can never be hidden behind an escape
-/// produced by `serde_json` (B3-02). The text entry points keep the original
-/// bytes when the result is `false` (B4-01); digest callers may still render
+/// produced by `serde_json`. The text entry points keep the original
+/// bytes when the result is `false`; digest callers may still render
 /// the tree, but with `arbitrary_precision`/`preserve_order` enabled (see
 /// `Cargo.toml`) its numbers keep their exact original lexemes and its keys
 /// keep their input order.
@@ -152,7 +152,7 @@ fn scrub_json_inner(value: &mut serde_json::Value, depth: usize) -> bool {
     match value {
         Value::Object(map) => {
             let mut changed = false;
-            // E6-02: a secret used as a JSON *key* (`{"<secret>":"owner"}`)
+            // A secret used as a JSON *key* (`{"<secret>":"owner"}`)
             // must not survive the tree walk either. The raw-text path sees
             // it through the exact layer; the tree path holds values only, so
             // scrub the keys here before anything else reads them.
@@ -179,7 +179,7 @@ fn scrub_json_inner(value: &mut serde_json::Value, depth: usize) -> bool {
                 }
                 changed |= scrub_json_inner(entry, depth + 1);
             }
-            // E5-01: a credential *name* in one entry and its *value* in a
+            // A credential *name* in one entry and its *value* in a
             // sibling entry (`{"name":"api_key","value":"…"}` — tool-call
             // argument dumps, MCP envelopes, credential managers) defeats
             // the per-key classifier because neither entry is secret-shaped
@@ -204,7 +204,7 @@ fn scrub_json_inner(value: &mut serde_json::Value, depth: usize) -> bool {
         }
         Value::Array(items) => {
             let mut changed = false;
-            // E5-01: a two-element tuple whose first item names a credential
+            // A two-element tuple whose first item names a credential
             // (`["api_key","…"]`, `["Authorization","Bearer …"]`).
             if items.len() == 2 && credential_name(&items[0]) && mask_sibling_value(&mut items[1]) {
                 changed = true;
@@ -265,7 +265,7 @@ fn mask_json_entry(info: NameInfo, entry: &mut serde_json::Value) -> bool {
 
 /// Keys that *carry* a credential name in an envelope object
 /// (`{"name":"api_key","value":"…"}`): the value of one of these names the
-/// credential whose value sits under a value carrier. E6-01: tool-call
+/// credential whose value sits under a value carrier. Tool-call
 /// dumps use `env`, `var`, `setting`, `option` and `param` for the same
 /// carrier role.
 fn is_name_carrier(key: &str) -> bool {

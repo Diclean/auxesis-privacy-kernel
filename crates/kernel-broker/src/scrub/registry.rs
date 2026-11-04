@@ -31,7 +31,7 @@ pub(super) const API_TOKEN_FILE: &str = "api.token";
 /// matcher must compare bytes) and live for the process lifetime by design.
 pub(super) struct KnownSecret {
     value: Zeroizing<String>,
-    /// Registration sequence (R8 pin table): a value is pinned by a live
+    /// Registration sequence (the pin table): a value is pinned by a live
     /// stream when its sequence is below the stream's pin cutoff.
     seq: u64,
     /// This value's needle variants, computed once at registration. The
@@ -89,7 +89,7 @@ pub(super) struct Registry {
     /// Live pin epochs and the registration-sequence cutoff each pinned: a
     /// value whose `seq` is below a cutoff existed when that pin was taken.
     /// Two `u64`s per live stream, shared here instead of one epoch per
-    /// value per stream (R8 P3).
+    /// value per stream.
     pub(super) pins: BTreeMap<u64, u64>,
     /// Maximum cutoff over the live pins (`0` when none): a value is pinned
     /// exactly when `seq < max_pin_cutoff`.
@@ -135,12 +135,11 @@ pub fn register_known_secret(value: &str) -> bool {
 }
 
 /// Register every value under one write lock, rebuilding the needle set and
-/// the automaton **once** for the whole batch (SB6-08: the startup path used
-/// to rebuild both per value, which was quadratic in the key count).
+/// the automaton **once** for the whole batch; per value it would be quadratic.
 ///
 /// Returns `(registered, refused)`. A value that is already registered is
-/// touched to the back of the eviction order (SB6-07: eviction is LRU, so the
-/// key that is still being re-resolved is not the one dropped at the cap).
+/// touched to the back of the eviction order: eviction is LRU, so the key
+/// that is still being re-resolved is not the one dropped at the cap.
 fn register_values<'a>(values: impl Iterator<Item = (&'a str, &'a str)>) -> (usize, usize) {
     let mut registry = write_registry();
     let mut registered = 0usize;
@@ -181,9 +180,8 @@ fn register_values<'a>(values: impl Iterator<Item = (&'a str, &'a str)>) -> (usi
             // Drop the least recently registered *unpinned* value so a
             // long-running daemon keeps picking up rotated keys at the cap,
             // while a value a live stream still relies on is never silently
-            // un-registered (R7-1/R8). If every value is pinned the registry
-            // grows up to the hard ceiling; at the ceiling a new value is
-            // refused and streams fail closed (R8).
+            // un-registered. If every value is pinned the registry grows up to
+            // the hard ceiling; a new value is refused and streams fail closed.
             let cutoff = registry.max_pin_cutoff;
             match registry
                 .values
@@ -272,7 +270,7 @@ const SMALL_REGISTRY_REBUILD: usize = 8;
 const LARGE_VALUE_WARN_BYTES: usize = 400;
 
 /// Pin every currently registered value for the lifetime of a live delta
-/// stream (R7-1).
+/// stream.
 ///
 /// While pinned, a value is never evicted by the LRU cap, so a mid-turn key
 /// re-resolution, a sibling stream's registrations, or a rotation storm
@@ -323,7 +321,7 @@ pub fn unpin_known_secrets(epoch: u64) {
 /// True when the registry is at its hard ceiling with every value pinned by
 /// a live stream: a new value cannot be registered without evicting a
 /// pinned one, so a live delta stream must fail closed (emit a visible
-/// placeholder) rather than publish unscrubbed text (R8).
+/// placeholder) rather than publish unscrubbed text.
 pub fn registry_saturated() -> bool {
     let registry = read_registry();
     let cutoff = registry.max_pin_cutoff;
@@ -376,7 +374,7 @@ fn push_known_secret(values: &mut Vec<(String, Zeroizing<String>)>, name: &str, 
 ///
 /// Called at daemon start and again whenever a key is re-resolved, so a
 /// changed `.env` is picked up without a restart. Never returns or logs a
-/// value; SB6-05: the count of values *refused* (too short, too long, blank)
+/// value; the count of values *refused* (too short, too long, blank)
 /// is logged at debug so `registered=2` can be reconciled when a third key
 /// exists in `.env`.
 pub fn register_known_secrets_from_home(home: &Path) -> usize {

@@ -27,7 +27,7 @@ pub fn stop_path(home: &Path) -> PathBuf {
 /// Uses `symlink_metadata` so a dangling symlink at the marker path still
 /// counts as engaged (fail safe).
 pub fn is_stopped(home: &Path) -> bool {
-    // J-02 round 5: read the marker through the verified home handle when
+    // Read the marker through the verified home handle when
     // this process has one (fail-safe on any error: a home we cannot verify
     // reads as stopped). The path fallback serves library/tests.
     if let Ok(handle) = crate::paths::verified_home_for(home) {
@@ -65,7 +65,7 @@ fn aux_core_verified(home: &Path) -> std::io::Result<crate::paths::SandboxHome> 
 /// already off. Other errors are reported so a directory squatting on the
 /// path is never silently ignored.
 pub fn release(home: &Path) -> std::io::Result<bool> {
-    // J-02 round 4: fd-relative delete on the verified home handle.
+    // fd-relative delete on the verified home handle.
     let handle = match crate::paths::SandboxHome::open_existing(home) {
         Ok(handle) => handle,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),

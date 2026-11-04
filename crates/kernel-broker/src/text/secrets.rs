@@ -7,11 +7,9 @@ use super::*;
 
 /// Redact every documented secret shape from `text`.
 ///
-/// Security-review round 3 turned this from one tokenizer into **composed layers**
-/// behind this single entry point, because the same area failed three rounds
-/// in a row: every caller (API previews, error details, the WS frame
-/// sanitizer, the run-summary scrub and the daemon log writer) gets all of
-/// them without knowing about them.
+/// This is **composed layers** behind a single entry point: every caller (API
+/// previews, error details, the WS frame sanitizer, the run-summary scrub and
+/// the daemon log writer) gets all of them without knowing about them.
 ///
 /// - **L-1 known values.** Exact-value redaction of the secrets this process
 ///   has resolved (`AUX_KEY_*` from `.env`/environment, the API token, every
@@ -26,26 +24,25 @@ use super::*;
 ///   control/invisible/format character (U+200B–U+200F, U+2060, U+FEFF,
 ///   soft hyphen, bidi controls, …) is stripped. `token\u{200b}=…`,
 ///   `api_key＝…` and `api_key：…` are therefore the same pair as their ASCII
-///   spelling *before* any scan runs (B3-03, B3-04). The fold is
+///   spelling *before* any scan runs. The fold is
 ///   context-sensitive: only a lookalike separator directly after a
 ///   credential-looking name is rewritten, so ordinary prose, curly quotes,
 ///   CJK punctuation and fullwidth letters come out byte-identical
-///   (B5-07/H-05).
 /// - **L1 structured.** When the text — or a balanced JSON substring inside
 ///   it — parses with `serde_json`, the value tree is walked: the value of
 ///   any key whose normalised name names a credential is replaced, values
 ///   that are themselves JSON strings are scrubbed recursively, and the
 ///   region is re-serialised. Pretty-printed JSON, escaped quotes, nesting
-///   and JSON-inside-JSON cannot hide a key from a parser (B3-01, B3-02).
+///   and JSON-inside-JSON cannot hide a key from a parser.
 ///   [`scrub_json_value`] exposes the same walk to callers that hold a
 ///   `serde_json::Value` *before* it is re-serialised (activity/WS summaries).
-///   A region with nothing to redact is returned **byte for byte** (B4-01):
+///   A region with nothing to redact is returned **byte for byte**:
 ///   whitespace, escape spelling, duplicate keys, key order and every number
 ///   lexeme survive untouched. Only a region in which something *was*
 ///   redacted is re-serialised (compactly, keys in input order via
 ///   `preserve_order`, numbers exact via `arbitrary_precision`).
-/// - **L2 tokenizer.** The single-pass, linear-time tokenizer from round 2,
-///   extended with multi-line pair values (bounded window), `\"` escapes,
+/// - **L2 tokenizer.** The single-pass, linear-time tokenizer, extended with
+///   multi-line pair values (bounded window), `\"` escapes,
 ///   `;`-separated cookie jars, percent-encoded URL schemes and the stricter
 ///   `plausible_token` gates.
 ///
@@ -91,14 +88,14 @@ use super::*;
 /// than the weak `key` component. Hash/checksum/fingerprint names without a
 /// strong component (`public_key_sha256`) are never treated as credentials, a
 /// `*_id`/`*_uuid` name is an identifier, and an all-digit epoch, a UUID or a
-/// CamelCase type name is not a secret by shape alone (B3-07). A match is
+/// CamelCase type name is not a secret by shape alone. A match is
 /// re-emitted with its original spelling, never rewritten to a constant name.
 ///
 /// This is a *pattern* redactor: values that are base64-, hex- or
 /// newline-encoded before they reach the text are out of scope, and no
 /// caller may claim more than that. The API response body is the contract.
 ///
-/// B4-01: a text with nothing to redact is returned **byte for byte**
+/// A text with nothing to redact is returned **byte for byte**
 /// (whitespace, escape spelling, duplicate keys, key order and number
 /// lexemes included). Only a JSON region in which something was redacted is
 /// re-serialised, and then it keeps key order and exact number lexemes.
@@ -154,7 +151,7 @@ pub fn redact_secrets(text: &str) -> String {
 /// control/invisible/format characters (keeping `\n`/`\t`, like
 /// [`sanitize_text`]).
 ///
-/// The fold is deliberately *not* a whole-text NFKC pass (B5-07/H-05): only
+/// The fold is deliberately *not* a whole-text NFKC pass: only
 /// `＝`/`﹦` (→ `=`) and `：`/`﹕` (→ `:`), and only when the run immediately
 /// before them classifies as a credential name. Every other character —
 /// curly quotes, fullwidth letters and digits, CJK punctuation, emoji — is

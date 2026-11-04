@@ -49,6 +49,6 @@ pub struct PathPolicy {
     pub private: Behaviour,
     /// Behaviour in open mode.
     pub open: Behaviour,
-    /// The wave slice that moves this row, or `"none"`.
+    /// The work slice that moves this row, or `"none"`.
     pub slice: &'static str,
 }

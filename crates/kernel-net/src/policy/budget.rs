@@ -29,8 +29,8 @@ impl BudgetKind {
 }
 
 /// In-memory fetch counters. `reserve` is called **before** the connect, so a
-/// fetch that is over budget never opens a socket. W1 keeps this in memory
-/// (per conversation); a persistent day ledger is slice W4.
+/// fetch that is over budget never opens a socket. The counters live in
+/// memory (per conversation); a persistent day ledger does not exist yet.
 #[derive(Debug, Default)]
 pub struct WebBudget {
     turn: u32,

@@ -3,8 +3,9 @@
 //! The heuristic layers in `crate::text` are shape-based: they recognise
 //! credential *names* and vendor prefixes, but a value with no name in front
 //! of it (a sentence, a tool argument, an encoded copy) is invisible to
-//! them. security-review round 5 showed that shape-driven patching is open-ended
-//! (H-04), so this module adds a precise first layer instead: every secret
+//! them. Shape-driven patching is open-ended — a value can hide in any
+//! number of spellings — so this module adds a precise first layer instead:
+//! every secret
 //! Auxesis itself resolves — provider keys (`AUX_KEY_*` from `.env` or the
 //! process environment), the API bearer token, and any key the engine loads
 //! at runtime — is registered here, and every scrub surface replaces those
@@ -32,7 +33,7 @@
 //! The heuristic layers stay as the fallback for secrets this process has
 //! never seen; their documented residuals are unchanged.
 //!
-//! # Scrubber limits (frozen after round 10)
+//! # Scrubber limits (frozen)
 //!
 //! The exact-value layer covers a registered value's **raw form plus a closed
 //! composition closure of encodings to depth 2**: base64 (standard and
@@ -84,14 +85,14 @@ pub const MAX_KNOWN_SECRET_LEN: usize = 4096;
 /// Upper bound on registered values, so a hostile `.env` cannot turn every
 /// later scrub into a multi-thousand-pattern search. When full, the oldest
 /// *unpinned* registration is evicted (a rotated key must still be picked
-/// up). Values pinned by live streams are never evicted (R7-1/R8).
+/// up). Values pinned by live streams are never evicted.
 pub const MAX_KNOWN_SECRETS: usize = 128;
 
 /// Hard ceiling for the pinned case: a registry may grow past
 /// [`MAX_KNOWN_SECRETS`] while every value is pinned by a live stream, but
 /// never past this. At the ceiling, a new value is refused and the registry
 /// reports [`registry_saturated`], so live streams fail closed with a
-/// visible placeholder instead of leaking unscrubbed text (R8).
+/// visible placeholder instead of leaking unscrubbed text.
 pub const MAX_KNOWN_SECRETS_HARD: usize = MAX_KNOWN_SECRETS * 2;
 
 // The tests drive the private helpers and registry internals directly, as

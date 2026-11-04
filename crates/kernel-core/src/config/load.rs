@@ -43,7 +43,7 @@ pub enum ConfigError {
         source: toml::de::Error,
     },
     /// `log_level` is not one of the accepted values.
-    /// The value is never kept: it came from the file (CONFIG-ERR-ECHO-1).
+    /// The value is never kept: it came from the file.
     #[error("invalid log_level (expected one of: error, warn, info, debug, trace)")]
     UnknownLogLevel {},
     /// A local-time setting is not valid `HH:MM`. The value is never kept.
@@ -58,7 +58,7 @@ pub enum ConfigError {
 }
 
 impl Config {
-    /// Load the config through the process's verified home (J-02 round 4):
+    /// Load the config through the process's verified home:
     /// the read uses the fd's real path and the create goes through the
     /// fd-relative gateway, so a swapped home cannot plant or redirect
     /// `config.toml`.

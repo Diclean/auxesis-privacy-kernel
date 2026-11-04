@@ -79,7 +79,7 @@ pub(super) fn condense(text: &str) -> (String, Vec<u32>, Vec<u32>) {
 }
 
 /// Fold `text` to NFKC, keeping per-folded-byte maps back to the original
-/// character span (R8/R9): compatibility decomposition per character,
+/// character span: compatibility decomposition per character,
 /// canonical ordering of combining marks, then the standard canonical
 /// recomposition (Hangul L/V/T included). Ligatures, fullwidth forms,
 /// superscripts, decomposed combining sequences in any order and conjoining
@@ -187,7 +187,7 @@ fn canonical_order(parts: &mut [(char, u32, u32)]) {
 
 /// Fold `\uXXXX`, `\UXXXXXXXX` and `\u{…}` escapes (surrogate pairs
 /// included) to their characters, keeping per-folded-byte maps back to the
-/// original escape span (R8). This catches mixed spellings — a raw value
+/// original escape span. This catches mixed spellings — a raw value
 /// with one escaped character — that no contiguous needle covers.
 #[allow(clippy::type_complexity)]
 pub(super) fn fold_unicode_escapes(text: &str) -> (String, Vec<u32>, Vec<u32>) {

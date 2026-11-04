@@ -1,30 +1,34 @@
-//! Fetch v2, level 1 — readable-text fetch for Auxesis.
+//! The one place where an outbound HTTP request is made: the client factory,
+//! the web egress policy and the loopback proxy for sandboxed extensions.
 //!
-//! This crate replaces the 22k-line HTML/CSS hidden-content model that used
-//! to live in `kernel-broker`. It has two levels:
+//! - **The guard.** [`build_client`] is the only factory that builds a
+//!   `reqwest` client. It refuses a host *shape* first (`localhost`,
+//!   `*.localhost`, a trailing dot, `.lan`/`.local`/`.internal`), checks every
+//!   DNS answer and allows only globally routable addresses, and
+//!   [`PinnedClient`] pins the request to the address that was validated.
+//! - **The decision.** [`WebGate::check`] refuses a URL before any socket is
+//!   opened; [`WebGate::decide`] adds the mode and private-data rules, and on
+//!   a sensitive turn **every** fetch asks, because a silent request is itself
+//!   a covert channel. [`WebBudget`] is reserved at connect time and
+//!   [`WebFetchEvent`] is the one `web.fetch` audit row per attempt. Deny
+//!   always wins: `deny_domains` beats `allow_domains`, a remembered approval
+//!   and every mode.
+//! - **The transport.** [`spawn_egress_proxy`] listens on one loopback port
+//!   for sandboxed extensions. It accepts only `CONNECT host:port`, and
+//!   matches the target against an exact host:port allowlist.
 //!
-//! - **Simple path** (`Fetcher::fetch` with [`RenderMode::Simple`]):
-//!   `reqwest` + html5ever + a minimal readability-style main-content
-//!   extractor, bounded by the SSRF guard, redirect cap, body cap, parse cap
-//!   and output cap.
-//! - **Browser path** ([`RenderMode::Browser`]): delegated to a
-//!   [`BrowserFetcher`]. Until WS-B installs headless Chromium, the default
-//!   implementation is [`UnavailableBrowser`], which returns the typed
-//!   [`FetchError::BrowserUnavailable`].
+//! # What this crate does not do
 //!
-//! # This is not a hidden-content boundary
+//! It does not read pages: there is no HTML parser, no readability extractor
+//! and no `Fetcher` here. A caller that wants a page body builds the request
+//! with the client from [`build_client`] and applies its own size and time
+//! caps. The crate does enforce that no request reaches a host that is not
+//! globally routable, and that the policy sees every redirect hop.
 //!
-//! The simple path does **not** model CSS visibility. `display:none`,
-//! `visibility:hidden`, `font-size:0`, off-screen positioning, clipped
-//! containers and every other paint-level hiding rule are invisible to it:
-//! text hidden that way can still appear in the output. Hidden-content
-//! findings are **KNOWN-ACCEPTED ("not a boundary")**.
-//!
-//! Consumers for which visibility is a security property (anything that
-//! makes decisions on "the user can see this") must use the browser path,
-//! where Chromium's `innerText` is the only correct oracle. The SSRF guard,
-//! redirect re-checks and size/time caps **do** remain a boundary and are
-//! enforced on every request.
+//! Visibility is not a boundary either: [`RenderMode::Browser`] and
+//! [`BrowserFetcher`] describe a renderer that reads a real browser's
+//! `innerText`; the only implementation today is [`UnavailableBrowser`],
+//! which returns the typed [`FetchError::BrowserUnavailable`].
 #![doc = include_str!("../README.md")]
 
 mod policy;
@@ -94,13 +98,13 @@ pub const USER_AGENT: &str = concat!("Auxesis/", env!("CARGO_PKG_VERSION"), " (h
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RenderMode {
     /// Pick the cheapest path that can produce readable text. Today this is
-    /// the simple path; once WS-B lands it may escalate to the browser when
-    /// JavaScript or visibility matters. It never errors just because the
-    /// browser is unavailable.
+    /// the simple path; it may escalate to the browser when JavaScript or
+    /// visibility matters. It never errors just because the browser is
+    /// unavailable.
     Auto,
     /// Always use the simple extractor, even when a browser is configured.
     Simple,
-    /// Always use the browser engine (WS-B). With the default
+    /// Always use the browser engine. With the default
     /// [`UnavailableBrowser`] this returns [`FetchError::BrowserUnavailable`].
     Browser,
 }
@@ -241,7 +245,7 @@ pub enum FetchError {
         /// not read. Callers that show a provider's reason must sanitise it.
         body: String,
     },
-    /// The browser engine is not installed (WS-B).
+    /// The browser engine is not installed.
     #[error("browser engine not installed yet — WS-B")]
     BrowserUnavailable,
     /// The browser engine failed.
@@ -255,7 +259,7 @@ pub enum FetchError {
     Task(String),
 }
 
-/// Level 2: a renderer that runs a real browser (WS-B).
+/// A renderer that runs a real browser.
 ///
 /// Implementations must read `innerText` from a headless engine, enforce the
 /// same public-address check on every browser-originated request, and use a
@@ -267,7 +271,7 @@ pub trait BrowserFetcher: Send + Sync {
     async fn fetch(&self, url: &str) -> Result<FetchResult, FetchError>;
 }
 
-/// The default [`BrowserFetcher`] while WS-B has not shipped.
+/// The default [`BrowserFetcher`]: no browser engine ships yet.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct UnavailableBrowser;
 

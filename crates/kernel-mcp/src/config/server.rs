@@ -160,7 +160,7 @@ impl McpServerConfig {
         self.stdio_confirmed && self.confirmation_binding(secret).as_deref() == Some(stored)
     }
 
-    /// The M6-2 install approval for this exact preview under `secret`.
+    /// The install approval for this exact preview under `secret`.
     ///
     /// `catalog_pin` is the curated `catalog_hash` for a catalog entry; a
     /// catalog server without a pin gets no binding (fail closed). Like the
@@ -202,7 +202,7 @@ impl McpServerConfig {
         self.approval_binding(secret, catalog_pin).as_deref() == Some(stored)
     }
 
-    /// Whether this enabled server carries a valid M6-2 install approval.
+    /// Whether this enabled server carries a valid install approval.
     ///
     /// This is the one approval predicate: the daemon passes the curated
     /// catalog pin for a catalog entry, and a caller without the catalog (the
@@ -448,10 +448,9 @@ mod tests {
     }
 
     /// KMCP-HARDEN-c: a non-catalog `stdio` server with `approval = None` must
-    /// NOT count as install-approved through the pre-M6-2 grandfather path.
-    /// No record in the config marks an entry as pre-M6-2, so grandfathering
-    /// cannot apply: only an explicit, still-valid M6-2 approval record may
-    /// install-approve a server.
+    /// NOT count as install-approved through the grandfather path: no record
+    /// in the config marks an entry as grandfathered, so only an explicit,
+    /// still-valid approval record may install-approve a server.
     #[test]
     fn kmcp_harden_c_approval_none_is_not_install_approved_without_pre_m6_2_marker() {
         let dir = tempfile::tempdir().unwrap();

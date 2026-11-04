@@ -14,7 +14,7 @@
 //! servers are registered.
 //!
 //! [`DiscoveryCache`] keeps a catalog in memory with a TTL and explicit
-//! invalidation. The durable SQL store is a separate slice (S2b); this type is
+//! invalidation. The durable SQL store does not exist yet; this type is
 //! the live process cache the caller refreshes on `tools/list_changed` or
 //! `aux connect sync`.
 //!

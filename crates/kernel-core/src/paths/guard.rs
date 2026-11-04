@@ -78,7 +78,7 @@ impl SandboxContext {
 
     /// Pure constructor (unit tests): invalid/empty/relative `HOME` counts as
     /// overridden, never as a real home to compare against. A failed passwd
-    /// lookup arms the guard and fails closed (J02-2-BI2-03).
+    /// lookup arms the guard and fails closed.
     pub(super) fn new(
         real_home: Option<PathBuf>,
         env_home: Option<PathBuf>,

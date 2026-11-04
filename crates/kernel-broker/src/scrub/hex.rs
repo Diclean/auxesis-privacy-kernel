@@ -61,7 +61,7 @@ fn hex_digit(byte: u8) -> Option<u8> {
 }
 
 /// Every span of `text` that is a hex spelling of a registered needle: the
-/// contiguous spelling (SB6-01), pairs separated by arbitrary whitespace or
+/// contiguous spelling, pairs separated by arbitrary whitespace or
 /// `:`, `\xNN`/`\XNN`/`0xNN`/`%NN` escapes, and `xxd`/`od`/`hexdump -C`
 /// output (offset column and ASCII column included). The text is decoded in
 /// one pass per shape and the decoded bytes are matched through the same
@@ -118,7 +118,7 @@ fn flex_hex_ranges(
 /// One encoded unit at `p` decoded to a Unicode code point: `73`, `\x73`,
 /// `\X73`, `0x73`, `%73`, or the unicode escapes `\u0073`, `\U00000073`,
 /// `\u{73}`, `\u{0073}` — including surrogate pairs (`\uD83D\uDE00`) for
-/// non-BMP characters (R7-4/R8).
+/// non-BMP characters.
 pub(super) fn hex_unit_at(bytes: &[u8], p: usize) -> Option<(u32, usize, usize)> {
     if bytes.get(p) == Some(&b'\\') && matches!(bytes.get(p + 1), Some(b'u' | b'U')) {
         return unicode_unit_at(bytes, p);
@@ -136,7 +136,7 @@ pub(super) fn hex_unit_at(bytes: &[u8], p: usize) -> Option<(u32, usize, usize)>
 }
 
 /// `\u0073` / `\U00000073` (fixed width) and `\u{73}` / `\u{0073}` (braced),
-/// with `\uD83D\uDE00` surrogate pairs composed into one code point (R8).
+/// with `\uD83D\uDE00` surrogate pairs composed into one code point.
 pub(super) fn unicode_unit_at(bytes: &[u8], p: usize) -> Option<(u32, usize, usize)> {
     let fixed = bytes.get(p + 1) == Some(&b'U');
     let width = if fixed { 8 } else { 4 };

@@ -84,7 +84,7 @@ impl BudgetCaps {
     }
 
     /// True only for the explicit opt-out. An all-unset cap set is **not**
-    /// unlimited: it enforces the conservative defaults (P1-1), so the only
+    /// unlimited: it enforces the conservative defaults, so the only
     /// way to opt out is to write `unlimited = true` (which the daemon logs
     /// loudly).
     pub fn is_unlimited(&self) -> bool {

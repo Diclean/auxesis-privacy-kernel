@@ -11,7 +11,7 @@
 //! approval card. Reads are the daily-use path; the effectful default stays
 //! conservative.
 //!
-//! **Taint (WS-C):** when the conversation holds untrusted content, the
+//! **Taint:** when the conversation holds untrusted content, the
 //! broker raises the bar: every consequential call asks even if an `allow`
 //! rule matches, and the [`ApprovalRequest`] tells the approver it is tainted
 //! (so "always allow" can be refused). `deny` rules still win, tools the
@@ -24,7 +24,7 @@
 //! failures — is written to the store as a `tool.decision` event whose payload
 //! is JSON.
 //!
-//! **Execution mode (WS-C round 7):** a call that will run **unsandboxed** is
+//! **Execution mode:** a call that will run **unsandboxed** is
 //! never auto-run by an `allow` rule. An `allow` rule is raised to `ask`
 //! exactly as taint does (deny rules still win; a `read_only` declaration does
 //! not exempt an unsandboxed call). The [`ApprovalRequest`] carries
