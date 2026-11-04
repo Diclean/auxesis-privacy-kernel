@@ -205,3 +205,17 @@ fn subtract_magnitudes(left: &str, right: &str) -> String {
     digits.reverse();
     String::from_utf8(digits).expect("decimal digits are valid UTF-8")
 }
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn old_version_vector_arguments() {
+        let arguments = serde_json::json!({"value": "example", "n": 1});
+        assert_eq!(
+            arguments_sha256(&arguments),
+            "bb1b6cdc626e6e379b74a34c60e65ade65423833efb8573b64a834e83142b700"
+        );
+    }
+}

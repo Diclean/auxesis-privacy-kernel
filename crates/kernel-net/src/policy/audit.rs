@@ -44,3 +44,16 @@ impl WebFetchEvent {
         serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
     }
 }
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn old_version_vector_web_audit() {
+        assert_eq!(
+            sha256_hex(b"https://example.test/search?q=synthetic"),
+            "781303a58d48e88a243b33408f1757a658c221c5aa6511812e69f4d06c31d569"
+        );
+    }
+}

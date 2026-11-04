@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::normalize::NormalizedText;
@@ -154,5 +154,33 @@ impl fmt::Debug for Anonymizer {
             .field("key", &"<redacted>")
             .field("entries", &self.table.len())
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn old_version_vector_pseudonym() {
+        let mut anonymizer = Anonymizer::new([7; 32]);
+        let digest = anonymizer.digest(EntityKind::Email, "fixture@example.test");
+        let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(
+            hex,
+            "b4d6bc78e97f48c133166b953c826b835541bce898acc98515c95043be766f60"
+        );
+        assert_eq!(
+            anonymizer
+                .token_for(EntityKind::Email, "fixture@example.test")
+                .0,
+            "EMAIL_B4D6BC78E97F"
+        );
+        let digest = anonymizer.digest(EntityKind::Person, "Groß");
+        let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(
+            hex,
+            "8589ba4780bcbac0292d388cd34c00507eacd37bd015820919a3c783e48ca82c"
+        );
     }
 }

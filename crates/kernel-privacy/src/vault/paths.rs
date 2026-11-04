@@ -67,3 +67,16 @@ pub(super) fn additional_data(label: &str) -> Vec<u8> {
     aad.extend_from_slice(label.as_bytes());
     aad
 }
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn old_version_vector_slot() {
+        assert_eq!(
+            slot_for("fixture-session"),
+            "ca25378cd0a6b01071441fd3171e8f7afc4c4c3f5aa813580196698295de3e9a"
+        );
+    }
+}
