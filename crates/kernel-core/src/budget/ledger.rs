@@ -16,6 +16,8 @@ pub enum BudgetError {
 }
 
 /// Day totals for an agent, as seen by the guard.
+///
+/// The app implements this.
 pub trait UsageLedger {
     /// Total spend for `agent` on the local day `day` (`YYYY-MM-DD`).
     fn day_totals(&self, agent: &str, day: &str) -> Result<UsageTotals, BudgetError>;

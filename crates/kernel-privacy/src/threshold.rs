@@ -5,8 +5,6 @@
 //! default floor of `0.5` keeps them while still filtering bare low-confidence
 //! patterns. The floors are a config knob, not a hidden constant.
 
-use std::collections::HashMap;
-
 use crate::span::EntityKind;
 
 /// Number of [`EntityKind`] variants.
@@ -56,15 +54,6 @@ fn index_of(kind: EntityKind) -> usize {
         .expect("EntityKind::ALL is exhaustive")
 }
 
-/// A convenience view used by tests and the eval harness.
-pub fn default_floors() -> HashMap<EntityKind, f32> {
-    let thresholds = Thresholds::new();
-    EntityKind::ALL
-        .iter()
-        .map(|kind| (*kind, thresholds.get(*kind)))
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -82,6 +71,5 @@ mod tests {
                 .get(EntityKind::Url),
             0.1
         );
-        assert_eq!(default_floors().len(), EntityKind::ALL.len());
     }
 }

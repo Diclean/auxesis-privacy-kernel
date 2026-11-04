@@ -15,7 +15,7 @@
 //!
 //! A description is **data**. Nothing in this module parses a description into a
 //! rule, a risk level or a toolkit; those come from the raw annotation hints
-//! ([`McpTag`]) and the explicit config-fed [`ToolkitMap`] only.
+//! ([`McpTag`]) and the toolkit name the caller passes from explicit config.
 
 // The submodules are private on purpose: every item below is re-exported at
 // this path, so `crate::descriptor::…` is exactly what it was before the
@@ -27,7 +27,6 @@ mod neutralise;
 mod schema;
 mod tags;
 mod tool;
-mod toolkit;
 
 #[cfg(test)]
 mod tests;
@@ -40,6 +39,5 @@ pub use limits::{
 pub use schema::sanitize_schema;
 pub use tags::{risk_from_tags, McpTag, RiskBasis};
 pub use tool::McpToolDescriptor;
-pub use toolkit::ToolkitMap;
 
 pub(crate) use neutralise::neutralise_server_text;

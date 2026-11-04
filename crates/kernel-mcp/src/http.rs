@@ -43,8 +43,7 @@
 //!
 //! The single transport parser accepts CR, LF and CRLF terminators, including a
 //! CRLF split across two read chunks, and drops a leading UTF-8 BOM (split or
-//! whole). `limits::read_sse_line` is retained only as the bounded-line
-//! helper its tests exercise; the transport never uses it.
+//! whole).
 
 use std::sync::Mutex;
 use std::time::Duration;

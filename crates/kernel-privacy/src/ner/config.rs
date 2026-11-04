@@ -71,12 +71,6 @@ impl GlinerConfig {
         self
     }
 
-    /// Replace the entity labels.
-    pub fn with_labels(mut self, labels: Vec<&'static str>) -> Self {
-        self.labels = labels;
-        self
-    }
-
     /// The score floor for one label: its own entry, else the default.
     pub fn threshold_for(&self, label: &str) -> f32 {
         self.label_thresholds

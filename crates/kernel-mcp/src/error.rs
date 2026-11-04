@@ -20,9 +20,6 @@ use std::ops::Deref;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
-/// Convenience alias used across the crate.
-pub type McpResult<T> = Result<T, McpError>;
-
 /// JSON-RPC "parse error": the frame could not be decoded at all.
 pub const PARSE_ERROR: i64 = -32700;
 /// JSON-RPC "invalid request".
