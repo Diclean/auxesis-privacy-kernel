@@ -8,11 +8,10 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- `SafeText::join` reads again a run that crosses a seam with no blank: if it
-  touches a token or marker, or holds a value, its clear text becomes
-  `[value removed]`. A run over 512 bytes, a prohibited value past its run, a
-  failed recogniser or a secret too long withholds the join. A seam on a blank
-  is not read again.
+- `SafeText::join` reads every seam again with the private recognisers, the
+  kernel's tokens and markers as stand-ins: a value cut across parts that the
+  mode hides, or clear text a seam ties to a token, becomes a fixed marker, or
+  the join is withheld. Open records its markers, so a typed one stays text.
 
 ## [0.1.4] - 2026-11-05
 

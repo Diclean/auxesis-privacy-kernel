@@ -1,6 +1,7 @@
 //! The text types a gate issues: [`SafeText`] and [`SafeValue`], the name
 //! coverage they carry, and the crate-private fixed marker that needs no grant.
 
+use kernel_core::privacy::GrantPolicy;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -63,9 +64,12 @@ pub struct SafeText {
     pub(super) text: String,
     #[serde(skip)]
     pub(super) names: NameCoverage,
-    /// The tokens and markers the kernel wrote in `text`, which a join never edits.
+    /// The tokens and markers the kernel wrote in `text`; a join never edits them.
     #[serde(skip)]
     pub(super) marks: seams::Marks,
+    /// The policy `text` was issued under; a join with a tokenised part is tokenised.
+    #[serde(skip)]
+    pub(super) policy: GrantPolicy,
 }
 
 /// A fixed, kernel-authored string that may be issued as a [`SafeText`]
@@ -108,17 +112,19 @@ impl SafeText {
             text: marker.as_str().to_string(),
             names: NameCoverage::AppAuthored,
             marks: vec![(0, marker.as_str().len())],
+            policy: GrantPolicy::Passthrough,
         }
     }
 
     /// The parts, in order, as one text. Each part was checked on its own when
-    /// it was issued. Where two meet with no blank between them, the run across
-    /// the seam is read again, and its clear text may become `[value removed]`;
-    /// the join is `[auxesis: withheld]` when that run cannot be hidden, or when
-    /// the whole holds a secret longer than the gate reads.
+    /// it was issued, so each seam is read again: a value found there that the
+    /// parts' mode hides, or clear text it ties to a token, becomes a fixed
+    /// marker (`[card removed]`, `[value removed]`), or the join is
+    /// `[auxesis: withheld]`. Where nothing is found, it is the concatenation.
     pub fn join(parts: impl IntoIterator<Item = SafeText>) -> Self {
-        let (mut text, mut names, mut marks, mut at) =
-            (String::new(), Vec::new(), Vec::new(), Vec::new());
+        let mut text = String::new();
+        let mut names = Vec::new();
+        let (mut marks, mut at, mut policy) = (Vec::new(), Vec::new(), GrantPolicy::Passthrough);
         for part in parts {
             if !text.is_empty() && !part.text.is_empty() {
                 at.push(text.len());
@@ -127,13 +133,17 @@ impl SafeText {
             marks.extend(part.marks.iter().map(|m| (m.0 + shift, m.1 + shift)));
             text.push_str(&part.text);
             names.push(part.names);
+            if part.policy == GrantPolicy::Tokenised {
+                policy = GrantPolicy::Tokenised;
+            }
         }
         let detector = PRIVATE_DETECTOR.get_or_init(|| without_names(StandardDetector::new()));
-        let (text, marks) = seams::mend(&text, &marks, &at, detector.as_ref());
+        let (text, marks) = seams::mend(&text, &marks, &at, policy, detector.as_ref());
         Self {
             text,
             names: NameCoverage::of_parts(names),
             marks,
+            policy,
         }
     }
 
