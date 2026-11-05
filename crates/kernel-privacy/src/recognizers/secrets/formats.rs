@@ -213,7 +213,8 @@ enum Keep {
     NotPlaceholder,
     /// An `htpasswd` line with `-n` and `-b` or `-B`: no file, the password is second.
     NoFile,
-    /// An `htpasswd` line with `-b` and no `-n`: the password follows a file and a user.
+    /// An `htpasswd` line with `-b` or `-B` and no `-n` or `-i`: the password follows
+    /// a file and a user.
     WithFile,
 }
 
@@ -227,10 +228,11 @@ const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+["']([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"\bSSWS[ \t]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
-    // `htpasswd -nb user password`.
-    (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, NoFile),
-    // `htpasswd -b file user password`, the flags in any order, a `-C` cost too.
-    (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, WithFile),
+    // `htpasswd -nb user password`, a quoted password whole.
+    (r#"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+("[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, NoFile),
+    // `htpasswd -b file user password`, the flags in any order, `--`, a `-C` cost
+    // spaced or attached, a quoted password whole.
+    (r#"\bhtpasswd(?:[ \t]+(?:-[a-zA-Z]+[0-9]*|--)(?:[ \t]+[0-9]{1,3})?)+[ \t]+[^\s\-]\S*[ \t]+[^\s\-]\S*[ \t]+("[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, WithFile),
     // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage), and
     // the V2 `Signature` (S3, Google Cloud Storage, CloudFront, Alibaba OSS).
     (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16, NotPlaceholder),
@@ -278,11 +280,10 @@ fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
             let next = line
                 .strip_prefix([' ', '\t'])
                 .and_then(|rest| rest.split_whitespace().next());
-            // After `SSWS`, a listed word with no token-shaped word after it is
-            // prose (`the SSWS authentication header`), not an Okta token.
-            let token_next =
-                next.is_some_and(|word| is_secret_shaped(word.trim_end_matches(CLOSING)));
-            let ssws_word = after_ssws(head) && is_ssws_word(found) && !token_next;
+            // After `SSWS`, a listed word with no token after it is prose (`the
+            // SSWS authentication header`), not an Okta token.
+            let ssws_word =
+                after_ssws(head) && is_ssws_word(found) && !token_follows(text, value.end(), next);
             !ssws_word
                 && (!is_status_word(found) || !next.is_some_and(|word| !is_secret_shaped(word)))
         }
@@ -293,9 +294,21 @@ fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
         }
         WithFile => {
             let flags = htpasswd_flags(head);
-            !flags.contains('n') && flags.contains('b')
+            !flags.contains(['n', 'i']) && flags.contains(['b', 'B'])
         }
     }
+}
+
+/// Whether a token follows a header value that ends at `end`: the next word on
+/// its line, or the first word of the next line, is shaped like a secret, or the
+/// next line would join the value as a wrapped credential.
+fn token_follows(text: &str, end: usize, next: Option<&str>) -> bool {
+    let shaped = |word: &str| is_secret_shaped(word.trim_end_matches(CLOSING));
+    let below = text[end..]
+        .split('\n')
+        .nth(1)
+        .and_then(|line| line.split_whitespace().next());
+    next.is_some_and(shaped) || below.is_some_and(shaped) || join_lines(text, end) > end
 }
 
 /// The flag words of an `htpasswd` line before its value, joined.

@@ -478,6 +478,29 @@ pub fn positives() -> Vec<Case> {
         c("kv02-s3", "Okta call with SSWS {} worked", &format!("00{}", k(KEY, 40, 1001))),
         c("kv02-s3", "Authorization: SSWS {} refreshes", &format!("00{}", k(KEY, 40, 1002))),
         c("kv02-s3", "authorization: \"SSWS {}\"", &format!("00{}", k(KEY, 40, 1003))),
+        // KV02-SECRETS-3 round 2, from the MiniMax seal of #99: a listed word after
+        // `SSWS` with the token wrapped onto the next line, an attached or 3-digit
+        // `-C` cost, `--`, a quoted password with spaces, and `-B` alone.
+        m("kv02-s3", "Authorization: SSWS credentials\n00aB3dEfGhIjKlMnOpQrStUvWxYz0123456789abcd".into(), vec!["00aB3dEfGhIjKlMnOpQrStUvWxYz0123456789abcd".into()]),
+        m("kv02-s3", format!("Authorization: SSWS authentication\n00{}", k(ALNUM, 40, 1004)), vec![format!("00{}", k(ALNUM, 40, 1004))]),
+        m("kv02-s3", format!("Authorization: SSWS authorization\n00{}", k(ALNUM, 40, 1005)), vec![format!("00{}", k(ALNUM, 40, 1005))]),
+        m("kv02-s3", format!("Authorization: SSWS credential\n00{}", k(ALNUM, 40, 1006)), vec![format!("00{}", k(ALNUM, 40, 1006))]),
+        m("kv02-s3", format!("Authorization: SSWS refreshes\n00{}", k(ALNUM, 40, 1007)), vec![format!("00{}", k(ALNUM, 40, 1007))]),
+        m("kv02-s3", format!("Authorization: SSWS required\n00{}", k(ALNUM, 40, 1008)), vec![format!("00{}", k(ALNUM, 40, 1008))]),
+        m("kv02-s3", format!("SSWS credentials\n00{}", k(ALNUM, 40, 1009)), vec![format!("00{}", k(ALNUM, 40, 1009))]),
+        m("kv02-s3", format!("SSWS authentication\n00{}", k(ALNUM, 40, 1010)), vec![format!("00{}", k(ALNUM, 40, 1010))]),
+        m("kv02-s3", format!("SSWS refreshes\n00{}", k(ALNUM, 40, 1011)), vec![format!("00{}", k(ALNUM, 40, 1011))]),
+        m("kv02-s3", format!("SSWS required\n  00{}\nAccept: */*", k(ALNUM, 40, 1012)), vec![format!("00{}", k(ALNUM, 40, 1012))]),
+        c("kv02-s3", "htpasswd -b -C10 site.db frank {}", "S3cretPass"),
+        c("kv02-s3", "htpasswd -b -C 100 site.db frank {}", "S3cretPass"),
+        c("kv02-s3", "htpasswd -b -- site.db alice {}", "S3cretPass"),
+        c("kv02-s3", "htpasswd -b site.db alice \"{}\"", "pass word"),
+        c("kv02-s3", "htpasswd -b site.db alice \"{}\"", "my pass word"),
+        c("kv02-s3", "htpasswd -b site.db alice '{}'", "pass word"),
+        c("kv02-s3", "htpasswd -bc site.db alice '{}' && nginx -s reload", "my pass word"),
+        c("kv02-s3", "htpasswd -nb carol \"{}\"", "my pass word"),
+        c("kv02-s3", "htpasswd -nbB carol '{}' > users.db", "pass word"),
+        c("kv02-s3", "htpasswd -cB site.db dan {}", "FakeFPw9x"),
     ]
 }
 
@@ -600,6 +623,7 @@ pub fn negatives() -> Vec<String> {
         "Send the SSWS authentication header to Okta.",
         "The SSWS credentials are rotated every month.",
         "Authorization: SSWS",
+        "htpasswd -iB users.db kim reads stdin",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()
 }
