@@ -131,6 +131,30 @@ impl SandboxHome {
         }
     }
 
+    /// Open the existing directory `rel` anchored to the verified home: every
+    /// component, the leaf included, is opened `O_NOFOLLOW | O_DIRECTORY`
+    /// from the home fd, so a symlinked ancestor or leaf is refused, never
+    /// followed. `..` and absolute paths are refused; nothing is created.
+    pub fn open_dir(&self, rel: &Path) -> std::io::Result<std::fs::File> {
+        self.reverify()?;
+        let components = relative_components(rel)?;
+        #[cfg(unix)]
+        {
+            Ok(std::fs::File::from(open_rel_dir_existing(
+                self,
+                &components,
+            )?))
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = components;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "anchored directory open needs Unix",
+            ))
+        }
+    }
+
     /// Whether `rel` exists in the verified home, without following a leaf
     /// symlink (a dangling symlink counts as present — the kill switch is
     /// fail-safe).

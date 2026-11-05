@@ -47,6 +47,17 @@ pub(super) fn openat_with_mode(
 /// `unlinkat` on one verified parent directory.
 #[cfg(unix)]
 pub(super) fn unlinkat(dir: &std::os::fd::OwnedFd, name: &std::ffi::OsStr) -> std::io::Result<()> {
+    unlinkat_flags(dir, name, 0)
+}
+
+/// `unlinkat` with explicit flags (`AT_REMOVEDIR` for a directory). Never
+/// follows a link: a symlink entry is removed as a link.
+#[cfg(unix)]
+pub(super) fn unlinkat_flags(
+    dir: &std::os::fd::OwnedFd,
+    name: &std::ffi::OsStr,
+    flags: libc::c_int,
+) -> std::io::Result<()> {
     use std::os::fd::AsRawFd;
     use std::os::unix::ffi::OsStrExt;
     let name = std::ffi::CString::new(name.as_bytes()).map_err(|_| {
@@ -55,7 +66,9 @@ pub(super) fn unlinkat(dir: &std::os::fd::OwnedFd, name: &std::ffi::OsStr) -> st
             "path component contains NUL",
         )
     })?;
-    let rc = unsafe { libc::unlinkat(dir.as_raw_fd(), name.as_ptr(), 0) };
+    // SAFETY: `name` is a NUL-terminated CString alive for the call and the
+    // fd is borrowed from a live `OwnedFd`.
+    let rc = unsafe { libc::unlinkat(dir.as_raw_fd(), name.as_ptr(), flags) };
     if rc != 0 {
         return Err(std::io::Error::last_os_error());
     }

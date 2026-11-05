@@ -47,4 +47,5 @@ fn home_ctx(real_home: &Path, active: bool) -> SandboxContext {
 mod guard;
 mod home;
 mod read_dir;
+mod remove;
 mod scan;

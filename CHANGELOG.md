@@ -6,6 +6,17 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `SandboxHome::open_dir` opens a directory under the home without following
+  a link on any part of the path.
+
+### Fixed
+
+- `SandboxHome::remove_dir_all` no longer follows a link on the way: a parent
+  folder swapped for a link during the call is refused, and a link inside the
+  removed tree is deleted as a link, never followed.
+
 ## [0.1.4] - 2026-11-05
 
 The changes since v0.1.3, in plain words.
