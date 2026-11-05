@@ -206,10 +206,11 @@ fn russian_and_arabic_language_independent_values_get_an_unscored_row() {
     );
 }
 
-/// The recall rows the ops scripts grep. The fixture is fixed, so their bytes
-/// are a contract: the outcome split may print after them, never edit them.
+/// The two gate recall rows keep their exact format on the fixed fixture, and
+/// the outcome split prints after them. This pins those two rows only; it does
+/// not compare the other Tier C lines against main.
 #[test]
-fn the_existing_tier_c_recall_lines_are_byte_identical_on_the_fixture() {
+fn the_gate_recall_rows_keep_their_format_and_the_split_prints_after_them() {
     let cases: Vec<Case> = include_str!("../../tests/fixtures/tier-c-breakdown.jsonl")
         .lines()
         .map(|line| serde_json::from_str(line).expect("synthetic case parses"))
