@@ -543,6 +543,15 @@ pub fn positives() -> Vec<Case> {
         c("kv02-s4", "htpasswd -bc '/srv/my site/.htpasswd' bob {}", "Fake9Pass"),
         c("kv02-s4", "htpasswd -b -r 1000000 site.db alice {}", "S3cretPass"),
         c("kv02-s4", "htpasswd -nb5 -r 1000000 alice {}", "S3cretPass"),
+        // KV02-SECRETS-4 round 2 (seals of #101): three line breaks, `SSWS:`, and a
+        // quoted user with a quoted or secret-shaped password.
+        c("kv02-s4", "SSWS token\n\n\n{}", &format!("00{}", k(ALNUM, 40, 1121))),
+        c("kv02-s4", "ssws header:\n\n\n  {}", &format!("00{}", k(ALNUM, 40, 1122))),
+        c("kv02-s4", "SSWS: {}", &format!("00{}", k(ALNUM, 40, 1123))),
+        c("kv02-s4", "ssws: '{}'", &format!("00{}", k(ALNUM, 40, 1124))),
+        c("kv02-s4", "Ssws:\u{a0}{}", &format!("00{}", k(ALNUM, 40, 1125))),
+        c("kv02-s4", "htpasswd -b site.db \"alice smith\" \"{}\"", "my pass word"),
+        c("kv02-s4", "htpasswd -b site.db 'alice smith' {}", "S3cretPass"),
     ]
 }
 
@@ -670,6 +679,17 @@ pub fn negatives() -> Vec<String> {
         // user is no password; lower-case prose.
         "htpasswd -i -B users.db kim reads stdin",
         "ssws token goes here",
+        // Round 2: `ssws` before an ordinary word (and a line after it), a long
+        // identifier after a blank line, `-i` with `-n` and with a rounds value.
+        "Our ssws implementation uses the Okta API.",
+        "Set the ssws endpoint in the config.",
+        "The ssws configuration lives in one file.",
+        "Check the ssws environment before a deploy.",
+        "Every ssws signature is checked.",
+        "Our ssws implementation\nchanged",
+        "SSWS token\n\nThisIsALongIdentifierName",
+        "htpasswd -nB -i alice reads stdin",
+        "htpasswd -iB -r 5000 users.db kim reads stdin",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()
 }

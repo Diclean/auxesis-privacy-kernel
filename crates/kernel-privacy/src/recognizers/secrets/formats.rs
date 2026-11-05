@@ -196,10 +196,6 @@ const VALUE_SHAPES: &[(&str, usize)] = &[
     // An Okta token after `SSWS` and words that name it (`SSWS header: <token>`,
     // `SSWS token` then the token on the next line).
     (r#"\bSSWS(?:[ \t]+(?i:authentication|authorization|credentials?|headers?|prefix|scheme|tokens?|auth)\b)+[ \t]*[:=]?[ \t]*(?:\r?\n[ \t]*)?["']?([A-Za-z0-9._~+/=\-]+)"#, 20),
-    // KV02-SECRETS-4: the same in any case, with a no-break, narrow no-break or
-    // thin space for a blank, and up to two line breaks (a blank line) before
-    // the token. Added beside the rule above, which stays as it was.
-    (r#"(?i:\bSSWS)(?:[ \t\u{A0}\u{2009}\u{202F}]+(?i:authentication|authorization|credentials?|headers?|prefix|scheme|tokens?|auth)\b)+[ \t\u{A0}\u{2009}\u{202F}]*[:=]?(?:[ \t\u{A0}\u{2009}\u{202F}]*\r?\n){0,2}[ \t\u{A0}\u{2009}\u{202F}]*["']?([A-Za-z0-9._~+/=\-]+)"#, 20),
     // URL userinfo whose password holds `@`, or `/` (not a port before a path,
     // `localhost:5173/@vite`), and a scheme-less one in a `…_URL=` value with no
     // path (`DATABASE_URL=alice:pw@db.example.com`).
@@ -218,14 +214,30 @@ enum Keep {
     Credential,
     /// Not a placeholder the docs write for a signature.
     NotPlaceholder,
-    /// An `htpasswd` line with `-n` and `-b` or `-B`: no file, the password is second.
+    /// An `htpasswd` line with `-n` and `-b` or `-B` and no `-i`: no file, the
+    /// password is second.
     NoFile,
     /// An `htpasswd` line with `-b` or `-B` and no `-n` or `-i`: the password follows
     /// a file and a user.
     WithFile,
+    /// A [`Credential`](Keep::Credential) that, after a scheme not written `SSWS`
+    /// in capitals (`ssws`, `Ssws`), is also shaped like a secret: `ssws
+    /// implementation` is prose.
+    CaseFreeCredential,
+    /// An Okta token, which holds a digit (`00…`): a long identifier is not one.
+    OktaToken,
+    /// As [`NoFile`](Keep::NoFile), and a quoted user takes only a quoted or
+    /// secret-shaped password (`"alice smith" then` is prose).
+    NoFileQuoting,
+    /// As [`WithFile`](Keep::WithFile), with the quoted-user rule of
+    /// [`NoFileQuoting`](Keep::NoFileQuoting).
+    WithFileQuoting,
 }
 
-use Keep::{Credential, NoFile, NotPlaceholder, WithFile};
+use Keep::{
+    CaseFreeCredential, Credential, NoFile, NoFileQuoting, NotPlaceholder, OktaToken, WithFile,
+    WithFileQuoting,
+};
 
 /// The value shapes whose value must also pass its [`Keep`].
 #[rustfmt::skip]
@@ -235,9 +247,12 @@ const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+["']([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"\bSSWS[ \t]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
-    // KV02-SECRETS-4: `ssws` in any case, and a no-break, narrow no-break or thin
-    // space after it.
-    (r#"(?i:\bSSWS)[ \t\u{A0}\u{2009}\u{202F}]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
+    // KV02-SECRETS-4, beside the shapes above: `ssws` in any case and a no-break,
+    // narrow no-break or thin space for a blank; after the words that name the
+    // token, up to three line breaks (blank lines) before it; and `SSWS: <token>`.
+    (r#"(?i:\bSSWS)[ \t\u{A0}\u{2009}\u{202F}]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, CaseFreeCredential),
+    (r#"(?i:\bSSWS)(?:[ \t\u{A0}\u{2009}\u{202F}]+(?i:authentication|authorization|credentials?|headers?|prefix|scheme|tokens?|auth)\b)+[ \t\u{A0}\u{2009}\u{202F}]*[:=]?(?:[ \t\u{A0}\u{2009}\u{202F}]*\r?\n){0,3}[ \t\u{A0}\u{2009}\u{202F}]*["']?([A-Za-z0-9._~+/=\-]+)"#, 20, OktaToken),
+    (r#"(?i:\bSSWS)[ \t\u{A0}\u{2009}\u{202F}]*:(?:[ \t\u{A0}\u{2009}\u{202F}]*\r?\n){0,3}[ \t\u{A0}\u{2009}\u{202F}]*["']?([A-Za-z0-9._~+/=\-]+)"#, 20, OktaToken),
     // `htpasswd -nb user password`.
     (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, NoFile),
     // `htpasswd -nb user password` and `htpasswd -b file user password`: flags
@@ -247,9 +262,10 @@ const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
     (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,6})?)+[ \t]+[^\s\-]\S*[ \t]+[^\s\-]\S*[ \t]+("[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, WithFile),
     // KV02-SECRETS-4, beside the two above: a numeric value of up to nine digits
     // (`-r 1000000`), a quoted file or user (`"/srv/my site/.htpasswd"`), and a
-    // quoted password with an escaped quote inside (`"pa\" ss"`, `'it'\''s'`).
-    (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,9})?)+[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+("(?:\\.|[^"\\\n])*"\S*|'[^'\n]*'(?:\\''[^'\n]*')*\S*|"[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, NoFile),
-    (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,9})?)+[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+("(?:\\.|[^"\\\n])*"\S*|'[^'\n]*'(?:\\''[^'\n]*')*\S*|"[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, WithFile),
+    // quoted password with an escaped quote inside (`"pa\" ss"`, `'it'\''s'`). A
+    // quoted user takes only a quoted or secret-shaped password.
+    (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,9})?)+[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+("(?:\\.|[^"\\\n])*"\S*|'[^'\n]*'(?:\\''[^'\n]*')*\S*|"[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, NoFileQuoting),
+    (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,9})?)+[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+("(?:\\.|[^"\\\n])*"\S*|'[^'\n]*'(?:\\''[^'\n]*')*\S*|"[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, WithFileQuoting),
     // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage), and
     // the V2 `Signature` (S3, Google Cloud Storage, CloudFront, Alibaba OSS).
     (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16, NotPlaceholder),
@@ -280,7 +296,8 @@ pub(super) fn shape_values(text: &str) -> Vec<(usize, usize)> {
             };
             let start = captures.get(0).map_or(0, |whole| whole.start());
             if value.len() >= *min_len && keeps(*keep, text, start, value) {
-                let joined = matches!(keep, Credential).then(|| join_lines(text, value.end()));
+                let joined = matches!(keep, Credential | CaseFreeCredential)
+                    .then(|| join_lines(text, value.end()));
                 spans.push((value.start(), joined.unwrap_or(value.end())));
             }
         }
@@ -304,16 +321,31 @@ fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
             !ssws_word
                 && (!is_status_word(found) || !next.is_some_and(|word| !is_secret_shaped(word)))
         }
+        CaseFreeCredential => {
+            let blank = |ch: char| ch.is_whitespace() || ch == '"' || ch == '\'';
+            let capitals = head.trim_end_matches(blank).ends_with("SSWS");
+            keeps(Credential, text, start, value) && (capitals || is_secret_shaped(found))
+        }
+        OktaToken => found.bytes().any(|b| b.is_ascii_digit()),
         NotPlaceholder => !is_placeholder(found),
         NoFile => {
             let flags = htpasswd_flags(head);
-            flags.contains('n') && flags.contains(['b', 'B'])
+            !flags.contains('i') && flags.contains('n') && flags.contains(['b', 'B'])
         }
         WithFile => {
             let flags = htpasswd_flags(head);
             !flags.contains(['n', 'i']) && flags.contains(['b', 'B'])
         }
+        NoFileQuoting => keeps(NoFile, text, start, value) && fits_user(head, found),
+        WithFileQuoting => keeps(WithFile, text, start, value) && fits_user(head, found),
     }
+}
+
+/// Whether an `htpasswd` password fits its user: a quoted user (`"alice smith"`)
+/// takes only a quoted or secret-shaped password, so `"alice smith" then` is prose.
+fn fits_user(head: &str, found: &str) -> bool {
+    let quote = ['"', '\''];
+    !head.trim_end().ends_with(quote) || found.starts_with(quote) || is_secret_shaped(found)
 }
 
 /// Whether a token follows a header value that ends at `end`: the next word on
