@@ -14,8 +14,12 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - `SandboxHome::remove_dir_all` no longer follows a link on the way: a parent
-  folder swapped for a link during the call is refused, and a link inside the
-  removed tree is deleted as a link, never followed.
+  folder swapped for a link during the call is refused, a link inside the
+  tree is deleted as a link, and a tree of any depth is removed.
+
+### Changed
+
+- `SandboxHome::remove_dir_all` no longer creates a missing parent folder.
 
 ## [0.1.4] - 2026-11-05
 

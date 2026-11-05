@@ -6,13 +6,37 @@ use super::SandboxHome;
 #[cfg(unix)]
 use crate::paths::scan::{fstatat_mode, mode_is_dir, read_dir_names};
 #[cfg(unix)]
-use crate::paths::sys::{fd_file_id, open_rel_dir_existing, unlinkat_flags};
+use crate::paths::sys::{fd_file_id, open_rel_dir_existing, unlinkat_flags, FileId};
 use crate::paths::sys::{invalid_rel, open_rel_dir, openat_dir, relative_components};
-
-/// Deepest tree [`SandboxHome::remove_dir_all`] descends; each level holds
-/// one fd, so this also bounds the fds and stack in use.
 #[cfg(unix)]
-const MAX_REMOVE_DEPTH: usize = 64;
+use std::ffi::{OsStr, OsString};
+#[cfg(unix)]
+use std::os::fd::OwnedFd;
+
+/// Points in [`SandboxHome::remove_dir_all`] where a test can act.
+#[cfg(unix)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(in crate::paths) enum RaceStage {
+    AfterOpen,
+    AfterRecheck,
+}
+
+/// Test hook run at each [`RaceStage`] on this thread.
+#[cfg(all(test, unix))]
+type RaceHook = Box<dyn FnMut(RaceStage)>;
+#[cfg(all(test, unix))]
+thread_local! {
+    pub(in crate::paths) static RACE_HOOK: std::cell::RefCell<Option<RaceHook>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(all(test, unix))]
+fn race_seam(stage: RaceStage) {
+    RACE_HOOK.with(|slot| slot.borrow_mut().iter_mut().for_each(|hook| hook(stage)));
+}
+
+#[cfg(all(not(test), unix))]
+fn race_seam(_stage: RaceStage) {}
 
 impl SandboxHome {
     /// Remove the directory `rel` (must be empty); `false` when it did not
@@ -54,66 +78,37 @@ impl SandboxHome {
 
     /// Recursively remove the directory `rel` without following any link.
     ///
-    /// Every component is opened from the verified home fd with
-    /// `O_NOFOLLOW | O_DIRECTORY`; a linked ancestor or leaf is refused.
-    /// The subtree is then deleted fd-relative (`openat`/`unlinkat`): a link
-    /// inside the tree is unlinked as a link, never followed, so swapping
-    /// any component for a symlink mid-call cannot reach outside the home.
-    /// A missing `rel` (or parent) is not an error and nothing is created.
+    /// Every component is opened `O_NOFOLLOW | O_DIRECTORY` from the home
+    /// fd (a linked ancestor or leaf is refused), then the tree is deleted
+    /// as `empty_tree` says. A missing `rel`, or a parent that vanishes
+    /// during the call, is `Ok`; nothing is created.
     pub fn remove_dir_all(&self, rel: &Path) -> std::io::Result<()> {
-        self.remove_dir_all_with(rel, || {})
-    }
-
-    /// [`SandboxHome::remove_dir_all`] with a seam run between the anchored
-    /// open of the parent chain and the delete, so a test can swap a
-    /// component for a link in that exact window.
-    pub(in crate::paths) fn remove_dir_all_with(
-        &self,
-        rel: &Path,
-        after_open: impl FnOnce(),
-    ) -> std::io::Result<()> {
         self.reverify()?;
         let components = relative_components(rel)?;
         #[cfg(unix)]
         {
             let (name, dirs) = components.split_last().ok_or_else(|| invalid_rel(rel))?;
-            let parent = match open_rel_dir_existing(self, dirs) {
-                Ok(fd) => fd,
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-                Err(err) => return Err(link_refusal(rel, err)),
+            let Some(parent) = found(rel, open_rel_dir_existing(self, dirs))? else {
+                return Ok(());
             };
-            after_open();
-            // Re-walk the chain: if any ancestor moved or became a link since
-            // the open, refuse before deleting anything.
+            race_seam(RaceStage::AfterOpen);
+            // Re-walk the chain: an ancestor moved or linked since is refused.
             self.reverify()?;
-            let again = open_rel_dir_existing(self, dirs).map_err(|err| link_refusal(rel, err))?;
-            let same = matches!(
-                (fd_file_id(&again), fd_file_id(&parent)),
-                (Some(now), Some(then)) if now == then
-            );
-            if !same {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::PermissionDenied,
-                    format!(
-                        "refus de sandbox : un dossier parent de {} a changé pendant la suppression. \
-                         / sandbox refused: a parent of {} changed during removal.",
-                        rel.display(),
-                        rel.display()
-                    ),
-                ));
-            }
-            let tree = match openat_dir(&parent, name, true) {
-                Ok(fd) => fd,
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-                Err(err) => return Err(link_refusal(rel, err)),
+            let Some(again) = found(rel, open_rel_dir_existing(self, dirs))? else {
+                return Ok(());
             };
-            empty_tree(&tree, 0)?;
-            drop(tree);
-            unlinkat_flags(&parent, name, libc::AT_REMOVEDIR)
+            if fd_file_id(&parent).is_none() || fd_file_id(&again) != fd_file_id(&parent) {
+                return Err(refusal(rel, CHANGED));
+            }
+            race_seam(RaceStage::AfterRecheck);
+            let Some(tree) = found(rel, openat_dir(&parent, name, true))? else {
+                return Ok(());
+            };
+            empty_tree(rel, &tree)?;
+            ignore_missing(unlinkat_flags(&parent, name, libc::AT_REMOVEDIR))
         }
         #[cfg(not(unix))]
         {
-            after_open();
             let target = components
                 .iter()
                 .fold(self.home.clone(), |acc, part| acc.join(part));
@@ -158,63 +153,127 @@ impl SandboxHome {
     }
 }
 
-/// A link (`ELOOP`, or `ENOTDIR` on macOS for `O_NOFOLLOW | O_DIRECTORY`)
-/// on the way to `rel` becomes a sandbox refusal; other errors pass through.
+/// French and English refusal reason, completed by the path.
 #[cfg(unix)]
-fn link_refusal(rel: &Path, err: std::io::Error) -> std::io::Error {
-    if !matches!(err.raw_os_error(), Some(libc::ELOOP) | Some(libc::ENOTDIR)) {
-        return err;
-    }
+const CHANGED: (&str, &str) = (
+    "a un dossier qui a changé pendant la suppression",
+    "has a directory that changed during removal",
+);
+
+#[cfg(unix)]
+fn refusal(rel: &Path, (fr, en): (&str, &str)) -> std::io::Error {
+    let rel = rel.display();
     std::io::Error::new(
         std::io::ErrorKind::PermissionDenied,
-        format!(
-            "refus de sandbox : {} est ou traverse un lien symbolique. \
-             / sandbox refused: {} is or goes through a symlink.",
-            rel.display(),
-            rel.display()
-        ),
+        format!("refus de sandbox : {rel} {fr}. / sandbox refused: {rel} {en}."),
     )
 }
 
-/// Delete every entry below the open directory `dir`, fd-relative. A
-/// directory is entered only through `openat(O_NOFOLLOW)`; anything else,
-/// a symlink included, is unlinked as itself. An entry that vanishes
-/// meanwhile is skipped.
+/// `ELOOP` (a link) or `ENOTDIR` (a file, or a link on macOS with
+/// `O_DIRECTORY`) on the way to `rel` is a refusal; others pass through.
 #[cfg(unix)]
-fn empty_tree(dir: &std::os::fd::OwnedFd, depth: usize) -> std::io::Result<()> {
-    if depth >= MAX_REMOVE_DEPTH {
-        return Err(std::io::Error::other("tree too deep to remove"));
+pub(super) fn link_refusal(rel: &Path, err: std::io::Error) -> std::io::Error {
+    match err.raw_os_error() {
+        Some(libc::ELOOP) => refusal(
+            rel,
+            ("est ou traverse un lien", "is or goes through a link"),
+        ),
+        Some(libc::ENOTDIR) => refusal(
+            rel,
+            (
+                "n'est pas un dossier ou traverse un lien ou un fichier",
+                "is not a directory or goes through a link or a file",
+            ),
+        ),
+        _ => err,
     }
-    for name in read_dir_names(dir)? {
-        let mode = match fstatat_mode(dir, &name) {
-            Ok(mode) => mode,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(err) => return Err(err),
-        };
-        let result = if mode_is_dir(mode) {
-            match openat_dir(dir, &name, true) {
-                Ok(child) => {
-                    empty_tree(&child, depth + 1)?;
-                    drop(child);
-                    unlinkat_flags(dir, &name, libc::AT_REMOVEDIR)
-                }
-                // Swapped for a link (or file) since the stat: unlink the
-                // entry itself, never what it points to.
-                Err(err)
-                    if matches!(err.raw_os_error(), Some(libc::ELOOP) | Some(libc::ENOTDIR)) =>
-                {
-                    unlinkat_flags(dir, &name, 0)
-                }
-                Err(err) => Err(err),
+}
+
+/// The opened directory, `None` when missing; a link on the way is refused.
+#[cfg(unix)]
+fn found(rel: &Path, opened: std::io::Result<OwnedFd>) -> std::io::Result<Option<OwnedFd>> {
+    match opened {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        other => other.map(Some).map_err(|err| link_refusal(rel, err)),
+    }
+}
+
+#[cfg(unix)]
+fn ignore_missing(result: std::io::Result<()>) -> std::io::Result<()> {
+    match result {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        other => other,
+    }
+}
+
+/// Delete every entry below `root`, fd-relative, with an explicit stack: a
+/// directory is entered only via `openat(O_NOFOLLOW)` (a mount point is
+/// refused); anything else, a link included, is unlinked as itself. Only
+/// two fds stay open, so depth is unbounded: going up re-walks the names
+/// from `root`, `O_NOFOLLOW`, refusing a changed `(dev, ino)`.
+#[cfg(unix)]
+fn empty_tree(rel: &Path, root: &OwnedFd) -> std::io::Result<()> {
+    let dev = fd_file_id(root)
+        .ok_or_else(std::io::Error::last_os_error)?
+        .dev;
+    // Per level: name and identity of the entered dir, its parent's todo.
+    let mut stack: Vec<(OsString, FileId, Vec<OsString>)> = Vec::new();
+    let mut dir = root.try_clone()?;
+    let mut todo = read_dir_names(root)?;
+    loop {
+        if let Some(name) = todo.pop() {
+            if let Some((child, id)) = unlink_or_enter(rel, &dir, &name, dev)? {
+                let rest = std::mem::replace(&mut todo, read_dir_names(&child)?);
+                stack.push((name, id, rest));
+                dir = child;
             }
-        } else {
-            unlinkat_flags(dir, &name, 0)
+            continue;
+        }
+        // `dir` is empty: go back to its parent and remove it there.
+        let Some((name, _, rest)) = stack.pop() else {
+            return Ok(());
         };
-        match result {
-            Ok(()) => {}
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        dir = root.try_clone()?;
+        for (step, id, _) in &stack {
+            dir = openat_dir(&dir, step, true).map_err(|err| link_refusal(rel, err))?;
+            if fd_file_id(&dir) != Some(*id) {
+                return Err(refusal(rel, CHANGED));
+            }
+        }
+        todo = rest;
+        ignore_missing(unlinkat_flags(&dir, &name, libc::AT_REMOVEDIR))?;
+    }
+}
+
+/// Unlink `name` in `dir`, or open it when it is a directory on `dev`.
+#[cfg(unix)]
+fn unlink_or_enter(
+    rel: &Path,
+    dir: &OwnedFd,
+    name: &OsStr,
+    dev: u64,
+) -> std::io::Result<Option<(OwnedFd, FileId)>> {
+    let mode = match fstatat_mode(dir, name) {
+        Ok(mode) => mode,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err),
+    };
+    if mode_is_dir(mode) {
+        match openat_dir(dir, name, true) {
+            Ok(child) => {
+                return match fd_file_id(&child) {
+                    Some(id) if id.dev == dev => Ok(Some((child, id))),
+                    _ => Err(refusal(
+                        rel,
+                        ("contient un point de montage", "contains a mount point"),
+                    )),
+                };
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            // Swapped for a link or file since the stat: unlink it below.
+            Err(err) if matches!(err.raw_os_error(), Some(libc::ELOOP | libc::ENOTDIR)) => {}
             Err(err) => return Err(err),
         }
     }
-    Ok(())
+    ignore_missing(unlinkat_flags(dir, name, 0)).map(|()| None)
 }

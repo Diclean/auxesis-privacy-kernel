@@ -15,6 +15,9 @@ mod read;
 mod remove;
 mod write;
 
+#[cfg(all(test, unix))]
+pub(in crate::paths) use remove::{RaceStage, RACE_HOOK};
+
 // ---------------------------------------------------------------------------
 // The write gateway: verified home handle
 // ---------------------------------------------------------------------------
