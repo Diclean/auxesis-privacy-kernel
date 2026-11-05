@@ -309,7 +309,10 @@ fn the_split_total_matches_the_recall_denominator() {
         .expect("fixture rows");
     for mode in ["Private", "Open"] {
         let (split_n, denominator) = printed_split_n_and_recall_denominator(&rows, mode);
-        assert_eq!(split_n, denominator, "{mode}: split n vs recall denominator");
+        assert_eq!(
+            split_n, denominator,
+            "{mode}: split n vs recall denominator"
+        );
         assert!(denominator > 0, "{mode}: the fixture measured nothing");
     }
 }
@@ -322,7 +325,15 @@ fn a_blocked_value_is_counted_in_both_the_recall_and_the_split() {
     let mut paths = TierCPaths::default();
     let iban = GoldSpan::new(EntityKind::Iban, 5, 17);
     // Private blocked, Open masked.
-    record_tier_c_gold(&mut paths, "fr", text, &iban, &[], None, Some("iban ⟦IBAN_1⟧ x"));
+    record_tier_c_gold(
+        &mut paths,
+        "fr",
+        text,
+        &iban,
+        &[],
+        None,
+        Some("iban ⟦IBAN_1⟧ x"),
+    );
     // Leaked in both modes.
     record_tier_c_gold(&mut paths, "fr", text, &iban, &[], Some(text), Some(text));
     // Not Tier C: the split ignores it, as the recall does.
