@@ -9,7 +9,8 @@
 //!
 //! KV02-SECRETS-2 adds the forms the peer seals of #92 and #95 found in clear
 //! (`seal-2`, `seal-95`) and the look-alikes #92 masked, which hold no secret
-//! span in either mode.
+//! span in either mode. KV02-SECRETS-3 (`kv02-s3`) adds `htpasswd -b` with a
+//! file and any flags, and keeps `SSWS` before one ordinary word clear.
 
 use std::collections::BTreeMap;
 

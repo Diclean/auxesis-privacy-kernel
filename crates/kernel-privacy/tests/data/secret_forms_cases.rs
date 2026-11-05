@@ -458,6 +458,26 @@ pub fn positives() -> Vec<Case> {
         c("seal-95", "docker login -p {} registry.example.com", "Zq8vR2xLmN4pT6wY"),
         c("seal-95", "curl -u {} https://example.com/v1/items", "alice:Zq8vR2xLmN4pT6wY"),
         c("seal-95", "htpasswd -nB alice {} > users.htpasswd", "Zq8vR2xLmN4pT6wY"),
+        // KV02-SECRETS-3: an `htpasswd -b` password after a file and a user, with
+        // the flags in any order and an optional `-C` cost, and the `-n` form; then
+        // an Okta `SSWS` token in prose and before a status word.
+        c("kv02-s3", "htpasswd -b -B -c /etc/nginx/.htpasswd alice {}", "S3cr3tPass!"),
+        c("kv02-s3", "htpasswd -bc users.db bob {}", "Fake2Pw9x"),
+        c("kv02-s3", "htpasswd -nbB carol {}", "Fake3Pw9x"),
+        c("kv02-s3", "htpasswd -B -b -c /srv/www/.htpasswd dave {}", "Fake4Pw9x"),
+        c("kv02-s3", "htpasswd -c -b -m site.db erin {}", "Fake5Pw9x"),
+        c("kv02-s3", "htpasswd -bBC 12 site.db frank {}", "Fake6Pw9x"),
+        c("kv02-s3", "htpasswd -cbC 10 site.db frank {} && nginx -s reload", "Fake7Pw9x"),
+        c("kv02-s3", "htpasswd -bs passwords.txt gina {}", "Fake8Pw9x"),
+        c("kv02-s3", "htpasswd -bp -c site.db hal {}", "Fake9Pw9x"),
+        c("kv02-s3", "sudo htpasswd -b /etc/apache2/.htpasswd ivan {}", "FakeAPw9x"),
+        c("kv02-s3", "htpasswd -vb site.db judy {}", "FakeBPw9x"),
+        c("kv02-s3", "htpasswd -i -b -c site.db kim {}", "FakeCPw9x"),
+        c("kv02-s3", "htpasswd -n -b -m lee {}", "FakeDPw9x"),
+        c("kv02-s3", "htpasswd -nbs mia {} > users.db", "FakeEPw9x"),
+        c("kv02-s3", "Okta call with SSWS {} worked", &format!("00{}", k(KEY, 40, 1001))),
+        c("kv02-s3", "Authorization: SSWS {} refreshes", &format!("00{}", k(KEY, 40, 1002))),
+        c("kv02-s3", "authorization: \"SSWS {}\"", &format!("00{}", k(KEY, 40, 1003))),
     ]
 }
 
@@ -571,6 +591,15 @@ pub fn negatives() -> Vec<String> {
         "https://example.com:8443/@alice/notes",
         "https://medium.com/@alice/a-post-title",
         "DATABASE_URL=postgres://db.example.com/app",
+        // KV02-SECRETS-3: `SSWS` alone or before one ordinary word.
+        "SSWS",
+        "Okta expects the SSWS header on every call.",
+        "SSWS token goes here",
+        "Authorization: SSWS refreshes",
+        "Authorization: SSWS required",
+        "Send the SSWS authentication header to Okta.",
+        "The SSWS credentials are rotated every month.",
+        "Authorization: SSWS",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()
 }

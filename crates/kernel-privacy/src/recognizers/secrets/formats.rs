@@ -213,9 +213,11 @@ enum Keep {
     NotPlaceholder,
     /// An `htpasswd` line with `-n` and `-b` or `-B`: no file, the password is second.
     NoFile,
+    /// An `htpasswd` line with `-b` and no `-n`: the password follows a file and a user.
+    WithFile,
 }
 
-use Keep::{Credential, NoFile, NotPlaceholder};
+use Keep::{Credential, NoFile, NotPlaceholder, WithFile};
 
 /// The value shapes whose value must also pass its [`Keep`].
 #[rustfmt::skip]
@@ -227,6 +229,8 @@ const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
     (r#"\bSSWS[ \t]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     // `htpasswd -nb user password`.
     (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, NoFile),
+    // `htpasswd -b file user password`, the flags in any order, a `-C` cost too.
+    (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, WithFile),
     // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage), and
     // the V2 `Signature` (S3, Google Cloud Storage, CloudFront, Alibaba OSS).
     (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16, NotPlaceholder),
@@ -274,17 +278,69 @@ fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
             let next = line
                 .strip_prefix([' ', '\t'])
                 .and_then(|rest| rest.split_whitespace().next());
-            !is_status_word(found) || !next.is_some_and(|word| !is_secret_shaped(word))
+            // After `SSWS`, a listed word with no token-shaped word after it is
+            // prose (`the SSWS authentication header`), not an Okta token.
+            let token_next =
+                next.is_some_and(|word| is_secret_shaped(word.trim_end_matches(CLOSING)));
+            let ssws_word = after_ssws(head) && is_ssws_word(found) && !token_next;
+            !ssws_word
+                && (!is_status_word(found) || !next.is_some_and(|word| !is_secret_shaped(word)))
         }
         NotPlaceholder => !is_placeholder(found),
         NoFile => {
-            let flags: String = head
-                .split_whitespace()
-                .filter(|word| word.starts_with('-'))
-                .collect();
+            let flags = htpasswd_flags(head);
             flags.contains('n') && flags.contains(['b', 'B'])
         }
+        WithFile => {
+            let flags = htpasswd_flags(head);
+            !flags.contains('n') && flags.contains('b')
+        }
     }
+}
+
+/// The flag words of an `htpasswd` line before its value, joined.
+fn htpasswd_flags(head: &str) -> String {
+    head.split_whitespace()
+        .filter(|word| word.starts_with('-'))
+        .collect()
+}
+
+/// The punctuation that may close a word in prose.
+const CLOSING: [char; 7] = ['.', ',', ';', ':', '!', '?', ')'];
+
+/// Whether `head`, the match up to a header credential, ends with the Okta `SSWS`
+/// scheme (an opening quote and blanks aside), case aside.
+fn after_ssws(head: &str) -> bool {
+    let scheme = head.trim_end_matches(|ch: char| ch.is_whitespace() || ch == '"' || ch == '\'');
+    scheme
+        .get(scheme.len().saturating_sub(4)..)
+        .is_some_and(|tail| tail.eq_ignore_ascii_case("SSWS"))
+}
+
+/// Ordinary words that follow `SSWS` in prose and are never an Okta token (`the
+/// SSWS authentication header`); a [`STATUS_WORDS`] word is one too.
+const SSWS_WORDS: &[&str] = &[
+    "auth",
+    "authentication",
+    "authorization",
+    "credential",
+    "credentials",
+    "header",
+    "headers",
+    "prefix",
+    "scheme",
+    "token",
+    "tokens",
+];
+
+/// Whether a word, its closing punctuation aside, is one of [`SSWS_WORDS`] or of
+/// [`STATUS_WORDS`].
+fn is_ssws_word(word: &str) -> bool {
+    let bare = word.trim_end_matches(CLOSING);
+    is_status_word(word)
+        || SSWS_WORDS
+            .iter()
+            .any(|ordinary| ordinary.eq_ignore_ascii_case(bare))
 }
 
 /// Ordinary verbs and adjectives that say what happens to a credential and are never
