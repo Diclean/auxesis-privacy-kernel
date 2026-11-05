@@ -1,5 +1,7 @@
 //! Other secret formats: DSN userinfo, AWS pairs, authorization headers,
-//! PEM/PuTTY keys and MySQL flags, and the scan that gathers every value.
+//! PEM/PuTTY keys and MySQL flags, the value shapes (command-line passwords,
+//! Wi-Fi QR codes, presigned URLs, webhooks, password hashes), and the scan that
+//! gathers every value.
 
 use std::sync::LazyLock;
 
@@ -140,6 +142,43 @@ pub(super) static PUTTY_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
 pub(super) static HEADERLESS_PEM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^MII[A-Za-z0-9+/]{61}(?:\r?\n[A-Za-z0-9+/]{64}){2,}(?:\r?\n[A-Za-z0-9+/]{1,64}={0,2})?")
         .expect("headerless PEM shape compiles")
+});
+
+/// Secrets found by the text around them, and key blocks the shapes above miss:
+/// group 1 is the secret (the whole match for a shape without a group), kept when
+/// it is at least as long as given. Nothing joins a wrapped line here.
+#[rustfmt::skip]
+const VALUE_SHAPES: &[(&str, usize)] = &[
+    // `Authorization` quoted (JSON, Python) or with another scheme.
+    (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+([A-Za-z0-9._~+/=:\-]+)"#, 8),
+    // Command lines: `curl -u user:password`, `docker login -p`, `sshpass -p`,
+    // `redis-cli -a`, `htpasswd -b file user password`.
+    (r#"\bcurl\b[^\n]*?\s(?:-u|--user)(?:\s+|=)["']?([^\s"':]*:[^\s"']+)"#, 4),
+    (r#"\bdocker\s+login\b[^\n]*?\s(?:-p|--password)(?:\s+|=)["']?([^\s"']+)"#, 4),
+    (r#"\bsshpass\s+(?:-[a-zA-Z]\s+)*-p\s*["']?([^\s"']+)"#, 4),
+    (r#"\bredis-cli\b[^\n]*?\s(?:-a|--pass)\s+["']?([^\s"']+)"#, 4),
+    (r"\bhtpasswd\s+(?:-[a-zA-Z]+\s+)*?-[a-zA-Z]*b[a-zA-Z]*\s+(?:-[a-zA-Z]+\s+)*\S+\s+\S+\s+(\S+)", 4),
+    // The password field of a Wi-Fi QR code (`WIFI:T:WPA;S:net;P:…;;`).
+    (r"WIFI:(?:[A-Z]:(?:\\.|[^;\\\n])*;)*?P:((?:\\.|[^;\\\n])+)", 4),
+    // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage).
+    (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16),
+    // Slack and Discord webhook paths.
+    (r"hooks\.slack\.com/(?:services|workflows|triggers)/([A-Za-z0-9/_\-]+)", 20),
+    (r"discord(?:app)?\.com/api/webhooks/([0-9]+/[A-Za-z0-9_\-]+)", 30),
+    // Password hashes: bcrypt, Apache MD5, crypt(3) MD5/SHA, yescrypt, argon2, scrypt.
+    (r"\$(?:2[abxy]?|apr1|1|5|6|7|y|argon2(?:id|i|d)|scrypt)\$[A-Za-z0-9./+=,$]+", 20),
+    // A private-key block with four or five dashes, or the SSH2 ` ---- ` frame.
+    (r"-{4,5} ?BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-{4,5}[\s\S]*?(?:-{4,5} ?END [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-{4,5}|\z)", 1),
+    // A headerless DER (`MII`) or OpenSSH (`openssh-key-v1`) body wrapped at 60 to
+    // 76 columns.
+    (r"(?m)^(?:MII|b3BlbnNzaC1rZXktdjE)[A-Za-z0-9+/]{40,73}(?:\r?\n[A-Za-z0-9+/]{60,76}){2,}(?:\r?\n[A-Za-z0-9+/]{1,76}={0,2})?", 1),
+];
+
+pub(super) static VALUE_SHAPES_RE: LazyLock<Vec<(Regex, usize)>> = LazyLock::new(|| {
+    VALUE_SHAPES
+        .iter()
+        .map(|(shape, min_len)| (Regex::new(shape).expect("value shape compiles"), *min_len))
+        .collect()
 });
 
 /// Whether a character belongs to a secret value (an AWS key or a token).

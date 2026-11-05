@@ -77,6 +77,24 @@ const KEY_NAMES: &[(&str, KeyClass)] = &[
     ("credential", KeyClass::Other),
     ("credentials", KeyClass::Other),
     ("dsn", KeyClass::Other),
+    ("creds", KeyClass::Other),
+    ("identifiants", KeyClass::Other),
+    ("account_key", KeyClass::Other),
+    ("subscription_key", KeyClass::Other),
+    ("preshared_key", KeyClass::Other),
+    ("psk", KeyClass::Password),
+    ("mnemonic", KeyClass::Password),
+];
+
+/// Name endings that make a one-word key a secret's (`PGPASSWORD`, `dbpassword`,
+/// `clientsecret`): a segment that is two or more ASCII letters, then one.
+const KEY_SUFFIXES: &[(&str, KeyClass)] = &[
+    ("password", KeyClass::Password),
+    ("passwd", KeyClass::Password),
+    ("passphrase", KeyClass::Password),
+    ("secret", KeyClass::Other),
+    ("token", KeyClass::Other),
+    ("apikey", KeyClass::Other),
 ];
 
 /// Key names that match the text before the separator: spaced and non-ASCII names.
@@ -86,6 +104,9 @@ const KEY_PHRASES: &[(&str, KeyClass)] = &[
     ("密码", KeyClass::Password),
     ("密碼", KeyClass::Password),
     ("口令", KeyClass::Password),
+    ("助记词", KeyClass::Password),
+    ("phrase de récupération", KeyClass::Password),
+    ("phrase de recuperation", KeyClass::Password),
 ];
 
 /// A secret-class value: its byte span in the scanned text, and whether it is past
@@ -153,7 +174,9 @@ fn segments_contain(segments: &[&str], name: &str) -> bool {
     })
 }
 
-/// The class of a key token by the key names it carries. A password name wins.
+/// The class of a key token by the key names it carries. A password name wins. A
+/// token with no key name is read by its [`KEY_SUFFIXES`] only, so no class an
+/// older name gave changes.
 pub(super) fn name_class(token: &str) -> Option<KeyClass> {
     let segments = key_segments(token);
     let mut found = None;
@@ -165,7 +188,16 @@ pub(super) fn name_class(token: &str) -> Option<KeyClass> {
             found = Some(class);
         }
     }
-    found
+    found.or_else(|| {
+        segments.iter().find_map(|segment| {
+            KEY_SUFFIXES.iter().find_map(|&(suffix, class)| {
+                let cut = segment.len().checked_sub(suffix.len())?;
+                let (head, end) = (segment.get(..cut)?, segment.get(cut..)?);
+                let letters = head.len() > 1 && head.bytes().all(|b| b.is_ascii_alphabetic());
+                (letters && end.eq_ignore_ascii_case(suffix)).then_some(class)
+            })
+        })
+    })
 }
 
 /// The class of the text before a separator, by a spaced or non-ASCII key name. The
@@ -219,8 +251,9 @@ pub(super) fn key_before(text: &str, sep: usize) -> Option<KeyClass> {
     let token = &text[start..end];
     let mut class = name_class(token);
     // A spaced or non-ASCII name ends the text before the separator. Only a word that
-    // ends the phrase (`passe` of `mot de passe`), or no word at all, can end one.
-    if token.is_empty() || token.eq_ignore_ascii_case("passe") {
+    // ends the phrase (`passe` of `mot de passe`), or no word at all, can end one;
+    // a token with no class is read too (`ration` of `phrase de récupération`).
+    if token.is_empty() || token.eq_ignore_ascii_case("passe") || class.is_none() {
         let mut window = end.saturating_sub(KEY_TAIL_BYTES);
         while !text.is_char_boundary(window) {
             window += 1;

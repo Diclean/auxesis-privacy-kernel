@@ -105,7 +105,9 @@ impl Recognizer for LabelValueRecognizer {
             let found = match label.class {
                 Class::Secret => {
                     let (end, read) = secret(text, start, line, prose);
-                    reach = reach.max(read);
+                    if !crossed {
+                        reach = reach.max(read);
+                    }
                     end
                 }
                 Class::Cookie => {
@@ -140,9 +142,9 @@ impl Recognizer for LabelValueRecognizer {
                     Class::Health | Class::Blood | Class::Member => EntityKind::Health,
                 };
                 spans.push(Span::new(kind, start, end, 1.0, NAME));
-                // A label inside a crossed aside is still read (`licence number
-                // (password/…): …`): the value is short, so the
-                // rescan stays bounded.
+                // A label inside a crossed aside or a secret's `for …` clause is
+                // still read (`licence number (password/…): …`): the value is
+                // short, so the rescan stays bounded.
                 if !crossed {
                     reach = reach.max(end);
                 }

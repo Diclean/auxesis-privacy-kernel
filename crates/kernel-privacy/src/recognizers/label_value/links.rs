@@ -10,10 +10,15 @@ const MAX_LINK_RAW: usize = 64;
 /// Words that may sit between a label and its value. A number word also counts
 /// as the strong link a `punct` label needs.
 const LINKS: &str = "is was are were be been might may will would should could must now still \
-    currently set changed updated to est etait sera devient ist lautet war je";
+    currently set changed updated to est etait sera devient ist lautet war je c'est";
 /// Links only a health number, a blood group or an ID takes (`a blood type of O+`,
 /// `a tax ID of 98-…`, `ma cni c'est …`): a secret after `of` stays as main.
 const HEALTH_LINKS: &str = "of such as like c'est";
+
+/// The words that open a clause a secret label's value follows (`password for the
+/// office is …`, `wagwoord vir die wifi is …`, `geslo za e-pošto: …`): only a
+/// shaped value is read after one, never a plain word.
+const SECRET_HEADS: &str = "for vir za pour";
 
 /// The links after which a plain word is a value (`might be`, `set to`, `est`):
 /// English and French only, the languages of the clause-tail stopwords.
@@ -44,7 +49,8 @@ pub(super) const QUOTES: &str = "\"'`“”‘’«»„「」『』";
 ///
 /// Behind an ID label (`aside`), one [`aside_end`] aside is crossed whole, so a
 /// `:` after it is the strong link (`TIN (if applicable): …`) and its words are
-/// no link (`(as applicable)`); the last field says whether one was crossed.
+/// no link (`(as applicable)`); the last field says whether one was crossed, or
+/// a secret label's [`SECRET_HEADS`] clause (no prose link counts after it).
 pub(super) fn link(
     folded: &str,
     from: usize,
@@ -94,9 +100,17 @@ pub(super) fn link(
                     continue;
                 }
             }
+            if let Some(head) = SECRET_HEADS.split(' ').filter(|_| !wide).find(word) {
+                if let Some((len, colon)) = for_clause(&rest[head.len()..]) {
+                    let skip = head.len() + len;
+                    (at, used, strong, crossed) =
+                        (at + skip, used + head.len() + 1, strong || colon, true);
+                    continue;
+                }
+            }
             let wide_link = || HEALTH_LINKS.split(' ').filter(|_| wide).find(word);
             if let Some(link) = LINKS.split(' ').find(word).or_else(wide_link) {
-                if PROSE_LINKS.split(' ').any(|prose| prose == link) {
+                if !crossed && PROSE_LINKS.split(' ').any(|prose| prose == link) {
                     prose = Some(true);
                 }
                 (at, used) = (at + link.len(), used + link.len());
@@ -166,9 +180,10 @@ pub(super) fn numbered(before: &str, rest: &str) -> bool {
     })
 }
 
-/// After a health label's `for`, one to three words then `is`, `was` or `:`
-/// (`medical record number for this donor is …`): the folded bytes up to and
-/// with that link, and whether it was a `:`. `None` for any other shape.
+/// After a health label's `for` (or a secret label's [`SECRET_HEADS`] word), one
+/// to three words then `is`, `was`, `je`, `est` or `:` (`medical record number for
+/// this donor is …`): the folded bytes up to and with that link, and whether it
+/// was a `:`. `None` for any other shape.
 fn for_clause(rest: &str) -> Option<(usize, bool)> {
     let blank = |s: &str| s.len() - s.trim_start_matches([' ', '\t']).len();
     let mut at = 0;
@@ -186,7 +201,9 @@ fn for_clause(rest: &str) -> Option<(usize, bool)> {
         if after.starts_with(':') {
             return Some((at + skip + 1, true));
         }
-        let link = ["is", "was"].into_iter().find(|w| after.starts_with(w));
+        let link = ["is", "was", "je", "est"]
+            .into_iter()
+            .find(|w| after.starts_with(w));
         if let Some(link) = link.filter(|w| skip > 0 && ends_word(&after[w.len()..])) {
             return Some((at + skip + link.len(), false));
         }

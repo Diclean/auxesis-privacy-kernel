@@ -23,7 +23,7 @@ use crate::span::{EntityKind, Span};
 
 use self::formats::{
     is_value_char, secret_values, AUTHORIZATION_RE, AWS_PAIR_RE, DSN_NO_SCHEME_RE, DSN_USERINFO_RE,
-    HEADERLESS_PEM_RE, PEM_BLOCK_RE, PUTTY_KEY_RE,
+    HEADERLESS_PEM_RE, PEM_BLOCK_RE, PUTTY_KEY_RE, VALUE_SHAPES_RE,
 };
 use self::glued::{glued_keys, known_glued_format};
 use self::key_names::AWS_SECRET_RE;
@@ -126,6 +126,69 @@ const SHAPES: &[(&str, usize)] = &[
     (r"glrt-[A-Za-z0-9_\-]*", 20),
     (r"key-[A-Za-z0-9]*", 36),
     (r"doo_v1_[a-f0-9]*", 64),
+    // AI and data tools: LangSmith, Pinecone, Hugging Face org, Databricks, Airtable,
+    // the legacy Notion integration secret.
+    (r"lsv2_(?:pt|sk)_[A-Za-z0-9_]*", 40),
+    (r"pcsk_[A-Za-z0-9_]*", 40),
+    (r"api_org_[A-Za-z0-9]*", 40),
+    (r"dapi[a-f0-9]*", 36),
+    (r"pat[A-Za-z0-9]{14}\.[a-f0-9]{64}", 82),
+    (r"secret_[A-Za-z0-9]*", 50),
+    // Design, API and content tools: Figma, Postman, Contentful, Brevo.
+    (r"figd_[A-Za-z0-9_\-]*", 40),
+    (r"PMAK-[A-Za-z0-9\-]*", 40),
+    (r"CFPAT-[A-Za-z0-9_\-]*", 40),
+    (r"x(?:keysib|smtpsib)-[A-Za-z0-9\-]*", 40),
+    // Hosting, CI and secret stores: Terraform Cloud, Doppler, Pulumi, Netlify,
+    // Render, Sentry user tokens, SonarQube, Bitbucket, CircleCI, Buildkite,
+    // Dynatrace, Vault batch and recovery tokens, GitLab CI/OAuth/feed/runner
+    // tokens.
+    (r"[A-Za-z0-9]{14}\.atlasv1\.[A-Za-z0-9_\-]*", 50),
+    (r"dp\.(?:pt|st|sa|ct|scim|audit)\.[A-Za-z0-9]*", 40),
+    (r"pul-[a-f0-9]*", 44),
+    (r"nfp_[A-Za-z0-9]*", 40),
+    (r"rnd_[A-Za-z0-9]*", 32),
+    (r"sntryu_[a-f0-9]*", 40),
+    (r"sq[upa]_[a-f0-9]*", 44),
+    (
+        r"(?:^|[^A-Za-z0-9])(ATBB[A-Z0-9]*[a-z][A-Za-z0-9_=.\-]*)",
+        32,
+    ),
+    (r"CCIPAT_[A-Za-z0-9_]*", 40),
+    (r"bkua_[a-f0-9]*", 45),
+    (r"dt0c01\.[A-Z0-9]{24}\.[A-Z0-9]*", 50),
+    (r"hv[br]\.[A-Za-z0-9_\-]*", 30),
+    (r"gl(?:cbt|oas|ft|imt|soat|agent|ffct)-[A-Za-z0-9_\-]*", 25),
+    (r"GR1348941[A-Za-z0-9_\-]*", 29),
+    // Slack refresh and client tokens.
+    (r"xox[ce]-[A-Za-z0-9\-]*", 20),
+    // Payments: Mailchimp (`-us` and the data-centre number), Braintree, Square,
+    // Plaid, Shopify private apps.
+    (r"(?:^|[^A-Za-z0-9])([a-f0-9]{32}-us[0-9]{1,2})", 36),
+    (
+        r"access_token\$(?:production|sandbox)\$[a-z0-9]{16}\$[a-f0-9]{32}",
+        40,
+    ),
+    (r"sq0(?:atp|csp)-[A-Za-z0-9_\-]*", 29),
+    (
+        r"access-(?:production|sandbox|development)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+        40,
+    ),
+    (r"shppa_[a-f0-9]*", 38),
+    // Clouds: Alibaba and Tencent access key IDs (mixed case, so an upper-case
+    // OCR or MRZ run is none), Azure AD client secrets.
+    (r"(?:^|[^A-Za-z0-9])(LTAI[A-Z0-9]*[a-z][A-Za-z0-9]*)", 20),
+    (r"(?:^|[^A-Za-z0-9])(AKID[A-Z0-9]*[a-z][A-Za-z0-9]*)", 36),
+    (
+        r"(?:^|[^A-Za-z0-9_~.\-])([A-Za-z0-9_~.]{3}[0-9]Q~[A-Za-z0-9_~.\-]{31,34})",
+        40,
+    ),
+    // Package registries: RubyGems, NuGet, Artifactory.
+    (r"rubygems_[a-f0-9]*", 57),
+    (r"oy2[a-z0-9]*", 46),
+    (r"AKCp[A-Za-z0-9]*", 69),
+    // BIP32 extended private keys (base58).
+    (r"[xyzt]prv[1-9A-HJ-NP-Za-km-z]*", 100),
 ];
 
 static SHAPES_RE: LazyLock<Vec<(Regex, usize)>> = LazyLock::new(|| {
@@ -320,6 +383,15 @@ impl SecretRecognizer {
         {
             let (from, to) = original(block.start(), block.end());
             spans.push(Span::new(EntityKind::Secret, from, to, SCORE, NAME));
+        }
+        for (shape, min_len) in VALUE_SHAPES_RE.iter() {
+            for captures in shape.captures_iter(haystack) {
+                let value = captures.get(1).or_else(|| captures.get(0));
+                if let Some(value) = value.filter(|value| value.len() >= *min_len) {
+                    let (from, to) = original(value.start(), value.end());
+                    spans.push(Span::new(EntityKind::Secret, from, to, SCORE, NAME));
+                }
+            }
         }
         spans
     }
