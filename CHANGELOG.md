@@ -39,6 +39,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   kernel's tokens and markers as stand-ins: a value cut across parts that the
   mode hides, or clear text a seam ties to a token, becomes a fixed marker, or
   the join is withheld. Open records its markers, so a typed one stays text.
+- A join reads each seam with the gate's full detector, so a company or tax
+  number cut after its keyword is hidden. A key's mark at a seam takes the key
+  lines that run on from it, to its frame; an address mark takes the address
+  words across the seam; a read whose window cuts a word is widened; and two
+  overlapping hidden ranges no longer drop the bytes between them.
 
 ## [0.1.4] - 2026-11-05
 
