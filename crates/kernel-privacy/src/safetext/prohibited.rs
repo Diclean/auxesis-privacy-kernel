@@ -126,8 +126,9 @@ pub(super) fn consolidate_mask_spans(spans: Vec<Span>) -> Vec<Span> {
 /// are replaced once, so no byte of a prohibited value survives and no range is
 /// written twice; a merged range takes the marker of its highest-priority kind
 /// (a secret over an ID over a health term). Every other span, and every byte
-/// no prohibited span covers, is returned exactly as it was.
-pub(super) fn remove_prohibited(text: &str, spans: &[Span]) -> String {
+/// no prohibited span covers, is returned exactly as it was. With the text
+/// comes the byte range of each marker written.
+pub(super) fn strip_prohibited(text: &str, spans: &[Span]) -> (String, Vec<(usize, usize)>) {
     let mut ranges: Vec<(usize, usize, EntityKind)> = spans
         .iter()
         .filter(|span| {
@@ -144,7 +145,7 @@ pub(super) fn remove_prohibited(text: &str, spans: &[Span]) -> String {
         .filter(|&(start, end, _)| start < end)
         .collect();
     if ranges.is_empty() {
-        return text.to_string();
+        return (text.to_string(), Vec::new());
     }
     ranges.sort_by_key(|&(start, end, kind)| (start, end, kind.mask_priority()));
     let mut merged: Vec<(usize, usize, EntityKind)> = Vec::with_capacity(ranges.len());
@@ -160,12 +161,19 @@ pub(super) fn remove_prohibited(text: &str, spans: &[Span]) -> String {
         }
     }
     let mut out = String::with_capacity(text.len());
-    let mut cursor = 0;
+    let (mut cursor, mut written) = (0, Vec::with_capacity(merged.len()));
     for (start, end, kind) in merged {
         out.push_str(&text[cursor..start]);
-        out.push_str(removal_text(kind).unwrap_or(SECRET_REMOVED));
+        let marker = removal_text(kind).unwrap_or(SECRET_REMOVED);
+        written.push((out.len(), out.len() + marker.len()));
+        out.push_str(marker);
         cursor = end;
     }
     out.push_str(&text[cursor..]);
-    out
+    (out, written)
+}
+
+#[cfg(test)]
+pub(super) fn remove_prohibited(text: &str, spans: &[Span]) -> String {
+    strip_prohibited(text, spans).0
 }

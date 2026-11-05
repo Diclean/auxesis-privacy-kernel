@@ -20,6 +20,10 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - `SandboxHome::remove_dir_all` no longer creates a missing parent folder.
+- `SafeText::join` reads every seam again with the private recognisers, the
+  kernel's tokens and markers as stand-ins: a value cut across parts that the
+  mode hides, or clear text a seam ties to a token, becomes a fixed marker, or
+  the join is withheld. Open records its markers, so a typed one stays text.
 
 ## [0.1.4] - 2026-11-05
 

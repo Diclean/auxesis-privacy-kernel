@@ -79,6 +79,7 @@ mod prohibited;
 mod report;
 mod residue;
 mod safe_text;
+mod seams;
 mod tokens;
 
 pub use detector::{Detector, StandardDetector, ASSISTANT_NAMES};

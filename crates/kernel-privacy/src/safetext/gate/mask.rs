@@ -10,7 +10,7 @@ use crate::span::{EntityKind, Span};
 
 use super::Gate;
 use crate::safetext::prohibited::{
-    consolidate_mask_spans, export_spans, remove_prohibited, report_of, take_widened,
+    consolidate_mask_spans, export_spans, report_of, strip_prohibited, take_widened,
 };
 use crate::safetext::report::{DetectError, DetectionReport, GateError};
 use crate::safetext::residue::{
@@ -176,7 +176,9 @@ impl Gate {
             // returned. Each maximal merged range is written once; every
             // other span is left exactly as it was.
             spans.extend(extra);
-            return Ok((remove_prohibited(text, &spans), report));
+            let (text, removed) = strip_prohibited(text, &spans);
+            self.removed = removed;
+            return Ok((text, report));
         }
         Ok((self.apply_spans(text, &spans, &extra)?, report))
     }
