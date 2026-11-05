@@ -16,10 +16,19 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `SandboxHome::remove_dir_all` no longer follows a link on the way: a parent
   folder swapped for a link during the call is refused, a link inside the
   tree is deleted as a link, and a tree of any depth is removed.
+- `SandboxHome::remove_dir_all` stays fast on deep trees: going back up
+  re-opens the path once per 64 levels instead of once per level, with at
+  most 64 extra open files;
+  a folder that is itself a mount point is refused before anything is
+  deleted; a folder of the tree that vanishes during the call counts as
+  removed. A refusal mid-way leaves the folder partly emptied, never
+  anything outside it.
 
 ### Changed
 
-- `SandboxHome::remove_dir_all` no longer creates a missing parent folder.
+- `SandboxHome::remove_dir_all`, `remove_dir` and `remove_file` no longer
+  create a missing parent folder: there is nothing to remove (`Ok`, `false`
+  for the last two).
 - `SafeText::join` reads every seam again with the private recognisers, the
   kernel's tokens and markers as stand-ins: a value cut across parts that the
   mode hides, or clear text a seam ties to a token, becomes a fixed marker, or

@@ -1,8 +1,10 @@
 //! Anchored removal and `open_dir` tests: no link is followed on the way.
 
 use super::*;
-use crate::paths::sandbox_home::{RaceStage, RACE_HOOK};
+use crate::paths::sandbox_home::{checked, same_device, RaceStage, RACE_HOOK};
+use crate::paths::sys::{mkdirat, openat_dir, FileId};
 use crate::paths::*;
+use std::ffi::OsStr;
 use std::path::PathBuf;
 
 /// A sandbox home with `ext/pkg/{file, sub/deep}` and an `outside` tree
@@ -89,12 +91,14 @@ fn remove_dir_all_refuses_a_linked_ancestor_or_leaf() {
 fn race(at: RaceStage, home: &Path, from: &str, to: Option<PathBuf>) {
     let (from, old) = (home.join(from), home.join(format!("{from}-old")));
     RACE_HOOK.set(Some(Box::new(move |stage: RaceStage| {
-        if stage == at {
-            std::fs::rename(&from, &old).unwrap();
-            if let Some(to) = &to {
-                std::os::unix::fs::symlink(to, &from).unwrap();
-            }
+        if stage != at {
+            return false;
         }
+        std::fs::rename(&from, &old).unwrap();
+        if let Some(to) = &to {
+            std::os::unix::fs::symlink(to, &from).unwrap();
+        }
+        true
     })));
 }
 
@@ -112,6 +116,101 @@ fn remove_dir_all_removes_a_300_deep_tree() {
     handle.remove_dir_all(Path::new("ext/pkg")).unwrap();
     assert!(!pkg.exists());
     assert_eq!(std::fs::read(outside.join("pkg/keep")).unwrap(), b"k");
+}
+
+/// A 2,000-deep tree (built fd-relative: its path is past `PATH_MAX`) goes
+/// in full and fast, with one re-walk from the root per window of levels,
+/// never one per level.
+#[test]
+#[cfg(unix)]
+fn remove_dir_all_removes_a_2000_deep_tree_in_linear_time() {
+    let (dir, handle, _outside) = tree_fixture();
+    let pkg = dir.path().join("home/ext/pkg");
+    let mut cur: std::os::fd::OwnedFd = std::fs::File::open(&pkg).unwrap().into();
+    for _ in 0..2000 {
+        mkdirat(&cur, OsStr::new("d"), 0o700).unwrap();
+        cur = openat_dir(&cur, OsStr::new("d"), true).unwrap();
+    }
+    drop(cur);
+    let walks = std::rc::Rc::new(std::cell::Cell::new(0_usize));
+    let counter = walks.clone();
+    RACE_HOOK.set(Some(Box::new(move |stage: RaceStage| {
+        counter.set(counter.get() + usize::from(stage == RaceStage::UpWalk));
+        false
+    })));
+    let started = std::time::Instant::now();
+    handle.remove_dir_all(Path::new("ext/pkg")).unwrap();
+    let took = started.elapsed();
+    RACE_HOOK.set(None);
+    assert!(!pkg.exists(), "the whole tree is gone");
+    assert!(took < std::time::Duration::from_secs(20), "took {took:?}");
+    assert!(walks.get() <= 2000 / 64 + 1, "{} re-walks", walks.get());
+}
+
+/// A directory of the tree that vanishes before the up-walk reaches it
+/// counts as removed: the call is `Ok` and the rest of the tree still goes.
+#[test]
+#[cfg(unix)]
+fn remove_dir_all_treats_a_dir_vanished_during_the_up_walk_as_removed() {
+    let (dir, handle, _outside) = tree_fixture();
+    let home = dir.path().join("home");
+    let pkg = home.join("ext/pkg");
+    std::fs::create_dir_all((0..200).fold(pkg.join("d"), |acc, _| acc.join("d"))).unwrap();
+    let (from, to) = (pkg.join("d/d"), home.join("moved"));
+    RACE_HOOK.set(Some(Box::new(move |stage: RaceStage| {
+        stage == RaceStage::UpWalk && std::fs::rename(&from, &to).is_ok()
+    })));
+    handle.remove_dir_all(Path::new("ext/pkg")).unwrap();
+    RACE_HOOK.set(None);
+    assert!(!pkg.exists(), "the rest of the tree went");
+    assert!(
+        home.join("moved/d").is_dir(),
+        "the moved dir is left as it is"
+    );
+}
+
+/// The tree root on another device than its parent (a mount point) is
+/// refused before anything is emptied; an unreadable identity has its own
+/// reason, never "mount point".
+#[test]
+#[cfg(unix)]
+fn a_mounted_root_and_an_unreadable_identity_are_refused_by_name() {
+    let rel = Path::new("ext/pkg");
+    let parent = FileId { dev: 1, ino: 2 };
+    assert_eq!(
+        same_device(rel, parent, FileId { dev: 1, ino: 3 }).unwrap(),
+        1
+    );
+    let err = same_device(rel, parent, FileId { dev: 7, ino: 3 }).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied, "{err}");
+    assert!(err.to_string().contains("is a mount point"), "{err}");
+    assert!(err.to_string().contains("est un point de montage"), "{err}");
+    let err = checked(rel, None).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied, "{err}");
+    assert!(err.to_string().contains("identity cannot be read"), "{err}");
+    assert!(!err.to_string().contains("mount"), "{err}");
+    assert_eq!(checked(rel, Some(parent)).unwrap(), parent);
+}
+
+/// `remove_dir` and `remove_file` never create a missing parent: it is
+/// `Ok(false)`, nothing to remove.
+#[test]
+#[cfg(unix)]
+fn remove_dir_and_remove_file_never_create_a_missing_parent() {
+    let (dir, handle, _outside) = tree_fixture();
+    let home = dir.path().join("home");
+    assert!(!handle.remove_file(Path::new("absent/deeper/file")).unwrap());
+    assert!(!handle.remove_dir(Path::new("absent/deeper/dir")).unwrap());
+    assert!(!home.join("absent").exists(), "nothing created");
+    assert!(handle.remove_file(Path::new("ext/pkg/file")).unwrap());
+    assert!(!handle.remove_file(Path::new("ext/pkg/file")).unwrap());
+    assert!(
+        handle.remove_dir(Path::new("ext/pkg/sub")).is_err(),
+        "not empty"
+    );
+    assert!(handle.remove_file(Path::new("ext/pkg/sub/deep")).unwrap());
+    assert!(handle.remove_dir(Path::new("ext/pkg/sub")).unwrap());
+    assert!(!home.join("ext/pkg/sub").exists());
 }
 
 #[test]
