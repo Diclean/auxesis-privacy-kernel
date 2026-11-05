@@ -458,6 +458,63 @@ pub fn positives() -> Vec<Case> {
         c("seal-95", "docker login -p {} registry.example.com", "Zq8vR2xLmN4pT6wY"),
         c("seal-95", "curl -u {} https://example.com/v1/items", "alice:Zq8vR2xLmN4pT6wY"),
         c("seal-95", "htpasswd -nB alice {} > users.htpasswd", "Zq8vR2xLmN4pT6wY"),
+        // KV02-SECRETS-3: an `htpasswd -b` password after a file and a user, with
+        // the flags in any order and an optional `-C` cost, and the `-n` form; then
+        // an Okta `SSWS` token in prose and before a status word.
+        c("kv02-s3", "htpasswd -b -B -c /etc/nginx/.htpasswd alice {}", "S3cr3tPass!"),
+        c("kv02-s3", "htpasswd -bc users.db bob {}", "Fake2Pw9x"),
+        c("kv02-s3", "htpasswd -nbB carol {}", "Fake3Pw9x"),
+        c("kv02-s3", "htpasswd -B -b -c /srv/www/.htpasswd dave {}", "Fake4Pw9x"),
+        c("kv02-s3", "htpasswd -c -b -m site.db erin {}", "Fake5Pw9x"),
+        c("kv02-s3", "htpasswd -bBC 12 site.db frank {}", "Fake6Pw9x"),
+        c("kv02-s3", "htpasswd -cbC 10 site.db frank {} && nginx -s reload", "Fake7Pw9x"),
+        c("kv02-s3", "htpasswd -bs passwords.txt gina {}", "Fake8Pw9x"),
+        c("kv02-s3", "htpasswd -bp -c site.db hal {}", "Fake9Pw9x"),
+        c("kv02-s3", "sudo htpasswd -b /etc/apache2/.htpasswd ivan {}", "FakeAPw9x"),
+        c("kv02-s3", "htpasswd -vb site.db judy {}", "FakeBPw9x"),
+        c("kv02-s3", "htpasswd -i -b -c site.db kim {}", "FakeCPw9x"),
+        c("kv02-s3", "htpasswd -n -b -m lee {}", "FakeDPw9x"),
+        c("kv02-s3", "htpasswd -nbs mia {} > users.db", "FakeEPw9x"),
+        c("kv02-s3", "Okta call with SSWS {} worked", &format!("00{}", k(KEY, 40, 1001))),
+        c("kv02-s3", "Authorization: SSWS {} refreshes", &format!("00{}", k(KEY, 40, 1002))),
+        c("kv02-s3", "authorization: \"SSWS {}\"", &format!("00{}", k(KEY, 40, 1003))),
+        // KV02-SECRETS-3 round 2, from the MiniMax seal of #99: a listed word after
+        // `SSWS` with the token wrapped onto the next line, an attached or 3-digit
+        // `-C` cost, `--`, a quoted password with spaces, and `-B` alone.
+        m("kv02-s3", "Authorization: SSWS credentials\n00aB3dEfGhIjKlMnOpQrStUvWxYz0123456789abcd".into(), vec!["00aB3dEfGhIjKlMnOpQrStUvWxYz0123456789abcd".into()]),
+        m("kv02-s3", format!("Authorization: SSWS authentication\n00{}", k(ALNUM, 40, 1004)), vec![format!("00{}", k(ALNUM, 40, 1004))]),
+        m("kv02-s3", format!("Authorization: SSWS authorization\n00{}", k(ALNUM, 40, 1005)), vec![format!("00{}", k(ALNUM, 40, 1005))]),
+        m("kv02-s3", format!("Authorization: SSWS credential\n00{}", k(ALNUM, 40, 1006)), vec![format!("00{}", k(ALNUM, 40, 1006))]),
+        m("kv02-s3", format!("Authorization: SSWS refreshes\n00{}", k(ALNUM, 40, 1007)), vec![format!("00{}", k(ALNUM, 40, 1007))]),
+        m("kv02-s3", format!("Authorization: SSWS required\n00{}", k(ALNUM, 40, 1008)), vec![format!("00{}", k(ALNUM, 40, 1008))]),
+        m("kv02-s3", format!("SSWS credentials\n00{}", k(ALNUM, 40, 1009)), vec![format!("00{}", k(ALNUM, 40, 1009))]),
+        m("kv02-s3", format!("SSWS authentication\n00{}", k(ALNUM, 40, 1010)), vec![format!("00{}", k(ALNUM, 40, 1010))]),
+        m("kv02-s3", format!("SSWS refreshes\n00{}", k(ALNUM, 40, 1011)), vec![format!("00{}", k(ALNUM, 40, 1011))]),
+        m("kv02-s3", format!("SSWS required\n  00{}\nAccept: */*", k(ALNUM, 40, 1012)), vec![format!("00{}", k(ALNUM, 40, 1012))]),
+        c("kv02-s3", "htpasswd -b -C10 site.db frank {}", "S3cretPass"),
+        c("kv02-s3", "htpasswd -b -C 100 site.db frank {}", "S3cretPass"),
+        c("kv02-s3", "htpasswd -b -- site.db alice {}", "S3cretPass"),
+        c("kv02-s3", "htpasswd -b site.db alice \"{}\"", "pass word"),
+        c("kv02-s3", "htpasswd -b site.db alice \"{}\"", "my pass word"),
+        c("kv02-s3", "htpasswd -b site.db alice '{}'", "pass word"),
+        c("kv02-s3", "htpasswd -bc site.db alice '{}' && nginx -s reload", "my pass word"),
+        c("kv02-s3", "htpasswd -nb carol \"{}\"", "my pass word"),
+        c("kv02-s3", "htpasswd -nbB carol '{}' > users.db", "pass word"),
+        c("kv02-s3", "htpasswd -cB site.db dan {}", "FakeFPw9x"),
+        // Round 2 addendum (DeepSeek seal of #99): digit flags and a `-r` rounds
+        // value, a CRLF-wrapped SSWS token, and a token after listed words.
+        c("kv02-s3", "htpasswd -b -2 /etc/htpasswd alice {}", "S3cr3tPass!"),
+        c("kv02-s3", "htpasswd -b -5 /etc/htpasswd alice {}", "S3cr3tPass!"),
+        c("kv02-s3", "htpasswd -b -2 -r 5000 file alice {}", "S3cr3tPass!"),
+        c("kv02-s3", "htpasswd -nb2 alice {}", "S3cr3tPass!"),
+        c("kv02-s3", "htpasswd -nb5 -r 100000 alice \"{}\"", "my pass word"),
+        c("kv02-s3", "Authorization: SSWS credentials\r\n{}", &format!("00{}", k(ALNUM, 40, 1013))),
+        c("kv02-s3", "SSWS header: {}", &format!("00{}", k(ALNUM, 40, 1014))),
+        c("kv02-s3", "SSWS credentials {}", &format!("00{}", k(ALNUM, 40, 1015))),
+        c("kv02-s3", "SSWS auth {}", &format!("00{}", k(ALNUM, 40, 1016))),
+        c("kv02-s3", "SSWS token header {}", &format!("00{}", k(ALNUM, 40, 1017))),
+        c("kv02-s3", "SSWS token\n{}", &format!("00{}", k(ALNUM, 40, 1018))),
+        c("kv02-s3", "Authorization: SSWS Token = '{}'", &format!("00{}", k(ALNUM, 40, 1019))),
     ]
 }
 
@@ -571,6 +628,16 @@ pub fn negatives() -> Vec<String> {
         "https://example.com:8443/@alice/notes",
         "https://medium.com/@alice/a-post-title",
         "DATABASE_URL=postgres://db.example.com/app",
+        // KV02-SECRETS-3: `SSWS` alone or before one ordinary word.
+        "SSWS",
+        "Okta expects the SSWS header on every call.",
+        "SSWS token goes here",
+        "Authorization: SSWS refreshes",
+        "Authorization: SSWS required",
+        "Send the SSWS authentication header to Okta.",
+        "The SSWS credentials are rotated every month.",
+        "Authorization: SSWS",
+        "htpasswd -iB users.db kim reads stdin",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()
 }
