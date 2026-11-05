@@ -23,7 +23,7 @@ use crate::span::{EntityKind, Span};
 
 use self::formats::{
     is_value_char, secret_values, shape_values, AUTHORIZATION_RE, AWS_PAIR_RE, DSN_NO_SCHEME_RE,
-    DSN_USERINFO_RE, HEADERLESS_PEM_RE, PEM_BLOCK_RE, PUTTY_KEY_RE,
+    DSN_USERINFO_RE, HEADERLESS_PEM_RE, PEM_BLOCK_RE, PUTTY_KEY_RE, VALUE_SHAPES_RE,
 };
 use self::glued::{glued_keys, known_glued_format};
 use self::key_names::AWS_SECRET_RE;
@@ -383,6 +383,15 @@ impl SecretRecognizer {
         {
             let (from, to) = original(block.start(), block.end());
             spans.push(Span::new(EntityKind::Secret, from, to, SCORE, NAME));
+        }
+        for (shape, min_len) in VALUE_SHAPES_RE.iter() {
+            for captures in shape.captures_iter(haystack) {
+                let value = captures.get(1).or_else(|| captures.get(0));
+                if let Some(value) = value.filter(|value| value.len() >= *min_len) {
+                    let (from, to) = original(value.start(), value.end());
+                    spans.push(Span::new(EntityKind::Secret, from, to, SCORE, NAME));
+                }
+            }
         }
         for (start, end) in shape_values(haystack) {
             let (from, to) = original(start, end);

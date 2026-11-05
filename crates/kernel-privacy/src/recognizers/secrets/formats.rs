@@ -172,8 +172,9 @@ pub(super) static HEADERLESS_PEM_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// it is at least as long as given. Nothing joins a wrapped line here.
 #[rustfmt::skip]
 const VALUE_SHAPES: &[(&str, usize)] = &[
-    // Command lines: `sshpass -p`, `redis-cli -a`, `htpasswd -b file user password`
-    // (`curl`, `docker login` and `htpasswd -n` are in `CHECKED_SHAPES`).
+    // Command lines (`curl -u` is in `CHECKED_SHAPES`): `docker login -p`, `sshpass -p`,
+    // `redis-cli -a`, `htpasswd -b file user password`.
+    (r#"\bdocker\s+login\b[^\n]*?\s(?:-p|--password)(?:\s+|=)["']?([^\s"']+)"#, 4),
     (r#"\bsshpass\s+(?:-[a-zA-Z]\s+)*-p\s*["']?([^\s"']+)"#, 4),
     (r#"\bredis-cli\b[^\n]*?\s(?:-a|--pass)\s+["']?([^\s"']+)"#, 4),
     (r"\bhtpasswd\s+(?:-[a-zA-Z]+\s+)*?-[a-zA-Z]*b[a-zA-Z]*\s+(?:-[a-zA-Z]+\s+)*\S+\s+\S+\s+(\S+)", 4),
@@ -203,74 +204,60 @@ const VALUE_SHAPES: &[(&str, usize)] = &[
 /// What a value of a [`CHECKED_SHAPES`] shape must also be to count.
 #[derive(Clone, Copy)]
 enum Keep {
-    Any,
-    /// A header credential: after a scheme other than Bearer or Basic, no plain
-    /// word that a sentence goes on from (`Token refreshes happen…`). It joins the
-    /// lines that continue it.
+    /// A header credential, not a status word that a plain word follows (`Token
+    /// refreshes happen…`). It joins the lines that continue it.
     Credential,
-    /// A `user:password`, not a URL (`curl -u https://…`).
-    UserInfo,
-    /// Not a registry host of plain words that ends a `docker login` line
-    /// (`-p registry.example.com`; `-p s3cret.pass` stays a password).
-    NotRegistry,
-    /// Not a slug of plain words and numbers (`?sig=publish-2026-11-05-final`).
-    NotSlug,
-    /// An `htpasswd` line with `-n` and `-b`: no file, the password comes second.
+    /// A `user:password`, not a link (`curl -u https://…`).
+    NotLink,
+    /// Not a placeholder the docs write for a signature.
+    NotPlaceholder,
+    /// An `htpasswd` line with `-n` and `-b` or `-B`: no file, the password is second.
     NoFile,
 }
 
-use Keep::{Any, Credential, NoFile, NotRegistry, NotSlug, UserInfo};
+use Keep::{Credential, NoFile, NotLink, NotPlaceholder};
 
 /// The value shapes whose value must also pass its [`Keep`].
 #[rustfmt::skip]
 const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
-    // `Authorization` quoted (JSON, Python) or with another scheme, and the
-    // credential quoted after the scheme.
+    // `Authorization` quoted (JSON, Python) or with another scheme, the credential
+    // quoted after the scheme, and an Okta `SSWS` credential on its own.
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+["']([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
-    // `curl -u user:password`, `docker login -p`, `htpasswd -nb user password`.
-    (r#"\bcurl\b[^\n]*?\s(?:-u|--user)(?:\s+|=)["']?([^\s"':]*:[^\s"']+)"#, 4, UserInfo),
-    (r#"\bdocker\s+login\b[^\n]*?\s(?:-p|--password)(?:\s+|=)["']?([^\s"']+)"#, 4, NotRegistry),
+    (r#"\bSSWS[ \t]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
+    // `curl -u user:password`, `htpasswd -nb user password`.
+    (r#"\bcurl\b[^\n]*?\s(?:-u|--user)(?:\s+|=)["']?([^\s"':]*:[^\s"']+)"#, 4, NotLink),
     (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, NoFile),
     // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage), and
     // the V2 `Signature` (S3, Google Cloud Storage, CloudFront, Alibaba OSS).
-    (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16, NotSlug),
-    (r"(?i)[?&]signature=([^&\s#]+)", 16, NotSlug),
+    (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16, NotPlaceholder),
+    (r"(?i)[?&]signature=([^&\s#]+)", 16, NotPlaceholder),
 ];
 
-static VALUE_SHAPES_RE: LazyLock<Vec<(Regex, usize, Keep)>> = LazyLock::new(|| {
-    let unchecked = VALUE_SHAPES
+pub(super) static VALUE_SHAPES_RE: LazyLock<Vec<(Regex, usize)>> = LazyLock::new(|| {
+    VALUE_SHAPES
         .iter()
-        .map(|&(shape, min_len)| (shape, min_len, Any));
-    unchecked
-        .chain(CHECKED_SHAPES.iter().copied())
-        .map(|(shape, min_len, keep)| {
-            (
-                Regex::new(shape).expect("value shape compiles"),
-                min_len,
-                keep,
-            )
-        })
+        .map(|(shape, min_len)| (Regex::new(shape).expect("value shape compiles"), *min_len))
         .collect()
 });
 
-/// A registry host, with an optional port (`registry.example.com`, `localhost:5000`).
-static HOST_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(?:localhost|(?:[a-z0-9\-]+\.)+[a-z]{2,})(?::[0-9]+)?$")
-        .expect("host shape compiles")
+static CHECKED_SHAPES_RE: LazyLock<Vec<(Regex, usize, Keep)>> = LazyLock::new(|| {
+    let compile =
+        |&(shape, min_len, keep)| (Regex::new(shape).expect("shape compiles"), min_len, keep);
+    CHECKED_SHAPES.iter().map(compile).collect()
 });
 
-/// The spans of the value shapes in `text`: each value long enough and kept by
-/// its [`Keep`]; a header credential joins the lines that continue it.
+/// The spans of the [`CHECKED_SHAPES`] in `text`: each value long enough and kept
+/// by its [`Keep`]; a header credential joins the lines that continue it.
 pub(super) fn shape_values(text: &str) -> Vec<(usize, usize)> {
     let mut spans = Vec::new();
-    for (shape, min_len, keep) in VALUE_SHAPES_RE.iter() {
+    for (shape, min_len, keep) in CHECKED_SHAPES_RE.iter() {
         for captures in shape.captures_iter(text) {
-            let Some(whole) = captures.get(0) else {
+            let Some(value) = captures.get(1) else {
                 continue;
             };
-            let value = captures.get(1).unwrap_or(whole);
-            if value.len() >= *min_len && keeps(*keep, text, whole.start(), value) {
+            let start = captures.get(0).map_or(0, |whole| whole.start());
+            if value.len() >= *min_len && keeps(*keep, text, start, value) {
                 let joined = matches!(keep, Credential).then(|| join_lines(text, value.end()));
                 spans.push((value.start(), joined.unwrap_or(value.end())));
             }
@@ -283,64 +270,64 @@ pub(super) fn shape_values(text: &str) -> Vec<(usize, usize)> {
 fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
     let (head, found) = (&text[start..value.start()], value.as_str());
     match keep {
-        Any => true,
-        // The scheme is the last word before the value.
         Credential => {
-            let mut words = head.split(|ch: char| ch.is_whitespace() || "\"':=".contains(ch));
-            let scheme = words.rfind(|word| !word.is_empty()).unwrap_or("");
             let line = text[value.end()..].split('\n').next().unwrap_or_default();
             let next = line
                 .strip_prefix([' ', '\t'])
                 .and_then(|rest| rest.split_whitespace().next());
-            let sentence = next.is_some_and(is_word);
-            ["bearer", "basic"]
-                .iter()
-                .any(|name| scheme.eq_ignore_ascii_case(name))
-                || !is_word(found)
-                || !sentence
+            !is_status_word(found) || !next.is_some_and(|word| !is_secret_shaped(word))
         }
-        UserInfo => !found
-            .split_once(':')
-            .is_some_and(|(_, rest)| rest.starts_with("//")),
-        NotRegistry => {
-            let rest = text[value.end()..].split('\n').next().unwrap_or_default();
-            let host = found.split(':').next().unwrap_or_default();
-            !(HOST_RE.is_match(found) && is_slug(host))
-                || !rest.trim_start_matches(['"', '\'']).trim().is_empty()
+        NotLink => {
+            let lower = found.to_ascii_lowercase();
+            !lower.starts_with("http://") && !lower.starts_with("https://")
         }
-        NotSlug => !is_slug(found),
+        NotPlaceholder => !is_placeholder(found),
         NoFile => {
             let flags: String = head
                 .split_whitespace()
                 .filter(|word| word.starts_with('-'))
                 .collect();
-            flags.contains('n') && flags.contains('b')
+            flags.contains('n') && flags.contains(['b', 'B'])
         }
     }
 }
 
-/// Whether a value is a plain word, or plain words joined by `-` (`re-issued`):
-/// letters only (at most 16 a part), no capital after the first, its closing
-/// punctuation aside.
-fn is_word(value: &str) -> bool {
-    let word = value.trim_end_matches(['.', ',', ';', ':', '!', '?']);
-    word.split('-')
-        .all(|part| (1..=16).contains(&part.chars().count()) && !is_secret_shaped(part))
+/// Ordinary verbs and adjectives that say what happens to a credential and are never
+/// one (`Authorization: Token refreshes happen every hour`).
+const STATUS_WORDS: &[&str] = &[
+    "cleared",
+    "expired",
+    "missing",
+    "needed",
+    "refresh",
+    "refreshes",
+    "required",
+    "revoked",
+    "rotated",
+];
+
+/// Whether a word, its closing punctuation aside, is one of [`STATUS_WORDS`].
+fn is_status_word(word: &str) -> bool {
+    let word = word.trim_end_matches(['.', ',', ';', ':', '!', '?']);
+    STATUS_WORDS
+        .iter()
+        .any(|status| status.eq_ignore_ascii_case(word))
 }
 
-/// Whether a value is plain words and numbers of at most 16 joined by `-`, `_`
-/// or `.` (`your-signature-here`, `publish-2026-11-05`, `registry.example.com`).
-fn is_slug(value: &str) -> bool {
-    value.split(['-', '_', '.']).all(|part| {
-        is_word(part)
-            || ((1..=16).contains(&part.len()) && part.bytes().all(|b| b.is_ascii_digit()))
-    })
+/// Whether a value is a literal the docs write in place of a signature, case aside,
+/// or a run of `x`, `*` or `.` alone (`xxxxxxxxxxxxxxxx`).
+fn is_placeholder(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    matches!(
+        lower.as_str(),
+        "your-signature-here" | "signature-goes-here" | "<your-signature>"
+    ) || value.bytes().all(|b| b"xX*.".contains(&b))
 }
 
 /// The end of a header credential with the lines that continue it: a next line
-/// that holds only credential characters and is no plain word joins, so a token
-/// cut by a fixed-width wrap is read whole, and `Thanks`, a sentence or a
-/// `Name: value` header line is not. Bounded by [`MAX_WRAP_BYTES`].
+/// that holds only credential characters joins, so a token cut by a fixed-width
+/// wrap is read whole, and a sentence or a `Name: value` header line is not.
+/// Bounded by [`MAX_WRAP_BYTES`].
 fn join_lines(text: &str, from: usize) -> usize {
     let mut limit = text.len().min(from + MAX_WRAP_BYTES);
     while !text.is_char_boundary(limit) {
@@ -358,7 +345,7 @@ fn join_lines(text: &str, from: usize) -> usize {
             .find(|ch: char| !is_credential_char(ch))
             .unwrap_or(body.len());
         let tail = body[run..].trim_start_matches([' ', '\t', '\r']);
-        if run == 0 || !(tail.is_empty() || tail.starts_with('\n')) || is_word(&body[..run]) {
+        if run == 0 || !(tail.is_empty() || tail.starts_with('\n')) {
             return end;
         }
         end = limit - body.len() + run;
