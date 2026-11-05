@@ -131,6 +131,18 @@ impl SandboxHome {
         }
     }
 
+    /// Open the existing directory `rel` with `O_NOFOLLOW | O_DIRECTORY` on
+    /// every component from the home fd: a link or file on the way is
+    /// `PermissionDenied` (as in `remove_dir_all`), a missing one `NotFound`.
+    #[cfg(unix)]
+    pub fn open_dir(&self, rel: &Path) -> std::io::Result<std::fs::File> {
+        self.reverify()?;
+        let components = relative_components(rel)?;
+        open_rel_dir_existing(self, &components)
+            .map(std::fs::File::from)
+            .map_err(|err| super::remove::link_refusal(rel, err))
+    }
+
     /// Whether `rel` exists in the verified home, without following a leaf
     /// symlink (a dangling symlink counts as present — the kill switch is
     /// fail-safe).

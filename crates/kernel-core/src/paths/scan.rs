@@ -356,7 +356,7 @@ fn mode_is_symlink(mode: u32) -> bool {
 
 #[cfg(unix)]
 #[allow(clippy::unnecessary_cast)]
-fn mode_is_dir(mode: u32) -> bool {
+pub(super) fn mode_is_dir(mode: u32) -> bool {
     mode & (libc::S_IFMT as u32) == libc::S_IFDIR as u32
 }
 

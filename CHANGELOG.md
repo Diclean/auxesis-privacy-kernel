@@ -6,8 +6,20 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `SandboxHome::open_dir` opens a directory under the home without following
+  a link on any part of the path.
+
+### Fixed
+
+- `SandboxHome::remove_dir_all` no longer follows a link on the way: a parent
+  folder swapped for a link during the call is refused, a link inside the
+  tree is deleted as a link, and a tree of any depth is removed.
+
 ### Changed
 
+- `SandboxHome::remove_dir_all` no longer creates a missing parent folder.
 - `SafeText::join` reads every seam again with the private recognisers, the
   kernel's tokens and markers as stand-ins: a value cut across parts that the
   mode hides, or clear text a seam ties to a token, becomes a fixed marker, or
