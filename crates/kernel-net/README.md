@@ -12,7 +12,7 @@ security property use the browser path, where the rendered text is the oracle.
 
 ```toml
 [dependencies]
-auxesis-kernel-net = "0.1.4"
+auxesis-kernel-net = "0.1.5"
 ```
 
 The package is `auxesis-kernel-net`; the library name stays `kernel_net`.
