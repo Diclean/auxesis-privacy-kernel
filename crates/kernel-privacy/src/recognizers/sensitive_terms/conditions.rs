@@ -219,6 +219,31 @@ pub(super) fn extend_condition_spans(text: &str, words: &[Word], spans: &mut [Sp
         "i",
         "ii",
         "iii",
+        // KV02-HEALTH: the same qualifiers in FR (after the condition), AF,
+        // HU and SL (before it).
+        "chronique",
+        "chroniques",
+        "aigu",
+        "aigue",
+        "leger",
+        "legere",
+        "modere",
+        "moderee",
+        "kroniese",
+        "chroniese",
+        "akute",
+        "ernstige",
+        "kronikus",
+        "akut",
+        "sulyos",
+        "enyhe",
+        "kronicna",
+        "kronicni",
+        "kronicno",
+        "akutna",
+        "akutni",
+        "huda",
+        "blaga",
     ];
     const CONDITION_WORDS: &[&str] = &[
         "multiple",
@@ -287,16 +312,16 @@ pub(super) fn extend_condition_spans(text: &str, words: &[Word], spans: &mut [Sp
             let prev = &words[first - 1];
             let coordinator_needs_peer = matches!(prev.folded.as_str(), "and" | "et" | "en")
                 && !(first > 1 && CONDITION_WORDS.contains(&words[first - 2].folded.as_str()));
-            let leading_classifier = PERSONAL_CLASSIFIERS.contains(&prev.folded.as_str())
+            let classifier = PERSONAL_CLASSIFIERS.contains(&prev.folded.as_str());
+            let framed = classifier
                 && (personal_frames[frame_index] || terminal_condition(text, words, last));
-            if !valid_extension_gap(
-                text,
-                prev.end,
-                words[first].start,
-                false,
-                leading_classifier,
-            ) || coordinator_needs_peer
-                || (PERSONAL_CLASSIFIERS.contains(&prev.folded.as_str()) && !leading_classifier)
+            // KV02-HEALTH: a `type 2` or `stage III` pair right before a
+            // condition in lower case is its classifier in any sentence.
+            let leading_classifier =
+                framed || (classifier && classifier_pair(text, words, first, mut_first));
+            if !valid_extension_gap(text, prev.end, words[first].start, false, framed)
+                || coordinator_needs_peer
+                || (classifier && !leading_classifier)
                 || (!MODIFIERS.contains(&prev.folded.as_str())
                     && !(personal_frames[frame_index]
                         && CONDITION_WORDS.contains(&prev.folded.as_str())))
@@ -330,13 +355,136 @@ pub(super) fn extend_condition_spans(text: &str, words: &[Word], spans: &mut [Sp
                         && CONDITION_WORDS.contains(&next.folded.as_str()))
                     && !trailing_classifier)
             {
-                break;
+                // KV02-HEALTH: `type 2`, `de type 2`, `de stade 4`, `tipa 2`
+                // right after the condition on its line, with no comma.
+                match trailing_group(text, words, last) {
+                    Some(end)
+                        if end + 1 - first <= 6 && words[end].end - words[first].start <= 60 =>
+                    {
+                        last = end;
+                        continue;
+                    }
+                    _ => break,
+                }
             }
             last += 1;
         }
+        // KV02-HEALTH: an allergy word takes its allergen, and a test verdict
+        // right before a term is part of it.
+        last = allergen_end(text, words, last).unwrap_or(last);
+        first = verdict_start(text, words, first).unwrap_or(first);
         span.start = words[first].start;
         span.end = words[last].end;
     }
+}
+
+/// Whether the gap before word `at` joins it to the word before it on one
+/// line, with no comma: the gap a link word takes.
+fn linked(text: &str, words: &[Word], at: usize) -> bool {
+    valid_extension_gap(text, words[at - 1].end, words[at].start, false, false)
+}
+
+/// The last word of the allergen after an allergy word `last`: `allergic to
+/// penicillin`, `allergie aux arachides`, `allergique à la pénicilline`,
+/// `allergies vir grondboontjies`, `alergijo na arašide`. One or two words of
+/// letters, on the line, never a link word.
+fn allergen_end(text: &str, words: &[Word], last: usize) -> Option<usize> {
+    const LINKS: &[&str] = &["to", "a", "au", "aux", "vir", "teen", "na"];
+    const ARTICLES: &[&str] = &["the", "la", "le", "l", "les", "die"];
+    const STOP: &[&str] = &[
+        "and", "or", "but", "so", "since", "because", "when", "which", "who", "that", "too",
+        "also", "for", "from", "with", "after", "before", "et", "ou", "mais", "donc", "car",
+        "depuis", "qui", "que", "pour", "avec", "en", "of", "maar", "want", "sedert", "ook", "in",
+        "ali", "zato", "ker", "ki", "tudi", "za", "je", "is", "il", "elle",
+    ];
+    let is = |at: usize, list: &[&str]| {
+        words
+            .get(at)
+            .is_some_and(|word| list.contains(&word.folded.as_str()))
+    };
+    let allergy = words[last].folded.as_str();
+    if !(allergy.starts_with("allerg") || allergy.starts_with("alerg")) || !is(last + 1, LINKS) {
+        return None;
+    }
+    let first = last + 2 + usize::from(is(last + 2, ARTICLES));
+    let allergen = |at: usize| {
+        words.get(at).is_some_and(|word| {
+            word.folded.chars().count() >= 3
+                && word.folded.chars().all(char::is_alphabetic)
+                && !STOP.contains(&word.folded.as_str())
+        }) && linked(text, words, at)
+    };
+    if !(last + 1..first).all(|at| linked(text, words, at)) || !allergen(first) {
+        return None;
+    }
+    Some(first + usize::from(allergen(first + 1)))
+}
+
+/// The first word of a test verdict right before a term at word `first`:
+/// `tested positive for COVID`, `testé positif au covid`.
+fn verdict_start(text: &str, words: &[Word], first: usize) -> Option<usize> {
+    const VERBS: &[&str] = &["tested", "tests", "test", "teste", "testee", "testes"];
+    const VERDICTS: &[&str] = &["positive", "negative", "positif", "negatif"];
+    let article = first > 0 && matches!(words[first - 1].folded.as_str(), "la" | "l");
+    let start = (first - usize::from(article)).checked_sub(3)?;
+    let is = |at: usize, list: &[&str]| list.contains(&words[at].folded.as_str());
+    let found = is(start, VERBS)
+        && is(start + 1, VERDICTS)
+        && is(start + 2, &["for", "au", "a", "aux"])
+        && (start + 1..=first).all(|at| linked(text, words, at));
+    found.then_some(start)
+}
+
+/// The classifier numbers of a `type 2` or `stage III` group, folded.
+const CLASSIFIER_NUMBERS: &[&str] = &["1", "2", "3", "4", "5", "i", "ii", "iii"];
+
+/// Whether the classifier word before `first` is half of a `type 2` or `stage
+/// III` pair that ends at `first`, before a condition (word `condition`) that
+/// starts in lower case: `type 2 diabetes` is the condition in any sentence,
+/// `Type 2 Diabetes Care` is a title. A capital `Type` keeps main's reading (the
+/// eval line `Type 2 diabetes was found during the checkup.` masks the
+/// condition only); a capital `Stage` opens a staged condition.
+fn classifier_pair(text: &str, words: &[Word], first: usize, condition: usize) -> bool {
+    const NAMES: &[&str] = &["type", "tipe", "stage"];
+    let number = |word: &Word| CLASSIFIER_NUMBERS.contains(&word.folded.as_str());
+    let lower = |word: &Word| {
+        text[word.start..]
+            .chars()
+            .next()
+            .is_some_and(char::is_lowercase)
+    };
+    let prev = &words[first - 1];
+    let name = if number(prev) {
+        first.checked_sub(2).map(|at| &words[at])
+    } else {
+        number(&words[first]).then_some(prev)
+    };
+    name.is_some_and(|name| {
+        NAMES.contains(&name.folded.as_str()) && (lower(name) || name.folded == "stage")
+    }) && lower(&words[condition])
+}
+
+/// The last word of a classifier group right after word `last`: a `de` or `of`
+/// may lead it (`diabétique de type 2`, `cancer de stade 4`), then a classifier
+/// name and its number, all on one line with no comma.
+fn trailing_group(text: &str, words: &[Word], last: usize) -> Option<usize> {
+    const NAMES: &[&str] = &[
+        "type", "tipe", "tipa", "stage", "stade", "stadium", "stadij", "stadiju", "stadija",
+    ];
+    let lead = words
+        .get(last + 1)
+        .is_some_and(|word| matches!(word.folded.as_str(), "de" | "of"));
+    let name = last + 1 + usize::from(lead);
+    let number = name + 1;
+    let found = words
+        .get(name)
+        .is_some_and(|word| NAMES.contains(&word.folded.as_str()))
+        && words
+            .get(number)
+            .is_some_and(|word| CLASSIFIER_NUMBERS.contains(&word.folded.as_str()))
+        && (last + 1..=number)
+            .all(|at| valid_extension_gap(text, words[at - 1].end, words[at].start, false, false));
+    found.then_some(number)
 }
 
 /// Gaps accepted while extending a condition: ordinary joins, one comma and
@@ -530,43 +678,249 @@ pub(super) fn extend_quantified_health(text: &str, words: &[Word], hits: &mut [H
         .enumerate()
         .map(|(index, word)| (word.end, index))
         .collect();
+    // KV02-HEALTH: the lab, dose and pregnancy words a value may follow. Any
+    // word of the hit may start with one of these or the terms above, and a
+    // medicine name (lang `xx`) always takes its dose.
+    const QUANTIFIED_STEMS: &[&str] = &[
+        "tsh",
+        "psa",
+        "haemoglobin",
+        "hemoglobin",
+        "glyquee",
+        "glucose",
+        "sugar",
+        "pressure",
+        "arterielle",
+        "creatinin",
+        "ferritin",
+        "egfr",
+        "triglycerid",
+        "insulien",
+        "inzulin",
+        "vercuk",
+        "koleszterin",
+        "sladkor",
+        "bloedsuiker",
+        "bloeddruk",
+        "tlak",
+        "pregnant",
+        "swanger",
+        "enceinte",
+        "terhes",
+        "nosec",
+    ];
     for hit in hits
         .iter_mut()
         .filter(|hit| hit.span.kind == EntityKind::Health)
     {
+        if hit.lang == "zh" {
+            if let Some(end) = han_quantity_end(text, hit.span) {
+                hit.span.end = end;
+            }
+            continue;
+        }
         let Some(&index) = starts.get(&hit.span.start) else {
             continue;
         };
         let Some(&last) = ends.get(&hit.span.end) else {
             continue;
         };
-        if !QUANTIFIED_TERMS.contains(&words[index].folded.as_str()) {
+        let quantified = hit.lang == "xx"
+            || words[index..=last].iter().any(|word| {
+                QUANTIFIED_TERMS
+                    .iter()
+                    .chain(QUANTIFIED_STEMS)
+                    .any(|stem| word.folded.starts_with(stem))
+            });
+        if !quantified {
             continue;
         }
         if let Some(end) = quantity_end(text, words[last].end) {
             hit.span.end = end;
         }
+        if let Some(start) = quantity_start(text, hit.span.start) {
+            hit.span.start = start;
+        }
     }
 }
 
-/// End of a directly attached numeric measurement with a recognised unit.
-fn quantity_end(text: &str, from: usize) -> Option<usize> {
-    const UNITS: &[&str] = &[
-        "mg/dl",
-        "mmol/l",
-        "g/l",
-        "copies/ml",
-        "mcg",
-        "µg",
-        "μg",
-        "units",
-        "copies",
-        "mg",
-        "ml",
-        "iu",
-        "g",
-        "%",
+/// The units a measurement ends with. The longest one that matches wins.
+const UNITS: &[&str] = &[
+    "mg/dl",
+    "mmol/l",
+    "g/l",
+    "copies/ml",
+    "mcg",
+    "µg",
+    "μg",
+    "units",
+    "copies",
+    "mg",
+    "ml",
+    "iu",
+    "g",
+    "%",
+    // KV02-HEALTH: lab units, unit words in FR, AF, HU and SL, and the weeks
+    // and months of a pregnancy.
+    "mmol/mol",
+    "µmol/l",
+    "μmol/l",
+    "umol/l",
+    "nmol/l",
+    "pmol/l",
+    "mg/l",
+    "ng/ml",
+    "pg/ml",
+    "µg/l",
+    "μg/l",
+    "miu/l",
+    "mui/l",
+    "mu/l",
+    "iu/l",
+    "ui/l",
+    "u/l",
+    "g/dl",
+    "mmhg",
+    "ml/min",
+    "ui",
+    "eenhede",
+    "egység",
+    "egységet",
+    "enot",
+    "mikrogramov",
+    "tablets",
+    "comprimés",
+    "weeks",
+    "months",
+    "semaines",
+    "mois",
+    "weke",
+    "maande",
+];
+
+/// End of a number at `start`: digits with one decimal part, or a reading
+/// (`160/100`), which is `true`.
+fn number_end(text: &str, start: usize) -> Option<(usize, bool)> {
+    let bytes = text.as_bytes();
+    let digits = |from: usize| {
+        let mut at = from;
+        while at - start < 16 && bytes.get(at).is_some_and(u8::is_ascii_digit) {
+            at += 1;
+        }
+        (at > from && !bytes.get(at).is_some_and(u8::is_ascii_digit)).then_some(at)
+    };
+    let mut at = digits(start)?;
+    if bytes
+        .get(at)
+        .is_some_and(|byte| matches!(byte, b'.' | b','))
+        && bytes.get(at + 1).is_some_and(u8::is_ascii_digit)
+    {
+        at = digits(at + 1)?;
+    }
+    if bytes.get(at) == Some(&b'/') && bytes.get(at + 1).is_some_and(u8::is_ascii_digit) {
+        // A reading, unless a date goes on after it (`12/03/2026`).
+        if let Some(end) = digits(at + 1) {
+            let date = matches!(bytes.get(end), Some(b'/' | b'.' | b'-'))
+                && bytes.get(end + 1).is_some_and(u8::is_ascii_digit);
+            if !date {
+                return Some((end, true));
+            }
+        }
+    }
+    Some((at, false))
+}
+
+/// End of the longest unit after at most eight bytes of whitespace at `at`,
+/// when no letter or digit is glued to it.
+fn unit_end(text: &str, mut at: usize) -> Option<usize> {
+    let space_start = at;
+    while let Some(ch) = text
+        .get(at..)?
+        .chars()
+        .next()
+        .filter(|ch| ch.is_whitespace())
+    {
+        at += ch.len_utf8();
+        if at - space_start > 8 {
+            return None;
+        }
+    }
+    UNITS
+        .iter()
+        .filter_map(|unit| {
+            let end = at.checked_add(unit.len())?;
+            let glued = text
+                .get(end..)?
+                .chars()
+                .next()
+                .is_some_and(char::is_alphanumeric);
+            (text.get(at..end)?.eq_ignore_ascii_case(unit) && !glued).then_some(end)
+        })
+        .max()
+}
+
+/// Start of a measurement right before a term at `start`, on its line: `500
+/// mg of metformin`, `500 mg d'amoxicilline`, `14 weeks pregnant`.
+fn quantity_start(text: &str, start: usize) -> Option<usize> {
+    let spaces = |head: &str| head.trim_end_matches([' ', '\u{a0}']).len();
+    let word_end = |head: &str, word: &str| {
+        let cut = head.len().checked_sub(word.len())?;
+        let before = head.get(..cut)?.chars().next_back();
+        (head.get(cut..)?.eq_ignore_ascii_case(word) && !before.is_some_and(char::is_alphabetic))
+            .then_some(cut)
+    };
+    let mut at = spaces(&text[..start]);
+    for link in ["of", "de", "van", "d'", "d\u{2019}"] {
+        if let Some(cut) = word_end(&text[..at], link) {
+            at = spaces(&text[..cut]);
+            break;
+        }
+    }
+    at = UNITS
+        .iter()
+        .filter_map(|unit| word_end(&text[..at], unit))
+        .min()?;
+    at = spaces(&text[..at]);
+    let number =
+        text[..at].trim_end_matches(|ch: char| ch.is_ascii_digit() || matches!(ch, '.' | ','));
+    let from = number.len() + text[number.len()..at].find(|ch: char| ch.is_ascii_digit())?;
+    let glued = number
+        .chars()
+        .next_back()
+        .is_some_and(char::is_alphanumeric);
+    (at - from <= 16 && text[..at].ends_with(|ch: char| ch.is_ascii_digit()) && !glued)
+        .then_some(from)
+}
+
+/// End of a measurement right after a Han term: `二甲双胍500毫克`, `怀孕20周`,
+/// `血压是160/100`. A bare number ends it only after a lab term (`血糖是11.2`).
+fn han_quantity_end(text: &str, span: Span) -> Option<usize> {
+    const HAN_UNITS: &[&str] = &[
+        "毫克", "毫升", "微克", "单位", "克", "片", "粒", "周", "个月", "％",
     ];
+    const LABS: &[&str] = &["血糖", "血压", "糖化血红蛋白", "胆固醇"];
+    let mut at = span.end;
+    if let Some(ch) = text[at..]
+        .chars()
+        .next()
+        .filter(|ch| matches!(ch, '是' | '为' | '：' | ':' | '约'))
+    {
+        at += ch.len_utf8();
+    }
+    let (end, reading) = number_end(text, at)?;
+    if let Some(unit) = HAN_UNITS.iter().find(|unit| text[end..].starts_with(*unit)) {
+        return Some(end + unit.len());
+    }
+    if let Some(unit) = unit_end(text, end) {
+        return Some(unit);
+    }
+    let lab = LABS.contains(&HanView::new(&text[span.start..span.end]).text.as_str());
+    (reading || lab).then_some(end)
+}
+
+/// End of a directly attached numeric measurement with a recognised unit, or
+/// of a reading (`160/100`).
+fn quantity_end(text: &str, from: usize) -> Option<usize> {
     let mut at = from;
     while let Some(ch) = text.get(at..)?.chars().next() {
         if ch.is_whitespace() || matches!(ch, ',' | ':' | '-' | '‐' | '‑' | '–') {
@@ -578,18 +932,22 @@ fn quantity_end(text: &str, from: usize) -> Option<usize> {
             break;
         }
     }
-    // One linking word may stand before the value: "HbA1c is 8.1 %".
-    const LINKS: &[&str] = &["is", "was", "at", "of", "est", "à", "de"];
-    let link_end = text[at..]
-        .char_indices()
-        .take(4)
-        .find(|(_, ch)| !ch.is_alphabetic())
-        .map(|(offset, _)| at + offset);
-    if let Some(link_end) = link_end.filter(|&end| {
-        end > at
-            && LINKS.contains(&text[at..end].to_lowercase().as_str())
-            && text[end..].starts_with(char::is_whitespace)
-    }) {
+    // Linking words may stand before the value: "HbA1c is 8.1 %", and two
+    // of them in "glycémie est à 1,32 g/l".
+    const LINKS: &[&str] = &["is", "was", "at", "of", "est", "à", "de", "je", "van"];
+    for _ in 0..2 {
+        let link_end = text[at..]
+            .char_indices()
+            .take(4)
+            .find(|(_, ch)| !ch.is_alphabetic())
+            .map(|(offset, _)| at + offset);
+        let Some(link_end) = link_end.filter(|&end| {
+            end > at
+                && LINKS.contains(&text[at..end].to_lowercase().as_str())
+                && text[end..].starts_with(char::is_whitespace)
+        }) else {
+            break;
+        };
         at = link_end;
         while let Some(ch) = text[at..].chars().next().filter(|ch| ch.is_whitespace()) {
             at += ch.len_utf8();
@@ -598,58 +956,6 @@ fn quantity_end(text: &str, from: usize) -> Option<usize> {
             }
         }
     }
-    let number_start = at;
-    while at - number_start < 16 && text.as_bytes().get(at).is_some_and(u8::is_ascii_digit) {
-        at += 1;
-    }
-    if at == number_start {
-        return None;
-    }
-    if text.as_bytes().get(at).is_some_and(u8::is_ascii_digit) {
-        return None;
-    }
-    if text
-        .as_bytes()
-        .get(at)
-        .is_some_and(|byte| matches!(byte, b'.' | b','))
-        && text.as_bytes().get(at + 1).is_some_and(u8::is_ascii_digit)
-    {
-        at += 1;
-        while at - number_start < 16 && text.as_bytes().get(at).is_some_and(u8::is_ascii_digit) {
-            at += 1;
-        }
-        if text.as_bytes().get(at).is_some_and(u8::is_ascii_digit) {
-            return None;
-        }
-    }
-    let unit_space_start = at;
-    while text
-        .get(at..)?
-        .chars()
-        .next()
-        .is_some_and(char::is_whitespace)
-    {
-        at += text[at..].chars().next()?.len_utf8();
-        if at - unit_space_start > 8 {
-            return None;
-        }
-    }
-    for unit in UNITS {
-        let Some(end) = at.checked_add(unit.len()) else {
-            continue;
-        };
-        let Some(candidate) = text.get(at..end) else {
-            continue;
-        };
-        if candidate.eq_ignore_ascii_case(unit)
-            && !text
-                .get(end..)?
-                .chars()
-                .next()
-                .is_some_and(char::is_alphanumeric)
-        {
-            return Some(end);
-        }
-    }
-    None
+    let (end, reading) = number_end(text, at)?;
+    unit_end(text, end).or(reading.then_some(end))
 }
