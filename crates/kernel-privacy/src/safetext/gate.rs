@@ -78,6 +78,8 @@ pub struct Gate {
     /// them; those pass through whole. Any other token-shaped text is ordinary
     /// text.
     session_tokens: Option<Arc<BTreeSet<String>>>,
+    /// The markers the last passthrough mask wrote, as byte ranges of its text.
+    removed: Vec<(usize, usize)>,
 }
 
 impl Gate {
@@ -194,6 +196,7 @@ impl Gate {
             minted: Vec::new(),
             names_run: None,
             session_tokens: None,
+            removed: Vec::new(),
         }
     }
 
@@ -263,12 +266,19 @@ impl Gate {
     /// cannot prove the output is clean.
     pub fn text(&mut self, text: &str) -> Result<(SafeText, DetectionReport), GateError> {
         self.names_run = None;
+        self.removed.clear();
         let (masked, report) = self.mask(text)?;
         let names = self.coverage();
+        let marks = match self.policy {
+            GrantPolicy::Tokenised => super::seams::token_marks(&masked),
+            GrantPolicy::Passthrough => std::mem::take(&mut self.removed),
+        };
         Ok((
             SafeText {
                 text: masked,
                 names,
+                marks,
+                policy: self.policy,
             },
             report,
         ))
