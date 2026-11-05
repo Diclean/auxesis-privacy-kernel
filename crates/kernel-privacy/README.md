@@ -12,7 +12,7 @@ design; the repository README reports the measured limits.
 
 ```toml
 [dependencies]
-auxesis-kernel-privacy = "0.1.3"
+auxesis-kernel-privacy = "0.1.4"
 getrandom = "0.2"
 ```
 
