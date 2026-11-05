@@ -68,6 +68,17 @@ pub const SCORE: f32 = 1.0;
 /// The name echoed in [`Span::recognizer`].
 const NAME: &str = "sensitive_terms";
 
+/// Whether `word` can be a word of a multi-word term other than its first
+/// (`later`), or other than its last.
+pub(crate) fn phrase_word(word: &str, later: bool) -> bool {
+    lexicons().terms.phrase_word(&text::fold_str(word), later)
+}
+
+/// Whether `ch` is a letter or digit of a Latin word: a Han ideograph is not.
+pub(crate) fn in_word(ch: char) -> bool {
+    ch.is_alphanumeric() && !is_han(ch)
+}
+
 /// Finds the Art. 9 terms of the lexicon.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SensitiveTermsRecognizer;

@@ -258,6 +258,19 @@ impl Lexicon {
         }
     }
 
+    /// Whether a folded word is a word of a multi-word phrase other than its
+    /// first (`later`), or other than its last. A scan of every phrase.
+    pub(super) fn phrase_word(&self, word: &str, later: bool) -> bool {
+        self.phrases.iter().any(|phrase| {
+            let last = phrase.tokens.len() - 1;
+            let range = if later { 1..last + 1 } else { 0..last };
+            phrase.tokens[range.clone()]
+                .iter()
+                .zip(range)
+                .any(|(token, at)| token.matches(word, at == last))
+        })
+    }
+
     /// Record phrase `id` if its remaining tokens match the words after `index`.
     fn phrase_at(&self, id: usize, text: &str, words: &[Word], index: usize, out: &mut Vec<Hit>) {
         let phrase = &self.phrases[id];

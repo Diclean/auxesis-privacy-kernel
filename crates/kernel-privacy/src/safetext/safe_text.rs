@@ -83,7 +83,7 @@ impl KernelMarker {
     /// The fixed text of this marker, written here and nowhere else.
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
-            Self::RefusalPlaceholder => "[auxesis: withheld]",
+            Self::RefusalPlaceholder => super::seams::WITHHELD,
         }
     }
 }
@@ -105,19 +105,27 @@ impl SafeText {
     }
 
     /// The parts, in order, as one text. Each part was checked on its own when
-    /// it was issued; the join does not scan across the seams, so a caller
-    /// joins only whole, self-contained parts.
+    /// it was issued, and the joined text is read again across the seams: a
+    /// value only a seam shows (half an IBAN in each part, a label and its
+    /// secret, an ID cut over two lines), and the rest of a value a part
+    /// already masked in part, is replaced with a fixed marker
+    /// (`[<class> removed]`, or `[value removed]`), in every mode. Every token
+    /// and marker a part carries stays as it was, so its tokens restore as
+    /// before. When the joined text cannot be read, the join issues
+    /// `[auxesis: withheld]` and nothing of its parts.
     pub fn join(parts: impl IntoIterator<Item = SafeText>) -> Self {
-        let mut text = String::new();
-        let mut names = Vec::new();
-        for part in parts {
-            text.push_str(&part.text);
-            names.push(part.names);
-        }
-        Self {
-            text,
-            names: NameCoverage::of_parts(names),
-        }
+        let (texts, names): (Vec<String>, Vec<NameCoverage>) = parts
+            .into_iter()
+            .map(|part| (part.text, part.names))
+            .unzip();
+        let (text, names) = match super::seams::join(&texts) {
+            Some(text) => (text, NameCoverage::of_parts(names)),
+            None => (
+                super::seams::WITHHELD.to_string(),
+                NameCoverage::AppAuthored,
+            ),
+        };
+        Self { text, names }
     }
 
     /// The masked text, read-only.

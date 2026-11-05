@@ -14,6 +14,17 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pressure of 160/100`), pregnancy weeks, procedures, disability and allergens
   (`allergic to penicillin`). Detections are only added.
 
+### Security
+
+- `SafeText::join` reads the joined text again across its seams. A value cut
+  between two parts (half an IBAN in each, a label in one part and its secret
+  in the next, an ID over two lines) is replaced with a fixed marker
+  (`[<class> removed]` or `[value removed]`) in every mode, and a secret too
+  long to read anywhere in the joined text withholds the whole join. Tokens
+  and markers the parts carry stay as they were. A join now costs up to three
+  reads of the joined text by the recognisers, and one more of each part a
+  value is found in.
+
 ## [0.1.3] - 2026-11-04
 
 The v0.1.1 and v0.1.2 tags were made without their own section in this
