@@ -6,6 +6,30 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-05
+
+The changes since v0.1.3, in plain words.
+
+### Added
+
+- More secret forms are hidden: more issuer key prefixes (among them LangSmith,
+  Pinecone, Figma, Postman, Terraform Cloud, Doppler, Databricks, SonarQube,
+  CircleCI, Square, Plaid, Alibaba, Tencent, Azure AD, RubyGems and NuGet),
+  Mailchimp `-usNN` keys, Slack `xoxe-` tokens, Azure `AccountKey`, Wi-Fi
+  pre-shared keys and Wi-Fi QR codes, seed phrases and password hashes.
+- Passwords and tokens on command lines: `curl -u`, `docker login -p`,
+  `sshpass`, `redis-cli -a`, `htpasswd` with `-b`, `-B` or `-n`, and a spaced
+  `mysql -p`.
+- Presigned URL signatures (`sig=` and the V2 `Signature=`), Discord webhook
+  URLs with or without an API version, and Digest `response=` values.
+- Quoted and line-wrapped `Authorization` credentials (`Bearer`, `Basic`,
+  `Token`, `SSWS` and others), and private-key bodies wrapped at 70 or 76
+  columns, with or without a header.
+- Key names and phrases in French, Afrikaans, Hungarian, Slovene and Chinese
+  (`identifiants`, `code confidentiel`, `toegangskode`, `jelszava`, `varnostna
+  koda`, `验证码`, `私钥`, `助记词`), and one-word environment names such as
+  `PGPASSWORD` and `dbpassword`.
+
 ### Changed
 
 - Health detection reaches further in FR, EN, AF, HU, SL and ZH: multi-word
@@ -13,6 +37,18 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`500 mg of metformin`), lab results (`HbA1c was 58 mmol/mol`, `blood
   pressure of 160/100`), pregnancy weeks, procedures, disability and allergens
   (`allergic to penicillin`). Detections are only added.
+- Three harmless look-alike lines that the previous release hid are left as
+  written: an `Authorization` line whose credential is a status word such as
+  `refreshes`, a docs placeholder after `?sig=` such as `your-signature-here`,
+  and a `curl -u` link. A `user:password@` inside such a link is still hidden.
+- The privacy eval splits the Tier C results of each class into masked, leaked
+  and blocked, in Private and Open mode. The recall figures it prints are
+  unchanged.
+
+### Removed
+
+- `auxesis-kernel-net` drops the unused `markup5ever_rcdom` HTML tree
+  dependency and the crates only it pulled in. No code changed.
 
 ## [0.1.3] - 2026-11-04
 

@@ -150,8 +150,8 @@ not on crates.io yet, so add them from Git:
 
 ```toml
 [dependencies]
-auxesis-kernel-privacy = { git = "https://github.com/Diclean/auxesis-privacy-kernel", tag = "v0.1.3" }
-auxesis-kernel-core = { git = "https://github.com/Diclean/auxesis-privacy-kernel", tag = "v0.1.3" }
+auxesis-kernel-privacy = { git = "https://github.com/Diclean/auxesis-privacy-kernel", tag = "v0.1.4" }
+auxesis-kernel-core = { git = "https://github.com/Diclean/auxesis-privacy-kernel", tag = "v0.1.4" }
 getrandom = "0.2"
 ```
 
