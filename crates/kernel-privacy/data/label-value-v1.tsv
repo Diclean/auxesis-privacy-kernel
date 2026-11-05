@@ -143,6 +143,8 @@ fr	SECRET	any	code de la porte
 fr	SECRET	any	digicode
 fr	SECRET	any	cle api
 fr	SECRET	any	cle secrete
+fr	SECRET	any	code confidentiel
+fr	SECRET	punct	code wifi
 fr	ID	any	cni
 fr	ID	any	carte nationale d'identite
 fr	ID	any	carte d'identite
@@ -194,6 +196,8 @@ af	SECRET	any	wagwoord
 af	SECRET	punct	sleutel
 af	SECRET	any	api sleutel
 af	SECRET	any	toegangstoken
+af	SECRET	any	toegangskode
+af	SECRET	any	toegangsteken
 af	ID	any	id nommer
 af	ID	any	identiteitsnommer
 af	ID	any	paspoort
@@ -209,6 +213,10 @@ hu	SECRET	any	jelszavam
 hu	SECRET	punct	kulcs
 hu	SECRET	any	titkos kulcs
 hu	SECRET	any	pin kod
+hu	SECRET	any	jelszava
+hu	SECRET	any	jelszoval
+hu	SECRET	any	api kulcs
+hu	SECRET	any	ellenorzo kod
 hu	ID	any	szemelyi igazolvany
 hu	ID	any	szemelyi igazolvany szama
 hu	ID	any	szemelyi szam
@@ -224,6 +232,7 @@ sl	SECRET	any	geslo
 sl	SECRET	punct	kljuc
 sl	SECRET	any	api kljuc
 sl	SECRET	punct	zeton
+sl	SECRET	any	varnostna koda
 sl	ID	any	osebna izkaznica
 sl	ID	any	potni list
 sl	ID	any	stevilka potnega lista
@@ -239,6 +248,8 @@ zh	SECRET	any	api密钥
 zh	SECRET	punct	密钥
 zh	SECRET	any	访问令牌
 zh	SECRET	punct	令牌
+zh	SECRET	any	验证码
+zh	SECRET	any	私钥
 zh	ID	any	身份证
 zh	ID	any	身份证号
 zh	ID	any	身份证号码
