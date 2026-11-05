@@ -17,12 +17,16 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   folder swapped for a link during the call is refused, a link inside the
   tree is deleted as a link, and a tree of any depth is removed.
 - `SandboxHome::remove_dir_all` stays fast on deep trees: going back up
-  re-opens the path once per 64 levels instead of once per level, with at
-  most 64 extra open files;
-  a folder that is itself a mount point is refused before anything is
-  deleted; a folder of the tree that vanishes during the call counts as
-  removed. A refusal mid-way leaves the folder partly emptied, never
-  anything outside it.
+  re-opens the path once per 64 levels instead of once per level, with about
+  68 open files at peak. A folder on another device than its parent folder
+  is refused before anything is deleted (the check compares devices only, so
+  a bind mount of the same device is not seen); a folder of the tree that
+  vanishes during the call counts as removed. A refusal mid-way leaves the
+  folder partly emptied. A link is never followed, but a folder that another
+  program of the same user moves out of the tree during the call may still be
+  emptied at its new place: a documented limit.
+- `SandboxHome::remove_dir` and `remove_file` refuse a parent folder that is
+  a link, with the same error as `remove_dir_all`.
 
 ### Changed
 

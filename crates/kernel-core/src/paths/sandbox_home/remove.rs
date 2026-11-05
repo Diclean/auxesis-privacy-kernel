@@ -21,6 +21,8 @@ pub(in crate::paths) enum RaceStage {
     AfterRecheck,
     /// Before the up-walk re-walks the names from the tree root.
     UpWalk,
+    /// Before an emptied directory is unlinked from its parent.
+    BeforeUnlink,
 }
 
 /// Test hook run at each [`RaceStage`] on this thread; `true` means it
@@ -58,7 +60,7 @@ impl SandboxHome {
         let (name, dirs) = components.split_last().ok_or_else(|| invalid_rel(rel))?;
         #[cfg(unix)]
         {
-            self.unlink_rel(dirs, name, libc::AT_REMOVEDIR)
+            self.unlink_rel(rel, dirs, name, libc::AT_REMOVEDIR)
         }
         #[cfg(not(unix))]
         {
@@ -77,17 +79,20 @@ impl SandboxHome {
     /// Recursively remove the directory `rel` without following any link.
     ///
     /// Every component is opened `O_NOFOLLOW | O_DIRECTORY` from the home
-    /// fd (a linked ancestor or leaf is refused), a root that is a mount
-    /// point is refused, then the tree is deleted as `empty_tree` says. A
-    /// missing `rel`, or a parent or tree directory that vanishes during the
-    /// call, is `Ok`; nothing is created.
+    /// fd (a linked ancestor or leaf is refused), a root on another device
+    /// than its parent is refused, then the tree is deleted as `empty_tree`
+    /// says. A missing `rel`, or a parent or tree directory that vanishes
+    /// during the call, is `Ok`; nothing is created.
     ///
-    /// A refusal mid-way (a mount point or link swapped in, a changed
-    /// directory) stops at once and leaves the tree partly emptied; nothing
-    /// outside it is touched. Non-goal: a process of the same uid that moves
-    /// a directory of the tree elsewhere during the call keeps it (it counts
-    /// as removed), or may see entries already open here removed at their
-    /// new place; that uid could delete them itself.
+    /// A refusal mid-way (a link or another device swapped in, a changed
+    /// directory) stops at once and leaves the tree partly emptied; no link
+    /// is ever followed. Non-goals: the mount checks compare `st_dev` only
+    /// (the root with its parent, each entered directory with the root), so
+    /// a same-device bind mount passes and the home's own ancestors are not
+    /// checked here. A same-uid process that moves a directory of the tree
+    /// elsewhere during the call keeps it (it counts as removed), but while
+    /// its fd is cached (the deepest `WINDOW` levels) its entries are still
+    /// deleted at the new place; that uid could delete them itself.
     pub fn remove_dir_all(&self, rel: &Path) -> std::io::Result<()> {
         self.reverify()?;
         let components = relative_components(rel)?;
@@ -107,6 +112,7 @@ impl SandboxHome {
             if checked(rel, fd_file_id(&again))? != parent_id {
                 return Err(refusal(rel, CHANGED));
             }
+            drop(again);
             race_seam(RaceStage::AfterRecheck);
             let Some(tree) = found(rel, openat_dir(&parent, name, true))? else {
                 return Ok(());
@@ -132,7 +138,7 @@ impl SandboxHome {
         let (name, dirs) = components.split_last().ok_or_else(|| invalid_rel(rel))?;
         #[cfg(unix)]
         {
-            self.unlink_rel(dirs, name, 0)
+            self.unlink_rel(rel, dirs, name, 0)
         }
         #[cfg(not(unix))]
         {
@@ -149,22 +155,22 @@ impl SandboxHome {
     }
 
     /// `unlinkat(name, flags)` in the existing parent `dirs`, opened
-    /// `O_NOFOLLOW`; a missing parent or entry is `Ok(false)`.
+    /// `O_NOFOLLOW` (a linked ancestor is refused as in `found`); a missing
+    /// parent or entry is `Ok(false)`.
     #[cfg(unix)]
     fn unlink_rel(
         &self,
+        rel: &Path,
         dirs: &[OsString],
         name: &OsStr,
         flags: libc::c_int,
     ) -> std::io::Result<bool> {
-        let missing = |err: &std::io::Error| err.kind() == std::io::ErrorKind::NotFound;
-        let dir = match open_rel_dir_existing(self, dirs) {
-            Err(err) if missing(&err) => return Ok(false),
-            other => other?,
+        let Some(dir) = found(rel, open_rel_dir_existing(self, dirs))? else {
+            return Ok(false);
         };
         match unlinkat_flags(&dir, name, flags) {
             Ok(()) => Ok(true),
-            Err(err) if missing(&err) => Ok(false),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
             Err(err) => Err(err),
         }
     }
@@ -254,10 +260,11 @@ fn ignore_missing(result: std::io::Result<()>) -> std::io::Result<()> {
     }
 }
 
-/// Most parent fds the up-walk keeps open: well under the 256 soft limit
-/// of macOS, with the caller's own fds and parallel callers.
+/// Most parent fds the up-walk keeps open; with the walk's and the
+/// caller's own, the peak is about 68 fds, well under the 256 soft limit
+/// of macOS even with parallel callers.
 #[cfg(unix)]
-const WINDOW: usize = 64;
+pub(in crate::paths) const WINDOW: usize = 64;
 
 /// One entered directory: its name and identity, its parent's fd while in
 /// the window, and its parent's names still to do.
@@ -316,7 +323,11 @@ fn empty_tree(rel: &Path, root: &OwnedFd, dev: u64) -> std::io::Result<()> {
             }
         }
         todo = level.rest;
-        ignore_missing(unlinkat_flags(&dir, &level.name, libc::AT_REMOVEDIR))?;
+        race_seam(RaceStage::BeforeUnlink);
+        // A link swapped in for the emptied directory is refused, never
+        // followed nor removed.
+        ignore_missing(unlinkat_flags(&dir, &level.name, libc::AT_REMOVEDIR))
+            .map_err(|err| link_refusal(rel, err))?;
     }
 }
 

@@ -1,7 +1,7 @@
 //! Anchored removal and `open_dir` tests: no link is followed on the way.
 
 use super::*;
-use crate::paths::sandbox_home::{checked, same_device, RaceStage, RACE_HOOK};
+use crate::paths::sandbox_home::{checked, same_device, RaceStage, RACE_HOOK, WINDOW};
 use crate::paths::sys::{mkdirat, openat_dir, FileId};
 use crate::paths::*;
 use std::ffi::OsStr;
@@ -138,13 +138,12 @@ fn remove_dir_all_removes_a_2000_deep_tree_in_linear_time() {
         counter.set(counter.get() + usize::from(stage == RaceStage::UpWalk));
         false
     })));
-    let started = std::time::Instant::now();
     handle.remove_dir_all(Path::new("ext/pkg")).unwrap();
-    let took = started.elapsed();
     RACE_HOOK.set(None);
     assert!(!pkg.exists(), "the whole tree is gone");
-    assert!(took < std::time::Duration::from_secs(20), "took {took:?}");
-    assert!(walks.get() <= 2000 / 64 + 1, "{} re-walks", walks.get());
+    // One re-walk per `WINDOW + 1` levels going up; the old code made 2,000.
+    let bound = 2000 / (WINDOW + 1) + 1;
+    assert!(walks.get() <= bound, "{} re-walks > {bound}", walks.get());
 }
 
 /// A directory of the tree that vanishes before the up-walk reaches it
@@ -167,6 +166,63 @@ fn remove_dir_all_treats_a_dir_vanished_during_the_up_walk_as_removed() {
         home.join("moved/d").is_dir(),
         "the moved dir is left as it is"
     );
+}
+
+/// At stage `at`, move `home/from` to `home/moved` and put `then` there:
+/// a link to `outside` (`Some`) or a fresh directory (`None`).
+#[cfg(unix)]
+fn swap_at(at: RaceStage, home: &Path, from: &str, then: Option<PathBuf>) {
+    let (from, moved) = (home.join(from), home.join("moved"));
+    RACE_HOOK.set(Some(Box::new(move |stage: RaceStage| {
+        if stage != at {
+            return false;
+        }
+        std::fs::rename(&from, &moved).unwrap();
+        match &then {
+            Some(outside) => std::os::unix::fs::symlink(outside, &from).unwrap(),
+            None => std::fs::create_dir(&from).unwrap(),
+        }
+        true
+    })));
+}
+
+/// A level swapped for a link between descent and unlink is refused; the
+/// link is neither followed nor removed and the outside tree survives.
+#[test]
+#[cfg(unix)]
+fn remove_dir_all_refuses_a_link_swapped_in_before_the_unlink() {
+    let (dir, handle, outside) = tree_fixture();
+    let home = dir.path().join("home");
+    swap_at(
+        RaceStage::BeforeUnlink,
+        &home,
+        "ext/pkg/sub",
+        Some(outside.join("pkg")),
+    );
+    let err = handle.remove_dir_all(Path::new("ext/pkg")).unwrap_err();
+    RACE_HOOK.set(None);
+    assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied, "{err}");
+    assert_eq!(std::fs::read(outside.join("pkg/keep")).unwrap(), b"k");
+    assert!(home.join("ext/pkg/sub").is_symlink(), "the link stays");
+}
+
+/// A directory swapped for a link or another directory during the
+/// re-walk from the root is refused; the outside tree survives.
+#[test]
+#[cfg(unix)]
+fn remove_dir_all_refuses_a_dir_swapped_during_the_up_walk() {
+    for link in [true, false] {
+        let (dir, handle, outside) = tree_fixture();
+        let home = dir.path().join("home");
+        let pkg = home.join("ext/pkg");
+        std::fs::create_dir_all((0..200).fold(pkg.join("d"), |acc, _| acc.join("d"))).unwrap();
+        let link = link.then(|| outside.join("pkg"));
+        swap_at(RaceStage::UpWalk, &home, "ext/pkg/d/d", link);
+        let err = handle.remove_dir_all(Path::new("ext/pkg")).unwrap_err();
+        RACE_HOOK.set(None);
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied, "{err}");
+        assert_eq!(std::fs::read(outside.join("pkg/keep")).unwrap(), b"k");
+    }
 }
 
 /// The tree root on another device than its parent (a mount point) is
@@ -197,11 +253,18 @@ fn a_mounted_root_and_an_unreadable_identity_are_refused_by_name() {
 #[test]
 #[cfg(unix)]
 fn remove_dir_and_remove_file_never_create_a_missing_parent() {
-    let (dir, handle, _outside) = tree_fixture();
+    let (dir, handle, outside) = tree_fixture();
     let home = dir.path().join("home");
     assert!(!handle.remove_file(Path::new("absent/deeper/file")).unwrap());
     assert!(!handle.remove_dir(Path::new("absent/deeper/dir")).unwrap());
     assert!(!home.join("absent").exists(), "nothing created");
+    std::os::unix::fs::symlink(&outside, home.join("link")).unwrap();
+    for removal in [SandboxHome::remove_file, SandboxHome::remove_dir] {
+        let err = removal(&handle, Path::new("link/pkg/keep")).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied, "{err}");
+        assert!(err.to_string().contains("link"), "{err}");
+    }
+    assert!(outside.join("pkg/keep").is_file());
     assert!(handle.remove_file(Path::new("ext/pkg/file")).unwrap());
     assert!(!handle.remove_file(Path::new("ext/pkg/file")).unwrap());
     assert!(
