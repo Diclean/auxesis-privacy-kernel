@@ -198,7 +198,9 @@ const VALUE_SHAPES: &[(&str, usize)] = &[
     // path (`DATABASE_URL=alice:pw@db.example.com`).
     (r#"(?i)\b[a-z][a-z0-9+.\-]*://([^\s/@:"'<>]*:[^\s/"'<>]*@[^\s/"'<>]*)@[a-z0-9\[]"#, 1),
     (r#"(?i)\b[a-z][a-z0-9+.\-]*://([^\s/@:"'<>]*:[^\s/@:"'<>]*[^\s/@:"'<>0-9][^\s/@:"'<>]*/[^\s@"'<>]*)@[a-z0-9\[]"#, 1),
-    (r#"(?i)\b[a-z0-9_]*(?:url|uri|dsn)\s*=\s*["']?([^\s/@:"'<>]+:[^\s/@"'<>]+)@[a-z0-9]"#, 1),
+    (r#"(?i)\b[a-z0-9_]*(?:url|uri|dsn)\s*=\s*["']?([^\s/@:"'<>]+:[^\s/@"'<>]+)@[a-z0-9]"#, 1),    // `curl -u user:password`, a link-shaped value too: the whole value is hidden,
+    // as before #95 (the #95 r2 seals found credentials inside such links).
+    (r#"\bcurl\b[^\n]*?\s(?:-u|--user)(?:\s+|=)["']?([^\s"':]*:[^\s"']+)"#, 4),
 ];
 
 /// What a value of a [`CHECKED_SHAPES`] shape must also be to count.
@@ -207,15 +209,13 @@ enum Keep {
     /// A header credential, not a status word that a plain word follows (`Token
     /// refreshes happen…`). It joins the lines that continue it.
     Credential,
-    /// A `user:password`, not a link (`curl -u https://…`).
-    NotLink,
     /// Not a placeholder the docs write for a signature.
     NotPlaceholder,
     /// An `htpasswd` line with `-n` and `-b` or `-B`: no file, the password is second.
     NoFile,
 }
 
-use Keep::{Credential, NoFile, NotLink, NotPlaceholder};
+use Keep::{Credential, NoFile, NotPlaceholder};
 
 /// The value shapes whose value must also pass its [`Keep`].
 #[rustfmt::skip]
@@ -225,8 +225,7 @@ const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+["']([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"\bSSWS[ \t]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
-    // `curl -u user:password`, `htpasswd -nb user password`.
-    (r#"\bcurl\b[^\n]*?\s(?:-u|--user)(?:\s+|=)["']?([^\s"':]*:[^\s"']+)"#, 4, NotLink),
+    // `htpasswd -nb user password`.
     (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, NoFile),
     // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage), and
     // the V2 `Signature` (S3, Google Cloud Storage, CloudFront, Alibaba OSS).
@@ -276,10 +275,6 @@ fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
                 .strip_prefix([' ', '\t'])
                 .and_then(|rest| rest.split_whitespace().next());
             !is_status_word(found) || !next.is_some_and(|word| !is_secret_shaped(word))
-        }
-        NotLink => {
-            let lower = found.to_ascii_lowercase();
-            !lower.starts_with("http://") && !lower.starts_with("https://")
         }
         NotPlaceholder => !is_placeholder(found),
         NoFile => {

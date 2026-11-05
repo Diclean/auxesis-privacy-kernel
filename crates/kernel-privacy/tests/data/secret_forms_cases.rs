@@ -445,6 +445,10 @@ pub fn positives() -> Vec<Case> {
         c("seal-95", "docker login -p {}", "correct.horse.staple"),
         c("seal-95", "docker login -p {}", "a.b.co"),
         c("seal-95", "curl -u {}", "alice://supersecret"),
+        c("seal-95", "curl -u https://user:{}", "hunter2hunter"),
+        c("seal-95", "curl -u https://example.com/api/v1/{}", "Zq8vR2xLmN4pT6wYb3c9"),
+        c("seal-95", "curl -u https://{}@example.com", "Zq8vR2xLmN4pT6wYb3c9"),
+        c("seal-95", "curl -u https://example.com/#{}", "Zq8vR2xLmN4pT6wYb3c9"),
         c("seal-95", "htpasswd -nB alice {}", "batterystaple"),
         m("seal-95", "Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345\ndeadbeef".into(), vec!["abcdefghijklmnopqrstuvwxyz012345".into(), "deadbeef".into()]),
         c("seal-95", "apitoken: refresh {} before the meeting", "Zq8vR2xLmN4pT6wY"),
@@ -554,7 +558,6 @@ pub fn negatives() -> Vec<String> {
         // KV02-SECRETS-2: the false positives the peer seals of #92 found, and
         // look-alikes of the forms added after them.
         "Authorization: Token refreshes happen every hour.",
-        "curl -u https://example.com/v1/items",
         "Docs: https://docs.example.com/sas?sig=your-signature-here",
         "https://files.example.com/f.pdf?sig=xxxxxxxxxxxxxxxxxxxx",
         "https://docs.example.com/v2?Signature=signature-goes-here",

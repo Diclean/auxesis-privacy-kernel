@@ -29,7 +29,6 @@ const MODES: [PrivacyMode; 2] = [PrivacyMode::Private, PrivacyMode::Open];
 const PRIVATE_TOKENISED: &[&str] = &[
     "Invoice INV-2026-000123 is due on 30 November.",
     "curl -u alice https://api.example.com/v1/me",
-    "curl -u https://example.com/v1/items",
     "Docs: https://docs.example.com/sas?sig=your-signature-here",
     "https://files.example.com/f.pdf?sig=xxxxxxxxxxxxxxxxxxxx",
     "https://docs.example.com/v2?Signature=signature-goes-here",
