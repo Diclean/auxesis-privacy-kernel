@@ -4,6 +4,9 @@
 use serde::Serialize;
 use serde_json::Value;
 
+use super::detector::{without_names, StandardDetector, PRIVATE_DETECTOR};
+use super::seams;
+
 /// Whether the gate's detection covered person and organisation names.
 ///
 /// The deterministic recognisers find a name only through the e-mail layer's
@@ -60,6 +63,9 @@ pub struct SafeText {
     pub(super) text: String,
     #[serde(skip)]
     pub(super) names: NameCoverage,
+    /// The tokens and markers the kernel wrote in `text`, which a join never edits.
+    #[serde(skip)]
+    pub(super) marks: seams::Marks,
 }
 
 /// A fixed, kernel-authored string that may be issued as a [`SafeText`]
@@ -101,22 +107,33 @@ impl SafeText {
         Self {
             text: marker.as_str().to_string(),
             names: NameCoverage::AppAuthored,
+            marks: vec![(0, marker.as_str().len())],
         }
     }
 
     /// The parts, in order, as one text. Each part was checked on its own when
-    /// it was issued; the join does not scan across the seams, so a caller
-    /// joins only whole, self-contained parts.
+    /// it was issued. Where two meet with no blank between them, the run across
+    /// the seam is read again, and its clear text may become `[value removed]`;
+    /// the join is `[auxesis: withheld]` when that run cannot be hidden, or when
+    /// the whole holds a secret longer than the gate reads.
     pub fn join(parts: impl IntoIterator<Item = SafeText>) -> Self {
-        let mut text = String::new();
-        let mut names = Vec::new();
+        let (mut text, mut names, mut marks, mut at) =
+            (String::new(), Vec::new(), Vec::new(), Vec::new());
         for part in parts {
+            if !text.is_empty() && !part.text.is_empty() {
+                at.push(text.len());
+            }
+            let shift = text.len();
+            marks.extend(part.marks.iter().map(|m| (m.0 + shift, m.1 + shift)));
             text.push_str(&part.text);
             names.push(part.names);
         }
+        let detector = PRIVATE_DETECTOR.get_or_init(|| without_names(StandardDetector::new()));
+        let (text, marks) = seams::mend(&text, &marks, &at, detector.as_ref());
         Self {
             text,
             names: NameCoverage::of_parts(names),
+            marks,
         }
     }
 

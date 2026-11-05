@@ -6,6 +6,14 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `SafeText::join` reads again a run that crosses a seam with no blank: if it
+  touches a token or marker, or holds a value, its clear text becomes
+  `[value removed]`. A run over 512 bytes, a prohibited value past its run, a
+  failed recogniser or a secret too long withholds the join. A seam on a blank
+  is not read again.
+
 ## [0.1.4] - 2026-11-05
 
 The changes since v0.1.3, in plain words.

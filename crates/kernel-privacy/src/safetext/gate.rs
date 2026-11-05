@@ -265,10 +265,12 @@ impl Gate {
         self.names_run = None;
         let (masked, report) = self.mask(text)?;
         let names = self.coverage();
+        let marks = super::seams::marks(self.policy, &masked);
         Ok((
             SafeText {
                 text: masked,
                 names,
+                marks,
             },
             report,
         ))
