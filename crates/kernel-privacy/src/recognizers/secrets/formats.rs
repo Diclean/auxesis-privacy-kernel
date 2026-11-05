@@ -196,6 +196,10 @@ const VALUE_SHAPES: &[(&str, usize)] = &[
     // An Okta token after `SSWS` and words that name it (`SSWS header: <token>`,
     // `SSWS token` then the token on the next line).
     (r#"\bSSWS(?:[ \t]+(?i:authentication|authorization|credentials?|headers?|prefix|scheme|tokens?|auth)\b)+[ \t]*[:=]?[ \t]*(?:\r?\n[ \t]*)?["']?([A-Za-z0-9._~+/=\-]+)"#, 20),
+    // KV02-SECRETS-4: the same in any case, with a no-break, narrow no-break or
+    // thin space for a blank, and up to two line breaks (a blank line) before
+    // the token. Added beside the rule above, which stays as it was.
+    (r#"(?i:\bSSWS)(?:[ \t\u{A0}\u{2009}\u{202F}]+(?i:authentication|authorization|credentials?|headers?|prefix|scheme|tokens?|auth)\b)+[ \t\u{A0}\u{2009}\u{202F}]*[:=]?(?:[ \t\u{A0}\u{2009}\u{202F}]*\r?\n){0,2}[ \t\u{A0}\u{2009}\u{202F}]*["']?([A-Za-z0-9._~+/=\-]+)"#, 20),
     // URL userinfo whose password holds `@`, or `/` (not a port before a path,
     // `localhost:5173/@vite`), and a scheme-less one in a `…_URL=` value with no
     // path (`DATABASE_URL=alice:pw@db.example.com`).
@@ -231,6 +235,9 @@ const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+["']([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"\bSSWS[ \t]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
+    // KV02-SECRETS-4: `ssws` in any case, and a no-break, narrow no-break or thin
+    // space after it.
+    (r#"(?i:\bSSWS)[ \t\u{A0}\u{2009}\u{202F}]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     // `htpasswd -nb user password`.
     (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, NoFile),
     // `htpasswd -nb user password` and `htpasswd -b file user password`: flags
@@ -238,6 +245,11 @@ const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
     // `-r 5000`), a quoted password whole.
     (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,6})?)+[ \t]+[^\s\-]\S*[ \t]+("[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, NoFile),
     (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,6})?)+[ \t]+[^\s\-]\S*[ \t]+[^\s\-]\S*[ \t]+("[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, WithFile),
+    // KV02-SECRETS-4, beside the two above: a numeric value of up to nine digits
+    // (`-r 1000000`), a quoted file or user (`"/srv/my site/.htpasswd"`), and a
+    // quoted password with an escaped quote inside (`"pa\" ss"`, `'it'\''s'`).
+    (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,9})?)+[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+("(?:\\.|[^"\\\n])*"\S*|'[^'\n]*'(?:\\''[^'\n]*')*\S*|"[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, NoFile),
+    (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,9})?)+[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+("(?:\\.|[^"\\\n])*"\S*|'[^'\n]*'(?:\\''[^'\n]*')*\S*|"[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, WithFile),
     // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage), and
     // the V2 `Signature` (S3, Google Cloud Storage, CloudFront, Alibaba OSS).
     (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16, NotPlaceholder),

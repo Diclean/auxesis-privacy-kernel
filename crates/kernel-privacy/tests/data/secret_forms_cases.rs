@@ -515,6 +515,34 @@ pub fn positives() -> Vec<Case> {
         c("kv02-s3", "SSWS token header {}", &format!("00{}", k(ALNUM, 40, 1017))),
         c("kv02-s3", "SSWS token\n{}", &format!("00{}", k(ALNUM, 40, 1018))),
         c("kv02-s3", "Authorization: SSWS Token = '{}'", &format!("00{}", k(ALNUM, 40, 1019))),
+        // KV02-SECRETS-4: an Okta token after a blank line, `ssws` in lower or
+        // mixed case, a no-break (U+00A0), thin (U+2009) or narrow no-break
+        // (U+202F) space for a blank; htpasswd with an escaped quote inside a
+        // quoted password, a quoted file path with spaces, and a value of up to
+        // nine digits.
+        c("kv02-s4", "SSWS token\n\n{}", &format!("00{}", k(ALNUM, 40, 1101))),
+        c("kv02-s4", "SSWS header:\n\n{}", &format!("00{}", k(ALNUM, 40, 1102))),
+        c("kv02-s4", "SSWS token\n  \n    {}", &format!("00{}", k(ALNUM, 40, 1103))),
+        c("kv02-s4", "SSWS header:\r\n\r\n  {}\r\nAccept: */*", &format!("00{}", k(ALNUM, 40, 1104))),
+        c("kv02-s4", "ssws {}", &format!("00{}", k(ALNUM, 40, 1105))),
+        c("kv02-s4", "Ssws {} worked", &format!("00{}", k(ALNUM, 40, 1106))),
+        c("kv02-s4", "ssws header: {}", &format!("00{}", k(ALNUM, 40, 1107))),
+        c("kv02-s4", "sSwS Token\n{}", &format!("00{}", k(ALNUM, 40, 1108))),
+        c("kv02-s4", "SSWS\u{a0}{}", &format!("00{}", k(ALNUM, 40, 1109))),
+        c("kv02-s4", "SSWS\u{2009}{}", &format!("00{}", k(ALNUM, 40, 1110))),
+        c("kv02-s4", "SSWS\u{202f}{}", &format!("00{}", k(ALNUM, 40, 1111))),
+        c("kv02-s4", "SSWS\u{a0}token\u{a0}{}", &format!("00{}", k(ALNUM, 40, 1112))),
+        c("kv02-s4", "SSWS header:\u{202f}{}", &format!("00{}", k(ALNUM, 40, 1113))),
+        c("kv02-s4", "Authorization: SSWS\u{a0}credentials\u{a0}{}", &format!("00{}", k(ALNUM, 40, 1114))),
+        c("kv02-s4", "Authorization: SSWS\u{2009}credentials\u{2009}{}", &format!("00{}", k(ALNUM, 40, 1115))),
+        c("kv02-s4", "Authorization: SSWS credentials {}", &format!("00{}", k(ALNUM, 40, 1116))),
+        c("kv02-s4", "htpasswd -b site.db alice \"{}\"", "Fake\\\" pass word"),
+        c("kv02-s4", "htpasswd -nb carol '{}'", "it'\\''s my pass"),
+        c("kv02-s4", "htpasswd -bB -C 123456789 site.db alice \"{}\"", "Fake\\\" pass word"),
+        c("kv02-s4", "htpasswd -b \"/srv/my site/.htpasswd\" alice {}", "S3cretPass"),
+        c("kv02-s4", "htpasswd -bc '/srv/my site/.htpasswd' bob {}", "Fake9Pass"),
+        c("kv02-s4", "htpasswd -b -r 1000000 site.db alice {}", "S3cretPass"),
+        c("kv02-s4", "htpasswd -nb5 -r 1000000 alice {}", "S3cretPass"),
     ]
 }
 
@@ -638,6 +666,11 @@ pub fn negatives() -> Vec<String> {
         "The SSWS credentials are rotated every month.",
         "Authorization: SSWS",
         "htpasswd -iB users.db kim reads stdin",
+        // KV02-SECRETS-4: `-i` reads the password from stdin, so the word after the
+        // user is no password, nine-digit rounds aside; lower-case prose.
+        "htpasswd -i -B users.db kim reads stdin",
+        "htpasswd -iB -r 1000000 users.db kim reads stdin",
+        "ssws token goes here",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()
 }

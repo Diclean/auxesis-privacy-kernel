@@ -133,3 +133,16 @@ fn a_key_at_a_line_end_does_not_join_the_next_key() {
         vec!["sk-proj-FAKEKEY0123456789\nAB"]
     );
 }
+
+#[test]
+fn htpasswd_with_i_reads_stdin_so_the_word_after_the_user_stays_clear() {
+    // The same lines without `-i` mask `reads`: only the `-i` skip keeps it clear.
+    for rounds in ["", " -r 1000000"] {
+        let line = format!("htpasswd -B{rounds} users.db kim reads stdin");
+        assert!(hits(&line).contains(&"reads"), "{line}: {:?}", hits(&line));
+        for flags in ["-i -B", "-iB"] {
+            let line = format!("htpasswd {flags}{rounds} users.db kim reads stdin");
+            assert!(hits(&line).is_empty(), "{line}: {:?}", hits(&line));
+        }
+    }
+}
