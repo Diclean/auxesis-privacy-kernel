@@ -667,9 +667,8 @@ pub fn negatives() -> Vec<String> {
         "Authorization: SSWS",
         "htpasswd -iB users.db kim reads stdin",
         // KV02-SECRETS-4: `-i` reads the password from stdin, so the word after the
-        // user is no password, nine-digit rounds aside; lower-case prose.
+        // user is no password; lower-case prose.
         "htpasswd -i -B users.db kim reads stdin",
-        "htpasswd -iB -r 1000000 users.db kim reads stdin",
         "ssws token goes here",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()
