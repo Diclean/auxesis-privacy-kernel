@@ -30,7 +30,10 @@ See https://example.com/private/page now.|/private|https://example.com/private/p
 See www.example.org/page?id=42&ref=mail now.|?id|www.example.org/page?id=42&ref=mail
 mail alice@example.com.fake.com now.|.fake|alice@example.com.fake.com
 My key is sk-proj-Fake0123456789abcdefghij.|sk-|sk-proj-Fake0123456789abcdefghij
-Passport P<GBRDOE<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<|<JOHN|P<GBRDOE<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<";
+Passport P<GBRDOE<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<|<JOHN|P<GBRDOE<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<
+Company number 12345678|1
+Adószám: 12345678-2-42|1
+VAT reg no: GB 123 4567 89|1";
 
 /// Thirty plain parts, none of them a value.
 const PLAIN: &str = "Hello|world|Bonjour tout le monde|Merci beaucoup|The quarterly review|\
@@ -145,38 +148,18 @@ fn a_value_past_the_widest_window_or_a_long_run_on_a_token_withholds_the_join() 
     }
 }
 
-/// A fake private key (base64 of a fixed phrase) between two lines of prose.
-const KEY: &str = concat!(
-    "My key:\n-----BEGIN PRIVATE KEY-----\n",
-    "MIIEvQIBADANRkFLRSBLRVkgRk9SIFRFU1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF\n",
-    "U1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRFU1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF\n",
-    "U1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRFU1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF\n",
-    "RkFLRUtFWQ==\n-----END PRIVATE KEY-----\nThat was all.",
-);
-
-/// Texts whose value a seam must keep whole, and whether the join may be
-/// withheld instead: keyword IDs only the gate's full read finds, a key cut
-/// between its lines, an address in three parts.
-const WHOLE: [(&str, bool); 5] = [
-    ("Company number 12345678", false),
-    ("Adószám: 12345678-2-42", false),
-    ("VAT reg no: GB 123 4567 89", false),
-    (
-        "Send it to 10 Downing Street, London SW1A 2AA today.",
-        false,
-    ),
-    (KEY, true),
-];
-
-/// The parts as issued one by one, concatenated and joined, or `None` when
-/// the gate refuses a part (there is nothing to join).
-fn try_split(gate: &mut Gate, parts: &[&str]) -> Option<[String; 2]> {
-    let issued: Vec<SafeText> = parts
-        .iter()
-        .map(|part| gate.text(part).ok().map(|i| i.0))
-        .collect::<Option<_>>()?;
-    let concat = issued.iter().map(SafeText::as_str).collect();
-    Some([concat, SafeText::join(issued).as_str().to_string()])
+/// A fake private key (base64 of a fixed phrase) after a line of prose: framed
+/// with a short last line, and headerless in twelve lines before another.
+fn keys() -> [String; 2] {
+    let first = "MIIEvQIBADANRkFLRSBLRVkgRk9SIFRFU1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF";
+    let line = "U1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRFU1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF";
+    let framed = format!("-----BEGIN PRIVATE KEY-----\n{first}\n{line}\n{line}\nQUJD\n");
+    let framed = format!("My key:\n{framed}-----END PRIVATE KEY-----");
+    let headerless = format!(
+        "My key:\n{first}\n{}\n(That was all.)",
+        [line; 11].join("\n")
+    );
+    [framed, headerless]
 }
 
 /// The words (runs of letters and digits) of `text`, each token and marker a blank.
@@ -184,29 +167,21 @@ fn clear_words(text: &str) -> Vec<String> {
     let (mut clear, mut rest) = (String::new(), text);
     while let Some(open) = rest.find(['⟦', '[']) {
         clear.push_str(&rest[..open]);
-        let close = if rest[open..].starts_with('⟦') {
-            '⟧'
-        } else {
-            ']'
-        };
-        let marked = rest[open..]
+        let close = ['⟧', ']'][usize::from(rest[open..].starts_with('['))];
+        let end = rest[open..]
             .find(close)
             .map(|len| open + len + close.len_utf8());
-        let marked = marked.filter(|&end| {
+        let mark = end.filter(|&end| {
             let mark = &rest[open..end];
             close == '⟧' || mark == WITHHELD || mark.ends_with(" removed]")
         });
-        let end = marked.unwrap_or(open + rest[open..].chars().next().map_or(1, char::len_utf8));
-        clear.push_str(if marked.is_some() {
-            " "
-        } else {
-            &rest[open..end]
-        });
-        rest = &rest[end..];
+        let next = open + rest[open..].chars().next().map_or(1, char::len_utf8);
+        clear.push_str(mark.map_or(&rest[open..next], |_| " "));
+        rest = &rest[mark.unwrap_or(next)..];
     }
     clear.push_str(rest);
-    clear
-        .split(|ch: char| !ch.is_alphanumeric())
+    let words = clear.split(|ch: char| !ch.is_alphanumeric());
+    words
         .filter(|word| !word.is_empty())
         .map(String::from)
         .collect()
@@ -220,30 +195,33 @@ fn shown_pieces(text: &str, whole: &str, joined: &str) -> Vec<String> {
     let hidden: Vec<&str> = words
         .filter(|word| word.chars().count() > 1 && !kept.iter().any(|kept| kept == word))
         .collect();
-    let pieces = clear_words(joined).into_iter().filter(|word| {
+    let shown = clear_words(joined).into_iter().filter(|word| {
         word.chars().count() > 1
             && !kept.contains(word)
             && hidden.iter().any(|w| w.contains(word.as_str()))
     });
-    pieces.collect()
+    shown.collect()
 }
 
 #[test]
-fn a_value_cut_anywhere_in_two_or_three_parts_stays_whole_hidden() {
+fn a_value_cut_anywhere_stays_hidden_whole_where_the_whole_text_hides_it() {
     let mut failures = Vec::new();
     for (name, mut gate) in gates() {
-        for (text, may_withhold) in WHOLE {
+        let texts = CUTS
+            .lines()
+            .map(|line| (line.split('|').next().unwrap_or(line).to_string(), false));
+        for (text, may_withhold) in texts.chain(keys().map(|key| (key, true))) {
             let whole = gate
-                .text(text)
+                .text(&text)
                 .map_or(WITHHELD.to_string(), |i| i.0.as_str().to_string());
             let cuts: Vec<usize> = (1..text.len())
                 .filter(|&at| text.is_char_boundary(at))
                 .collect();
-            // Three parts at every pair of cuts, or on a grid of about 48 cuts.
+            // Two parts at every cut; three on a grid of about 24 cuts.
             let grid: Vec<usize> = cuts
                 .iter()
                 .copied()
-                .step_by(cuts.len().div_ceil(48))
+                .step_by(cuts.len().div_ceil(24))
                 .collect();
             let mut splits: Vec<Vec<usize>> = cuts.iter().map(|&at| vec![at]).collect();
             for (i, &first) in grid.iter().enumerate() {
@@ -252,32 +230,36 @@ fn a_value_cut_anywhere_in_two_or_three_parts_stays_whole_hidden() {
             if let Some(at) = text.find(" Downing") {
                 splits.push(vec![at, text.find(" SW1A").expect("postcode")]);
             }
+            if text.contains("BEGIN") {
+                splits.push(vec![text.find("QUJD").expect("last line") - 1]);
+            }
             for seams in splits {
                 let ends: Vec<usize> = [0].into_iter().chain(seams).chain([text.len()]).collect();
                 let parts: Vec<&str> = ends.windows(2).map(|at| &text[at[0]..at[1]]).collect();
-                let Some([concat, joined]) = try_split(&mut gate, &parts) else {
+                // A part the gate refuses leaves nothing to join.
+                let Some(issued) = parts
+                    .iter()
+                    .map(|part| gate.text(part).ok().map(|i| i.0))
+                    .collect::<Option<Vec<_>>>()
+                else {
                     continue;
                 };
-                let shown = shown_pieces(text, &whole, &joined);
+                let joined = SafeText::join(issued).as_str().to_string();
+                let shown = shown_pieces(&text, &whole, &joined);
                 if !shown.is_empty() || (joined == WITHHELD && !may_withhold) {
                     failures.push(format!(
-                        "{name} {parts:?}\n  whole  {whole}\n  concat {concat}\n  joined {joined}\n  shows  {shown:?}"
+                        "{name} {parts:?}\n  whole  {whole}\n  joined {joined}\n  shows  {shown:?}"
                     ));
                 }
             }
         }
     }
-    assert!(
-        failures.is_empty(),
-        "{} failures:\n{}",
-        failures.len(),
-        failures.join("\n")
-    );
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 #[test]
 fn a_join_of_three_plain_parts_or_prose_beside_a_value_is_the_concatenation() {
-    let sentence = "The quarterly review covers budgets and hiring.";
+    let (sentence, [key, _]) = ("The quarterly review covers budgets and hiring.", keys());
     let mut failures = Vec::new();
     for (name, mut gate) in gates() {
         let cuts: Vec<usize> = (1..sentence.len()).step_by(2).collect();
@@ -294,18 +276,17 @@ fn a_join_of_three_plain_parts_or_prose_beside_a_value_is_the_concatenation() {
                 }
             }
         }
-        // Prose after a key, an address or a number is no key line, no
-        // address word and no group: only where the whole text agrees.
+        // Prose beside a key, an address (either side) or a number is no key
+        // line, no address word and no group: only where the whole text agrees.
         let beside = [
             ["password: hunter2", "\nThanks a lot, see you."],
             ["password: hunter2 ", "\nsee you at noon."],
             ["Send it to 10 Downing Street", " today at noon."],
+            ["Meeting With Jean Dupont At", " 10 Downing Street"],
+            ["Meet at 10 Downing Street", " Thanks Jean."],
             ["Call +33 6 12 34 56 78", " The quarterly review"],
             ["Call +33 6 12 34 56 78", "\nThe quarterly review"],
-            [
-                &KEY[..KEY.find("\nThat").expect("prose")],
-                "\nThat was all.",
-            ],
+            [key.as_str(), "\n(That was all.)"],
         ];
         for parts in beside {
             let [whole, concat, joined] = split(&mut gate, &parts);

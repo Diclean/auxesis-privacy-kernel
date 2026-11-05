@@ -42,8 +42,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A join reads each seam with the gate's full detector, so a company or tax
   number cut after its keyword is hidden. A key's mark at a seam takes the key
   lines that run on from it, to its frame; an address mark takes the address
-  words across the seam; a read whose window cuts a word is widened; and two
-  overlapping hidden ranges no longer drop the bytes between them.
+  words across the seam; a read whose window cuts a word or a key is widened (a
+  key past the widest is withheld); and overlapping hidden ranges keep every byte.
 
 ## [0.1.4] - 2026-11-05
 

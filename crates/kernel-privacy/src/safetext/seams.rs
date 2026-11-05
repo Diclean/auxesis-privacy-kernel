@@ -1,10 +1,10 @@
 //! The seams of [`SafeText::join`](super::SafeText::join), each read again by
 //! the private recognisers with the tokens and markers the kernel wrote (its
 //! marks) as fixed stand-ins, never edited. A value found that the mode hides,
-//! or clear text a seam ties to a mark (a glued word, a number in groups, the
-//! lines of a key, the words of an address), becomes a fixed marker.
+//! or clear text a seam ties to a mark, becomes a fixed marker.
 
 use std::iter::once;
+use std::sync::LazyLock;
 
 use kernel_core::privacy::GrantPolicy;
 
@@ -13,9 +13,10 @@ use super::prohibited::{is_hash_fragment, removal_text};
 use super::residue::MASKED_STAND_IN;
 use super::tokens::session_token_len;
 use crate::anonymize::{kind_of_token, PLACEHOLDER_OPEN};
+use crate::public_terms::PublicTerms;
 use crate::recognizer::span_is_well_formed;
 use crate::recognizers::secrets::value_too_long;
-use crate::span::{EntityKind, Span};
+use crate::span::EntityKind;
 
 /// A byte range of a text.
 pub(super) type Mark = (usize, usize);
@@ -36,6 +37,8 @@ const MAX_RUN_BYTES: usize = 512;
 const MAX_KEY_BYTES: usize = 16 * 1024;
 /// The most words a join reads on from an address mark.
 const MAX_ADDRESS_WORDS: usize = 8;
+/// The built-in public terms, whose capital cities an address may end with.
+static CITIES: LazyLock<PublicTerms> = LazyLock::new(PublicTerms::builtin);
 
 /// The marks of a text a tokenising gate issued: it doubles a typed `⟦`.
 pub(super) fn token_marks(text: &str) -> Marks {
@@ -50,8 +53,7 @@ pub(super) fn token_marks(text: &str) -> Marks {
     marks
 }
 
-/// The join of `text`, read again 4, then 16 times wider when a value or the
-/// window cuts a run at its edge, or [`WITHHELD`].
+/// The join of `text`, read again 4, then 16 times wider at an edge, or [`WITHHELD`].
 pub(super) fn mend(
     text: &str,
     marks: &[Mark],
@@ -65,23 +67,21 @@ pub(super) fn mend(
             .into_iter()
             .map(|times| {
                 let at = window(text, marks, seam, times * WINDOW_CHARS);
-                if times < 16 && (cuts(text, at.0) || cuts(text, at.1)) {
+                let key = key_break(text, at.0) || key_break(text, at.1);
+                if times < 16 && (key || cuts(text, at.0) || cuts(text, at.1)) {
                     return Some(false);
+                }
+                if key {
+                    return None;
                 }
                 read(text, marks, at, (policy, scan), &mut pieces)
             })
             .find(|read| *read != Some(false));
-        match (
-            read.flatten(),
-            run(text, marks, seam),
-            beside(text, marks, seam),
-        ) {
-            (Some(_), Some(run), Some(more)) => {
-                pieces.extend(run.into_iter().map(|at| (at, VALUE_REMOVED)));
-                pieces.extend(more);
-            }
-            _ => return (WITHHELD.to_string(), vec![(0, WITHHELD.len())]),
-        }
+        let (run, more) = (run(text, marks, seam), beside(text, marks, seam));
+        let (Some(_), Some(run), Some(more)) = (read.flatten(), run, more) else {
+            return (WITHHELD.to_string(), vec![(0, WITHHELD.len())]);
+        };
+        pieces.extend(run.into_iter().map(|at| (at, VALUE_REMOVED)).chain(more));
     }
     rewrite(text, marks, pieces)
 }
@@ -109,6 +109,25 @@ fn cuts(text: &str, at: usize) -> bool {
     0 < at && at < text.len() && !text[..at].ends_with(blank) && !text[at..].starts_with(blank)
 }
 
+/// Whether a window edge at `at` is a line break inside a key: 16 base64
+/// characters or more on each side.
+fn key_break(text: &str, at: usize) -> bool {
+    let (head, tail) = (text[..at].trim_end(), text[at..].trim_start());
+    let long =
+        |chars: &mut dyn Iterator<Item = char>| chars.take(16).filter(|&c| b64(c)).count() == 16;
+    text[head.len()..text.len() - tail.len()].contains('\n')
+        && long(&mut head.chars().rev())
+        && long(&mut tail.chars())
+}
+
+/// Whether `ch` is a base64 character, and `value` a line of them.
+fn b64(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || "+/=".contains(ch)
+}
+fn base64(value: &str) -> bool {
+    !value.is_empty() && value.chars().all(b64)
+}
+
 /// Adds to `pieces` the clear bytes of the values in `text[from..to]` that
 /// `policy` hides; `Some(false)` when one is at an edge, `None` on a failure.
 fn read(
@@ -134,22 +153,11 @@ fn read(
     }
     let mut hide = Vec::new();
     for span in spans.iter().filter(|span| span_is_well_formed(&view, span)) {
-        let first = clear.partition_point(|c| c.0 + c.2 <= span.start);
-        // A digest is one in the text too, when the span is in one clear stretch.
-        let in_text = clear
-            .get(first)
-            .filter(|c| c.0 <= span.start && span.end <= c.0 + c.2);
-        let in_text = in_text.map(|&(view_at, text_at, _)| Span {
-            start: text_at + span.start - view_at,
-            end: text_at + span.end - view_at,
-            ..*span
-        });
-        let digest = is_hash_fragment(&view, span)
-            && in_text.is_none_or(|span| is_hash_fragment(text, &span));
-        if !tokenised && (!span.is_prohibited() || digest) {
+        if !tokenised && (!span.is_prohibited() || is_hash_fragment(&view, span)) {
             continue;
         }
         let found = hide.len();
+        let first = clear.partition_point(|c| c.0 + c.2 <= span.start);
         for &(view_at, text_at, len) in clear[first..].iter().take_while(|c| c.0 < span.end) {
             let (start, end) = (span.start.max(view_at), span.end.min(view_at + len));
             let bytes = (text_at + start - view_at, text_at + end - view_at);
@@ -216,32 +224,33 @@ fn beside(text: &str, marks: &[Mark], seam: usize) -> Option<Vec<Piece>> {
             continue;
         };
         let (start, end) = marks[at];
-        match kind(&text[start..end]) {
-            Some(EntityKind::Secret) => pieces.extend(key_lines(text, marks, seam, back, glued)?),
-            Some(EntityKind::Address) => pieces.extend(address_words(text, marks, seam, back)),
-            _ => {}
-        }
+        let (found, kind) = match kind(&text[start..end]) {
+            Some(kind @ EntityKind::Secret) => (key_lines(text, marks, seam, back, glued)?, kind),
+            Some(kind @ EntityKind::Address) => (address_words(text, marks, seam, back), kind),
+            _ => continue,
+        };
+        let marker = removal_text(kind).unwrap_or(VALUE_REMOVED);
+        pieces.extend(found.into_iter().map(|at| (at, marker)));
     }
     Some(pieces)
 }
 
 /// The lines of a key that run on from its mark across `seam`, going `back`
 /// or on: the rest of a glued line, then each line of base64 (16 characters
-/// or more, or padded) or of marks, up to and with a `----` frame (or the cut
-/// end of one); `None` past [`MAX_KEY_BYTES`].
-fn key_lines(
-    text: &str,
-    marks: &[Mark],
-    seam: usize,
-    back: bool,
-    glued: bool,
-) -> Option<Vec<Piece>> {
-    let base64 = |ch: char| ch.is_ascii_alphanumeric() || "+/=".contains(ch);
-    let (mut lines, mut at) = (Vec::new(), seam);
-    loop {
+/// or more, or padded) or of marks, and a short last one, up to and with a
+/// `----` frame (or the cut end of one); `None` for a short line inside the
+/// key or past [`MAX_KEY_BYTES`].
+fn key_lines(text: &str, marks: &[Mark], seam: usize, back: bool, glued: bool) -> Option<Marks> {
+    let line_at = |at: usize| {
         let line = match back {
-            true => (text[..at].rfind('\n').map_or(0, |i| i + 1), at),
-            false => (at, text[at..].find('\n').map_or(text.len(), |i| at + i)),
+            true => {
+                let lo = text.floor_char_boundary(at.saturating_sub(MAX_KEY_BYTES));
+                (text[lo..at].rfind('\n').map_or(lo, |i| lo + i + 1), at)
+            }
+            false => {
+                let hi = text.floor_char_boundary(text.len().min(at + MAX_KEY_BYTES));
+                (at, text[at..hi].find('\n').map_or(hi, |i| at + i))
+            }
         };
         let (mut clear, mut parts, mut from) = (String::new(), Vec::new(), line.0);
         for (start, end) in marks_in(marks, line) {
@@ -249,75 +258,96 @@ fn key_lines(
             parts.push((from, start));
             from = end;
         }
-        let value = clear.trim();
-        let frame = value.starts_with("----") || value.ends_with("----");
-        let body = (value.len() >= 16 || value.ends_with('=')) && value.chars().all(base64);
-        let (first, marked) = (at == seam, parts.len() > 1);
-        if !(frame || body || (value.is_empty() && (first || marked)) || (first && glued)) {
-            break;
-        }
-        if at.abs_diff(seam) > MAX_KEY_BYTES {
+        (if back { line.0 } else { line.1 }, parts, clear)
+    };
+    let frame = |value: &str| value.starts_with("----") || value.ends_with("----");
+    let long = |value: &str| base64(value) && (value.len() >= 16 || value.ends_with('='));
+    let (mut lines, mut at, mut body) = (Vec::new(), seam, false);
+    loop {
+        let (far, parts, clear) = line_at(at);
+        let (value, first, marked) = (clear.trim(), at == seam, parts.len() > 1);
+        let edge = far == if back { 0 } else { text.len() };
+        let bounded = !edge && text.as_bytes()[if back { far - 1 } else { far }] != b'\n';
+        let next = (!edge && !bounded).then(|| line_at(if back { far - 1 } else { far + 1 }).2);
+        let next = next.as_deref().map(str::trim);
+        // A short line ends the key: before a frame, or after a body line.
+        let short = base64(value) && !long(value);
+        if short && body && next.is_some_and(long) {
             return None;
         }
-        lines.extend(parts);
-        if frame || (back && line.0 == 0) || (!back && line.1 == text.len()) {
+        let short = short && (body || next.is_some_and(frame));
+        let empty = value.is_empty() && (first || marked);
+        if !(frame(value) || long(value) || short || empty || (first && glued)) {
             break;
         }
-        at = if back { line.0 - 1 } else { line.1 + 1 };
+        if bounded || at.abs_diff(seam) > MAX_KEY_BYTES {
+            return None;
+        }
+        body |= long(value) || marked || (first && glued);
+        lines.extend(parts);
+        if frame(value) || edge {
+            break;
+        }
+        at = if back { far - 1 } else { far + 1 };
     }
-    let marker = removal_text(EntityKind::Secret).unwrap_or(VALUE_REMOVED);
-    Some(lines.into_iter().map(|at| (at, marker)).collect())
+    Some(lines)
 }
 
 /// The words of an address that run on from its mark across `seam`, going
-/// `back` or on: capitalised, numbers, punctuation and street words, at most
-/// [`MAX_ADDRESS_WORDS`], to a sentence end, a blank line or another mark.
-fn address_words(text: &str, marks: &[Mark], seam: usize, back: bool) -> Vec<Piece> {
-    const STREET: &str = "de la le les du des rue avenue boulevard bd place chemin allée \
-        impasse quai route street road";
-    let (mut words, mut at) = (None::<Mark>, seam);
+/// `back` or on, at most [`MAX_ADDRESS_WORDS`], to a sentence end, a blank line
+/// or a mark: those up to a number, a street word or an address mark, a city
+/// after a number and a capital city. Other capitalised words are prose.
+fn address_words(text: &str, marks: &[Mark], seam: usize, back: bool) -> Marks {
+    const STREET: &str = "rue avenue boulevard bd place chemin allée impasse quai route \
+        street road lane";
+    const LINK: &str = "de la le les du des";
+    let (mut taken, mut words, mut at, mut number) = (None, None::<Mark>, seam, false);
     for _ in 0..MAX_ADDRESS_WORDS {
         let rest = if back { &text[..at] } else { &text[at..] };
-        let trimmed = if back {
-            rest.trim_end()
-        } else {
-            rest.trim_start()
-        };
-        let gap = &rest[if back { trimmed.len() } else { 0 }..][..rest.len() - trimmed.len()];
+        let trimmed = [rest.trim_start(), rest.trim_end()][usize::from(back)];
+        let gap = rest.len() - trimmed.len();
         let word = match back {
             true => {
                 let blank = trimmed.char_indices().rfind(|&(_, ch)| ch.is_whitespace());
                 (blank.map_or(0, |(i, ch)| i + ch.len_utf8()), trimmed.len())
             }
-            false => {
-                let start = at + gap.len();
-                (
-                    start,
-                    start + trimmed.find(char::is_whitespace).unwrap_or(trimmed.len()),
-                )
-            }
+            false => (
+                at + gap,
+                at + gap + trimmed.find(char::is_whitespace).unwrap_or(trimmed.len()),
+            ),
         };
+        let blanks = if back { (word.1, at) } else { (at, word.0) };
+        let mark = marks_in(marks, word).find(|(from, to)| from < to);
+        if let Some((from, to)) = mark {
+            if kind(&text[from..to]) == Some(EntityKind::Address) {
+                taken = words;
+            }
+            break;
+        }
         let value = &text[word.0..word.1];
         let bare = value.trim_matches(|ch: char| ",.;:!?()".contains(ch));
         let ends = value.ends_with(['.', ';', ':', '!', '?']);
-        let address = bare.is_empty()
-            || bare.starts_with(|ch: char| ch.is_uppercase() || ch.is_ascii_digit())
-            || STREET
-                .split_whitespace()
-                .any(|word| word == bare.to_lowercase());
-        let marked = marks_in(marks, word).any(|(from, to)| from < to);
-        if word.0 == word.1 || gap.matches('\n').count() > 1 || marked || !address || (back && ends)
-        {
+        let lower = bare.to_lowercase();
+        let street = STREET.split_whitespace().any(|word| word == lower);
+        let digits = bare.contains(|ch: char| ch.is_ascii_digit());
+        let capital = bare.starts_with(char::is_uppercase);
+        let link = bare.is_empty() || LINK.split_whitespace().any(|word| word == lower);
+        let stop = word.0 == word.1
+            || text[blanks.0..blanks.1].matches('\n').count() > 1
+            || (back && ends);
+        if stop || !(street || digits || capital || link) {
             break;
         }
         words = Some(words.map_or(word, |(from, to)| (from.min(word.0), to.max(word.1))));
-        at = if back { word.0 } else { word.1 };
+        if street || digits || (capital && number && !back) || CITIES.contains(bare) {
+            taken = words;
+        }
+        (at, number) = (if back { word.0 } else { word.1 }, digits);
         if ends {
             break;
         }
     }
-    let marker = removal_text(EntityKind::Address).unwrap_or(VALUE_REMOVED);
-    words.into_iter().map(|at| (at, marker)).collect()
+    taken.into_iter().collect()
 }
 
 /// The clear text a seam ties to a mark: the word glued across it and the
@@ -392,8 +422,7 @@ fn marks_in(marks: &[Mark], (from, to): Mark) -> impl Iterator<Item = Mark> + '_
 }
 
 /// `text` with each trimmed piece that holds a letter or digit replaced by its
-/// marker (a piece that overlaps one written writes its tail), and the marks
-/// moved, plus one for each marker.
+/// marker (an overlap writes its tail), and the marks moved, plus one for each marker.
 fn rewrite(text: &str, marks: &[Mark], mut pieces: Vec<Piece>) -> (String, Marks) {
     pieces.sort_unstable();
     let (mut out, mut kept) = (String::with_capacity(text.len()), Vec::new());
