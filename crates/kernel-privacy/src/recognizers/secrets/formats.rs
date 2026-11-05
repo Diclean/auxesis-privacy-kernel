@@ -5,12 +5,13 @@
 
 use std::sync::LazyLock;
 
-use regex::Regex;
+use regex::{Match, Regex};
 
 use super::key_names::{SecretValue, MAX_VALUE_BYTES};
 use super::key_values::{cli_values, k8s_values, key_values, line_spans, xml_values};
 use super::key_view::KeyView;
-use super::prose::{is_value_word, prose_values, value_word};
+use super::prose::{is_secret_shaped, is_value_word, prose_values, value_word};
+use super::MAX_WRAP_BYTES;
 
 /// A MySQL command word, or a `-u` or `--user` flag, which makes a glued `-p` a
 /// password on the same line (K13). The command word is case-insensitive; the
@@ -20,12 +21,25 @@ static MYSQL_COMMAND_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("mysql command shape compiles")
 });
 
+/// A MySQL or MariaDB command word alone: only it makes a spaced `-p` value a
+/// password.
+static MYSQL_WORD_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\bmysql(?:dump)?\b|\bmariadb\b").expect("mysql word shape compiles")
+});
+
 /// A `-p` flag glued to its value, with no space, as `mysql -pSECRET` takes it.
 static MYSQL_FLAG_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?:^|\s)-p(\S+)").expect("mysql flag shape compiles"));
 
+/// A `-p` flag, blanks, then a value (`mysql -u root -p Hunter22 appdb`). MySQL
+/// reads a database name there, so only a value shaped like a secret counts.
+static MYSQL_SPACED_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:^|\s)-p[ \t]+([^\s\-]\S*)").expect("mysql spaced flag shape compiles")
+});
+
 /// The MySQL-style values (K13): a glued `-p` value on a line that names a MySQL or
-/// MariaDB command or a `-u` or `--user` flag. Each line is read on its own.
+/// MariaDB command or a `-u` or `--user` flag, and a spaced one shaped like a
+/// secret on a line that names the command. Each line is read on its own.
 fn mysql_values(text: &str) -> Vec<SecretValue> {
     let mut values = Vec::new();
     for (line_start, line_stop) in line_spans(text) {
@@ -33,12 +47,21 @@ fn mysql_values(text: &str) -> Vec<SecretValue> {
         if !line.contains("-p") || !MYSQL_COMMAND_RE.is_match(line) {
             continue;
         }
-        for captures in MYSQL_FLAG_RE.captures_iter(line) {
+        let spaced = MYSQL_WORD_RE
+            .is_match(line)
+            .then(|| MYSQL_SPACED_RE.captures_iter(line))
+            .into_iter()
+            .flatten()
+            .map(|captures| (captures, true));
+        let glued = MYSQL_FLAG_RE
+            .captures_iter(line)
+            .map(|captures| (captures, false));
+        for (captures, spaced) in glued.chain(spaced) {
             let Some(value) = captures.get(1) else {
                 continue;
             };
             let word = value_word(value.as_str());
-            if is_value_word(word) {
+            if is_value_word(word) && (!spaced || is_secret_shaped(word)) {
                 let start = line_start + value.start();
                 values.push(SecretValue {
                     start,
@@ -149,19 +172,13 @@ pub(super) static HEADERLESS_PEM_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// it is at least as long as given. Nothing joins a wrapped line here.
 #[rustfmt::skip]
 const VALUE_SHAPES: &[(&str, usize)] = &[
-    // `Authorization` quoted (JSON, Python) or with another scheme.
-    (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+([A-Za-z0-9._~+/=:\-]+)"#, 8),
-    // Command lines: `curl -u user:password`, `docker login -p`, `sshpass -p`,
-    // `redis-cli -a`, `htpasswd -b file user password`.
-    (r#"\bcurl\b[^\n]*?\s(?:-u|--user)(?:\s+|=)["']?([^\s"':]*:[^\s"']+)"#, 4),
-    (r#"\bdocker\s+login\b[^\n]*?\s(?:-p|--password)(?:\s+|=)["']?([^\s"']+)"#, 4),
+    // Command lines: `sshpass -p`, `redis-cli -a`, `htpasswd -b file user password`
+    // (`curl`, `docker login` and `htpasswd -n` are in `CHECKED_SHAPES`).
     (r#"\bsshpass\s+(?:-[a-zA-Z]\s+)*-p\s*["']?([^\s"']+)"#, 4),
     (r#"\bredis-cli\b[^\n]*?\s(?:-a|--pass)\s+["']?([^\s"']+)"#, 4),
     (r"\bhtpasswd\s+(?:-[a-zA-Z]+\s+)*?-[a-zA-Z]*b[a-zA-Z]*\s+(?:-[a-zA-Z]+\s+)*\S+\s+\S+\s+(\S+)", 4),
     // The password field of a Wi-Fi QR code (`WIFI:T:WPA;S:net;P:…;;`).
     (r"WIFI:(?:[A-Z]:(?:\\.|[^;\\\n])*;)*?P:((?:\\.|[^;\\\n])+)", 4),
-    // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage).
-    (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16),
     // Slack and Discord webhook paths.
     (r"hooks\.slack\.com/(?:services|workflows|triggers)/([A-Za-z0-9/_\-]+)", 20),
     (r"discord(?:app)?\.com/api/webhooks/([0-9]+/[A-Za-z0-9_\-]+)", 30),
@@ -172,14 +189,186 @@ const VALUE_SHAPES: &[(&str, usize)] = &[
     // A headerless DER (`MII`) or OpenSSH (`openssh-key-v1`) body wrapped at 60 to
     // 76 columns.
     (r"(?m)^(?:MII|b3BlbnNzaC1rZXktdjE)[A-Za-z0-9+/]{40,73}(?:\r?\n[A-Za-z0-9+/]{60,76}){2,}(?:\r?\n[A-Za-z0-9+/]{1,76}={0,2})?", 1),
+    // The response of a Digest credential, and a Discord webhook with an API version.
+    (r#"(?i)Authorization["']?\s*[:=]\s*["']?Digest\s[^\n]*?\bresponse\s*=\s*["']?([0-9a-f]+)"#, 16),
+    (r"discord(?:app)?\.com/api/v[0-9]+/webhooks/([0-9]+/[A-Za-z0-9_\-]+)", 30),
+    // URL userinfo whose password holds `@`, or `/` (not a port before a path,
+    // `localhost:5173/@vite`), and a scheme-less one in a `…_URL=` value with no
+    // path (`DATABASE_URL=alice:pw@db.example.com`).
+    (r#"(?i)\b[a-z][a-z0-9+.\-]*://([^\s/@:"'<>]*:[^\s/"'<>]*@[^\s/"'<>]*)@[a-z0-9\[]"#, 1),
+    (r#"(?i)\b[a-z][a-z0-9+.\-]*://([^\s/@:"'<>]*:[^\s/@:"'<>]*[^\s/@:"'<>0-9][^\s/@:"'<>]*/[^\s@"'<>]*)@[a-z0-9\[]"#, 1),
+    (r#"(?i)\b[a-z0-9_]*(?:url|uri|dsn)\s*=\s*["']?([^\s/@:"'<>]+:[^\s/@"'<>]+)@[a-z0-9]"#, 1),
 ];
 
-pub(super) static VALUE_SHAPES_RE: LazyLock<Vec<(Regex, usize)>> = LazyLock::new(|| {
-    VALUE_SHAPES
+/// What a value of a [`CHECKED_SHAPES`] shape must also be to count.
+#[derive(Clone, Copy)]
+enum Keep {
+    Any,
+    /// A header credential: after a scheme other than Bearer or Basic, no plain
+    /// word that a sentence goes on from (`Token refreshes happen…`). It joins the
+    /// lines that continue it.
+    Credential,
+    /// A `user:password`, not a URL (`curl -u https://…`).
+    UserInfo,
+    /// Not a registry host of plain words that ends a `docker login` line
+    /// (`-p registry.example.com`; `-p s3cret.pass` stays a password).
+    NotRegistry,
+    /// Not a slug of plain words and numbers (`?sig=publish-2026-11-05-final`).
+    NotSlug,
+    /// An `htpasswd` line with `-n` and `-b`: no file, the password comes second.
+    NoFile,
+}
+
+use Keep::{Any, Credential, NoFile, NotRegistry, NotSlug, UserInfo};
+
+/// The value shapes whose value must also pass its [`Keep`].
+#[rustfmt::skip]
+const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
+    // `Authorization` quoted (JSON, Python) or with another scheme, and the
+    // credential quoted after the scheme.
+    (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
+    (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+["']([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
+    // `curl -u user:password`, `docker login -p`, `htpasswd -nb user password`.
+    (r#"\bcurl\b[^\n]*?\s(?:-u|--user)(?:\s+|=)["']?([^\s"':]*:[^\s"']+)"#, 4, UserInfo),
+    (r#"\bdocker\s+login\b[^\n]*?\s(?:-p|--password)(?:\s+|=)["']?([^\s"']+)"#, 4, NotRegistry),
+    (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, NoFile),
+    // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage), and
+    // the V2 `Signature` (S3, Google Cloud Storage, CloudFront, Alibaba OSS).
+    (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16, NotSlug),
+    (r"(?i)[?&]signature=([^&\s#]+)", 16, NotSlug),
+];
+
+static VALUE_SHAPES_RE: LazyLock<Vec<(Regex, usize, Keep)>> = LazyLock::new(|| {
+    let unchecked = VALUE_SHAPES
         .iter()
-        .map(|(shape, min_len)| (Regex::new(shape).expect("value shape compiles"), *min_len))
+        .map(|&(shape, min_len)| (shape, min_len, Any));
+    unchecked
+        .chain(CHECKED_SHAPES.iter().copied())
+        .map(|(shape, min_len, keep)| {
+            (
+                Regex::new(shape).expect("value shape compiles"),
+                min_len,
+                keep,
+            )
+        })
         .collect()
 });
+
+/// A registry host, with an optional port (`registry.example.com`, `localhost:5000`).
+static HOST_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(?:localhost|(?:[a-z0-9\-]+\.)+[a-z]{2,})(?::[0-9]+)?$")
+        .expect("host shape compiles")
+});
+
+/// The spans of the value shapes in `text`: each value long enough and kept by
+/// its [`Keep`]; a header credential joins the lines that continue it.
+pub(super) fn shape_values(text: &str) -> Vec<(usize, usize)> {
+    let mut spans = Vec::new();
+    for (shape, min_len, keep) in VALUE_SHAPES_RE.iter() {
+        for captures in shape.captures_iter(text) {
+            let Some(whole) = captures.get(0) else {
+                continue;
+            };
+            let value = captures.get(1).unwrap_or(whole);
+            if value.len() >= *min_len && keeps(*keep, text, whole.start(), value) {
+                let joined = matches!(keep, Credential).then(|| join_lines(text, value.end()));
+                spans.push((value.start(), joined.unwrap_or(value.end())));
+            }
+        }
+    }
+    spans
+}
+
+/// Whether `value`, matched from `start`, passes `keep`.
+fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
+    let (head, found) = (&text[start..value.start()], value.as_str());
+    match keep {
+        Any => true,
+        // The scheme is the last word before the value.
+        Credential => {
+            let mut words = head.split(|ch: char| ch.is_whitespace() || "\"':=".contains(ch));
+            let scheme = words.rfind(|word| !word.is_empty()).unwrap_or("");
+            let line = text[value.end()..].split('\n').next().unwrap_or_default();
+            let next = line
+                .strip_prefix([' ', '\t'])
+                .and_then(|rest| rest.split_whitespace().next());
+            let sentence = next.is_some_and(is_word);
+            ["bearer", "basic"]
+                .iter()
+                .any(|name| scheme.eq_ignore_ascii_case(name))
+                || !is_word(found)
+                || !sentence
+        }
+        UserInfo => !found
+            .split_once(':')
+            .is_some_and(|(_, rest)| rest.starts_with("//")),
+        NotRegistry => {
+            let rest = text[value.end()..].split('\n').next().unwrap_or_default();
+            let host = found.split(':').next().unwrap_or_default();
+            !(HOST_RE.is_match(found) && is_slug(host))
+                || !rest.trim_start_matches(['"', '\'']).trim().is_empty()
+        }
+        NotSlug => !is_slug(found),
+        NoFile => {
+            let flags: String = head
+                .split_whitespace()
+                .filter(|word| word.starts_with('-'))
+                .collect();
+            flags.contains('n') && flags.contains('b')
+        }
+    }
+}
+
+/// Whether a value is a plain word, or plain words joined by `-` (`re-issued`):
+/// letters only (at most 16 a part), no capital after the first, its closing
+/// punctuation aside.
+fn is_word(value: &str) -> bool {
+    let word = value.trim_end_matches(['.', ',', ';', ':', '!', '?']);
+    word.split('-')
+        .all(|part| (1..=16).contains(&part.chars().count()) && !is_secret_shaped(part))
+}
+
+/// Whether a value is plain words and numbers of at most 16 joined by `-`, `_`
+/// or `.` (`your-signature-here`, `publish-2026-11-05`, `registry.example.com`).
+fn is_slug(value: &str) -> bool {
+    value.split(['-', '_', '.']).all(|part| {
+        is_word(part)
+            || ((1..=16).contains(&part.len()) && part.bytes().all(|b| b.is_ascii_digit()))
+    })
+}
+
+/// The end of a header credential with the lines that continue it: a next line
+/// that holds only credential characters and is no plain word joins, so a token
+/// cut by a fixed-width wrap is read whole, and `Thanks`, a sentence or a
+/// `Name: value` header line is not. Bounded by [`MAX_WRAP_BYTES`].
+fn join_lines(text: &str, from: usize) -> usize {
+    let mut limit = text.len().min(from + MAX_WRAP_BYTES);
+    while !text.is_char_boundary(limit) {
+        limit -= 1;
+    }
+    let window = &text[..limit];
+    let mut end = from;
+    loop {
+        let rest = window[end..].trim_start_matches([' ', '\t', '\r']);
+        let Some(line) = rest.strip_prefix('\n') else {
+            return end;
+        };
+        let body = line.trim_start_matches([' ', '\t']);
+        let run = body
+            .find(|ch: char| !is_credential_char(ch))
+            .unwrap_or(body.len());
+        let tail = body[run..].trim_start_matches([' ', '\t', '\r']);
+        if run == 0 || !(tail.is_empty() || tail.starts_with('\n')) || is_word(&body[..run]) {
+            return end;
+        }
+        end = limit - body.len() + run;
+    }
+}
+
+/// Whether a character belongs to a header credential (base64, base64url, hex).
+fn is_credential_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || "._~+/=-".contains(ch)
+}
 
 /// Whether a character belongs to a secret value (an AWS key or a token).
 pub(super) fn is_value_char(ch: char) -> bool {

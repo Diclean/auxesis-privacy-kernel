@@ -4,6 +4,8 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
+use super::prose::{is_secret_shaped, PROSE_STOPWORDS};
+
 /// An AWS secret access key or session token, matched by its key name in env,
 /// ini, JSON and YAML (`SecretAccessKey`, `secret_access_key = "…"`,
 /// `AWS_SECRET_KEY=`, a YAML folded value). Only the value is the secret.
@@ -179,25 +181,62 @@ fn segments_contain(segments: &[&str], name: &str) -> bool {
 /// older name gave changes.
 pub(super) fn name_class(token: &str) -> Option<KeyClass> {
     let segments = key_segments(token);
+    named_class(&segments).or_else(|| suffix_class(&segments))
+}
+
+/// The class of a key by the [`KEY_NAMES`] its segments carry; a password name wins.
+fn named_class(segments: &[&str]) -> Option<KeyClass> {
     let mut found = None;
     for &(name, class) in KEY_NAMES {
-        if segments_contain(&segments, name) {
+        if segments_contain(segments, name) {
             if class == KeyClass::Password {
                 return Some(KeyClass::Password);
             }
             found = Some(class);
         }
     }
-    found.or_else(|| {
-        segments.iter().find_map(|segment| {
-            KEY_SUFFIXES.iter().find_map(|&(suffix, class)| {
-                let cut = segment.len().checked_sub(suffix.len())?;
-                let (head, end) = (segment.get(..cut)?, segment.get(cut..)?);
-                let letters = head.len() > 1 && head.bytes().all(|b| b.is_ascii_alphabetic());
-                (letters && end.eq_ignore_ascii_case(suffix)).then_some(class)
-            })
+    found
+}
+
+/// The class of a key by the [`KEY_SUFFIXES`] that end one of its segments.
+fn suffix_class(segments: &[&str]) -> Option<KeyClass> {
+    segments.iter().find_map(|segment| {
+        KEY_SUFFIXES.iter().find_map(|&(suffix, class)| {
+            let cut = segment.len().checked_sub(suffix.len())?;
+            let (head, end) = (segment.get(..cut)?, segment.get(cut..)?);
+            let letters = head.len() > 1 && head.bytes().all(|b| b.is_ascii_alphabetic());
+            (letters && end.eq_ignore_ascii_case(suffix)).then_some(class)
         })
     })
+}
+
+/// Bytes after a separator read to tell plain prose from a value.
+const PROSE_WINDOW: usize = 256;
+
+/// Whether the rest of the line after the separator at `sep` is plain prose: three
+/// or more words of letters only, with a function word after the first
+/// (`cleared for everyone`; `a purple monkey dishwasher` is no prose).
+fn prose_follows(text: &str, sep: usize) -> bool {
+    let from = sep + separator_len(text, sep).unwrap_or(1);
+    let mut stop = text.len().min(from + PROSE_WINDOW);
+    while !text.is_char_boundary(stop) {
+        stop -= 1;
+    }
+    let rest = &text[from..stop];
+    let line = &rest[..rest.find('\n').unwrap_or(rest.len())];
+    let words: Vec<&str> = line
+        .split_whitespace()
+        .map(|word| word.trim_end_matches(['.', ',', ';', ':', '!', '?']))
+        .collect();
+    words.len() > 2
+        && words
+            .iter()
+            .all(|word| !word.is_empty() && !is_secret_shaped(word))
+        && words[1..].iter().any(|word| {
+            PROSE_STOPWORDS
+                .iter()
+                .any(|stopword| stopword.eq_ignore_ascii_case(word))
+        })
 }
 
 /// The class of the text before a separator, by a spaced or non-ASCII key name. The
@@ -249,7 +288,11 @@ pub(super) fn key_before(text: &str, sep: usize) -> Option<KeyClass> {
         start -= 1;
     }
     let token = &text[start..end];
-    let mut class = name_class(token);
+    // A key read by its name ending alone is no secret's before plain prose
+    // (`topsecret: cleared for everyone`).
+    let segments = key_segments(token);
+    let mut class = named_class(&segments)
+        .or_else(|| suffix_class(&segments).filter(|_| !prose_follows(text, sep)));
     // A spaced or non-ASCII name ends the text before the separator. Only a word that
     // ends the phrase (`passe` of `mot de passe`), or no word at all, can end one;
     // a token with no class is read too (`ration` of `phrase de récupération`).

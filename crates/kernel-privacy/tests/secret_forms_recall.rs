@@ -6,6 +6,9 @@
 //! are issuer key prefixes, cues in EN/FR/AF/HU/SL/ZH, `.env` lines, connection
 //! strings, headers, command lines, key blocks, seed phrases and a few others.
 //! Every value is invented (`data/secret_forms_cases.rs`).
+//!
+//! KV02-SECRETS-2 adds the forms the peer seals of #92 found in clear (`seal-2`)
+//! and the look-alikes #92 masked, which hold no secret in either mode.
 
 use std::collections::BTreeMap;
 
@@ -140,4 +143,17 @@ fn hard_negatives_keep_their_text_in_both_modes() {
         wrong.len(),
         wrong.join("\n")
     );
+}
+
+#[test]
+fn a_wrapped_credential_joins_token_lines_only() {
+    let text = "Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345\nABCDEFGHIJKLMNOPQRST\nThanks for the help";
+    for mode in MODES {
+        let (output, _, _) = issue(mode, text).expect("allowed");
+        let hidden = !output.contains("ABCDEF") && !output.contains("abcdef");
+        assert!(
+            hidden && output.ends_with("\nThanks for the help"),
+            "{mode:?}: {output:?}"
+        );
+    }
 }
