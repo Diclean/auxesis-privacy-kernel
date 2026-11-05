@@ -6,11 +6,16 @@
 //! are issuer key prefixes, cues in EN/FR/AF/HU/SL/ZH, `.env` lines, connection
 //! strings, headers, command lines, key blocks, seed phrases and a few others.
 //! Every value is invented (`data/secret_forms_cases.rs`).
+//!
+//! KV02-SECRETS-2 adds the forms the peer seals of #92 and #95 found in clear
+//! (`seal-2`, `seal-95`) and the look-alikes #92 masked, which hold no secret
+//! span in either mode.
 
 use std::collections::BTreeMap;
 
 use kernel_core::privacy::{admit, Context, Decision, Destination, PathId, PrivacyMode};
-use kernel_privacy::{EntityKind, Gate};
+use kernel_privacy::safetext::Detector;
+use kernel_privacy::{EntityKind, Gate, StandardDetector};
 use regex::Regex;
 
 mod cases {
@@ -18,6 +23,19 @@ mod cases {
 }
 
 const MODES: [PrivacyMode; 2] = [PrivacyMode::Private, PrivacyMode::Open];
+
+/// The negatives Private mode tokenises for a link or a number they hold, never for
+/// a secret; every other negative comes out of Private mode unchanged.
+const PRIVATE_TOKENISED: &[&str] = &[
+    "Invoice INV-2026-000123 is due on 30 November.",
+    "curl -u alice https://api.example.com/v1/me",
+    "Docs: https://docs.example.com/sas?sig=your-signature-here",
+    "https://files.example.com/f.pdf?sig=xxxxxxxxxxxxxxxxxxxx",
+    "https://docs.example.com/v2?Signature=signature-goes-here",
+    "See https://discord.com/api/v10/webhooks for the docs.",
+    "https://example.com:8443/@alice/notes",
+    "https://medium.com/@alice/a-post-title",
+];
 
 /// The gate's output, the same with each token and `[… removed]` marker blanked
 /// to one `\u{FFFC}`, and the number of secrets it reported; `None` for a refusal.
@@ -118,12 +136,16 @@ fn hard_negatives_keep_their_text_in_both_modes() {
     let negatives = cases::negatives();
     let mut wrong = Vec::new();
     for text in &negatives {
+        let spans = StandardDetector::new().detect(text).expect("detected");
+        if spans.iter().any(|span| span.kind == EntityKind::Secret) {
+            wrong.push(format!("secret span in {text:?}"));
+        }
         for mode in MODES {
+            let tokenised =
+                mode == PrivacyMode::Private && PRIVATE_TOKENISED.contains(&text.as_str());
             match issue(mode, text) {
                 None => wrong.push(format!("{mode:?} refused {text:?}")),
-                Some((output, _, secrets))
-                    if secrets > 0 || mode == PrivacyMode::Open && output != *text =>
-                {
+                Some((output, _, secrets)) if secrets > 0 || !tokenised && output != *text => {
                     wrong.push(format!(
                         "{mode:?} {text:?} -> {output:?} ({secrets} secrets)"
                     ));
@@ -140,4 +162,18 @@ fn hard_negatives_keep_their_text_in_both_modes() {
         wrong.len(),
         wrong.join("\n")
     );
+}
+
+#[test]
+fn a_wrapped_credential_joins_token_lines_only() {
+    let text =
+        "Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345\ndeadbeef\nThanks for the help";
+    for mode in MODES {
+        let (output, _, _) = issue(mode, text).expect("allowed");
+        let hidden = !output.contains("deadbe") && !output.contains("abcdef");
+        assert!(
+            hidden && output.ends_with("\nThanks for the help"),
+            "{mode:?}: {output:?}"
+        );
+    }
 }

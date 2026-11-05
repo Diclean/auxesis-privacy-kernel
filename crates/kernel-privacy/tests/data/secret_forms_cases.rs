@@ -114,6 +114,12 @@ pub fn positives() -> Vec<Case> {
     let pem_i = [format!("MIIEvQIBADAN{}", k(B64, 52, 525)), k(B64, 64, 526)];
     let pem_j = [format!("lQOYBF{}", k(B64, 58, 527)), k(B64, 64, 528)];
     let pem_k = k(B64, 44, 529);
+    let pem_l = [
+        format!("MIIEvAIBADANBgkqhkiG9w0BAQEFAASC{}", k(B64, 44, 921)),
+        k(B64, 76, 922),
+        k(B64, 76, 923),
+        format!("{}=", k(B64, 39, 924)),
+    ];
     vec![
         // New issuer key shapes, in neutral frames (no cue word).
         c("vendor-new", "tracing uses {} today", &format!("lsv2_pt_{}_{}", k(HEX, 32, 101), k(HEX, 10, 102))),
@@ -377,6 +383,81 @@ pub fn positives() -> Vec<Case> {
         c("misc", "root:{}:19700:0:99999:7:::", &format!("$6${}${}", k(CRYPT, 16, 805), k(CRYPT, 86, 806))),
         c("misc", "hash = \"{}\"", &format!("$argon2id$v=19$m=65536,t=3,p=4${}${}", k(B64, 22, 807), k(B64, 43, 808))),
         c("misc", "telegram bot {}", &format!("{}:AA{}", k(DIGITS, 10, 809), k(KEY, 33, 810))),
+        // KV02-SECRETS-2, from the peer seals of #92: V2 signatures (GCS, Alibaba
+        // OSS, S3, CloudFront), versioned Discord webhooks, `htpasswd -n`, spaced
+        // `mysql -p`, Digest responses, quoted and wrapped header credentials,
+        // forms #92 added that must stay hidden, and URL userinfo edge cases.
+        c("seal-2", "https://storage.googleapis.com/b/o?GoogleAccessId=svc@example.iam.gserviceaccount.com&Expires=1893456000&Signature={}", "abcdefghijklmnopqrstuvwxyz123456"),
+        c("seal-2", "https://bucket.oss-cn-hangzhou.aliyuncs.com/f.pdf?Expires=2026-12-31&Signature={}", "abc123def456ghi789jkl012mno"),
+        c("seal-2", "https://examplebucket.s3.amazonaws.com/r.pdf?AWSAccessKeyId=AKIAIOSFODNN7EXAMPLE&Expires=1893456000&Signature={}", &format!("{}%2B{}%3D", k(ALNUM, 12, 901), k(ALNUM, 13, 902))),
+        c("seal-2", "https://d111111abcdef8.cloudfront.net/v.mp4?Expires=1893456000&Signature={}&Key-Pair-Id=APKAEXAMPLE", &k(KEY, 120, 903)),
+        c("seal-2", "post to https://discord.com/api/v10/webhooks/{}", &format!("123456789012345678/{}", k(KEY, 68, 905))),
+        c("seal-2", "https://discordapp.com/api/v9/webhooks/{} (alerts)", &format!("{}/{}", k(DIGITS, 18, 904), k(KEY, 68, 906))),
+        c("seal-2", "htpasswd -nb alice {}", "Hunter22ht2"),
+        c("seal-2", "htpasswd -nbB alice {}", "s3cr3tpass"),
+        c("seal-2", "htpasswd -nbBC 10 bob {} >> users.htpasswd", "Hunter22ht3"),
+        c("seal-2", "echo $(htpasswd -n -b carol {}) | sed -e s/\\$/\\$\\$/g", "Hunter22ht4"),
+        c("seal-2", "mysql -u root -p {} appdb", "Hunter22"),
+        c("seal-2", "mysql -u root -p{} appdb", "Hunter22"),
+        c("seal-2", "mysqldump -h db.internal -u app -p {} shop > shop.sql", "Hunter22md"),
+        c("seal-2", "Authorization: Digest username=\"alice\", response=\"{}\"", &k(HEX, 32, 908)),
+        c("seal-2", "Proxy-Authorization: Digest username=\"bob\", realm=\"api\", uri=\"/v1/items\", response=\"{}\", qop=auth", &k(HEX, 64, 909)),
+        c("seal-2", "Authorization: Basic \"{}\"", &format!("{}==", k(B64, 22, 910))),
+        c("seal-2", "Authorization: Bearer \"{}\"", &k(HEX, 40, 911)),
+        c("seal-2", "Authorization: Bearer '{}'", &k(ALNUM, 40, 912)),
+        m("seal-2", "Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345\nABCDEFGHIJKLMNOPQRST".into(), vec!["abcdefghijklmnopqrstuvwxyz012345".into(), "ABCDEFGHIJKLMNOPQRST".into()]),
+        m("seal-2", format!("Authorization: Token {}\r\n  {}\r\nAccept: */*", k(HEX, 40, 913), k(HEX, 24, 914)), vec![k(HEX, 40, 913), k(HEX, 24, 914)]),
+        m("seal-2", format!("Authorization: Bearer {}\n{}\n{}\nThanks for the help", k(ALNUM, 40, 915), k(ALNUM, 40, 916), k(ALNUM, 12, 917)), vec![k(ALNUM, 40, 915), k(ALNUM, 40, 916), k(ALNUM, 12, 917)]),
+        c("seal-2", "refresh with {} then retry", &format!("xoxe-1-{}", k(ALNUM, 140, 918))),
+        c("seal-2", "mailchimp {}", &format!("{}-us6", k(HEX, 32, 919))),
+        c("seal-2", "MC key {} (list sync)", &format!("{}-us21", k(HEX, 32, 920))),
+        m("seal-2", pem_l.join("\r\n"), pem_l.to_vec()),
+        c("seal-2", "postgres://app:{}@db.example.com/app", "p@ssw0rd"),
+        c("seal-2", "postgres://app:{}@db.example.com/app", "pa/ss"),
+        c("seal-2", "DATABASE_URL=alice:{}@db.example.com", "hunter2"),
+        c("seal-2", "docker login -u alice -p {}", "s3cret.pass"),
+        // From the peer seals of #95: real values the look-alike rules of #95 left
+        // in clear, then one real value beside the prose each remaining rule reads.
+        c("seal-95", "PGPASSWORD={} for you", "correct horse battery staple"),
+        c("seal-95", "PGPASSWORD = {} for prod", "a purple monkey dishwasher"),
+        c("seal-95", "PGPASSWORD={} is rotated", "abcdefghijklmnopqrstuvwxyz"),
+        c("seal-95", "PGPASSWORD={} is rotated now", "Supersecret"),
+        c("seal-95", "accesstoken: {} is rotated", "mysecretvalue"),
+        c("seal-95", "clientsecret: {} should be rotated", "abcdefghijklmnop"),
+        c("seal-95", "authtoken: {} was changed", "monkeydishwasher"),
+        c("seal-95", "dbpassword={} for four", "hunter two three"),
+        c("seal-95", "topsecret: {} for", "hunter two three"),
+        c("seal-95", "topsecret: {} for three", "hunter"),
+        c("seal-95", "Authorization: Token {} here", "mysecretvalue"),
+        c("seal-95", "Authorization: Token {} and", "abcdefghijklmnop"),
+        c("seal-95", "Authorization: Token {} and", "abcd-efgh-ijkl-mnop-qrst-uvwx"),
+        c("seal-95", "Authorization: Bot {} maintenance", "mysecretvalue"),
+        c("seal-95", "Authorization: SSWS {} and", "mysecretvalue"),
+        c("seal-95", "Authorization=Token {} and", "mysecretvalue"),
+        c("seal-95", "Authorization: Token {} expires", "deadbeefdeadbeef"),
+        c("seal-95", "SSWS {} expires", "abcdefghijklmnop"),
+        c("seal-95", "https://files.example.com/f.pdf?sig={}", "deadbeefdeadbeef"),
+        c("seal-95", "https://files.example.com/f.pdf?sig={}", "abcdefghijklmnop"),
+        c("seal-95", "https://files.example.com/f.pdf?sig={}", "correct-horse-battery-staple"),
+        c("seal-95", "https://files.example.com/f.pdf?sig={}", "my-shared-secret-2026"),
+        c("seal-95", "docker login -p {}", "correct.pass"),
+        c("seal-95", "docker login -p {}", "hunter.example.com"),
+        c("seal-95", "docker login -p {}", "correct.horse.staple"),
+        c("seal-95", "docker login -p {}", "a.b.co"),
+        c("seal-95", "curl -u {}", "alice://supersecret"),
+        c("seal-95", "curl -u https://user:{}", "hunter2hunter"),
+        c("seal-95", "curl -u https://example.com/api/v1/{}", "Zq8vR2xLmN4pT6wYb3c9"),
+        c("seal-95", "curl -u https://{}@example.com", "Zq8vR2xLmN4pT6wYb3c9"),
+        c("seal-95", "curl -u https://example.com/#{}", "Zq8vR2xLmN4pT6wYb3c9"),
+        c("seal-95", "htpasswd -nB alice {}", "batterystaple"),
+        m("seal-95", "Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345\ndeadbeef".into(), vec!["abcdefghijklmnopqrstuvwxyz012345".into(), "deadbeef".into()]),
+        c("seal-95", "apitoken: refresh {} before the meeting", "Zq8vR2xLmN4pT6wY"),
+        c("seal-95", "accesstoken: rotated, the new one is {}", "hunter"),
+        c("seal-95", "Authorization: Token {} refreshes happen every hour.", "Zq8vR2xLmN4pT6wY"),
+        c("seal-95", "Docs: https://docs.example.com/sas?sig={} (your signature here)", "Zq8vR2xLmN4pT6wYb3"),
+        c("seal-95", "docker login -p {} registry.example.com", "Zq8vR2xLmN4pT6wY"),
+        c("seal-95", "curl -u {} https://example.com/v1/items", "alice:Zq8vR2xLmN4pT6wY"),
+        c("seal-95", "htpasswd -nB alice {} > users.htpasswd", "Zq8vR2xLmN4pT6wY"),
     ]
 }
 
@@ -474,6 +555,22 @@ pub fn negatives() -> Vec<String> {
         "验证码已发送到你的手机",
         "初始密码为空",
         "验证码：请查看短信",
+        // KV02-SECRETS-2: the false positives the peer seals of #92 found, and
+        // look-alikes of the forms added after them.
+        "Authorization: Token refreshes happen every hour.",
+        "Docs: https://docs.example.com/sas?sig=your-signature-here",
+        "https://files.example.com/f.pdf?sig=xxxxxxxxxxxxxxxxxxxx",
+        "https://docs.example.com/v2?Signature=signature-goes-here",
+        "See https://discord.com/api/v10/webhooks for the docs.",
+        "mysql -u root -p appdb",
+        "mysql -u root -p < dump.sql",
+        "htpasswd -n alice",
+        "htpasswd -nB alice >> users.htpasswd",
+        "Authorization: Digest is described in RFC 7616.",
+        "http://localhost:5173/@vite/client",
+        "https://example.com:8443/@alice/notes",
+        "https://medium.com/@alice/a-post-title",
+        "DATABASE_URL=postgres://db.example.com/app",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()
 }
