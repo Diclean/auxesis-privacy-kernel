@@ -261,3 +261,90 @@ fn the_outcome_split_prints_per_class_and_total_in_both_modes() {
         "split rendered case data:\n{output}"
     );
 }
+
+/// The `n` the split prints on its "all" row, and the denominator the gate
+/// recall row prints after `MISSED a/b` or `MET a/b`, for one mode.
+fn printed_split_n_and_recall_denominator(rows: &[String], mode: &str) -> (u64, u64) {
+    let split = rows
+        .iter()
+        .find_map(|line| {
+            let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+            (cells.get(1) == Some(&"all") && cells.get(2) == Some(&mode)).then(|| {
+                let count = |i: usize| -> u64 {
+                    cells[i]
+                        .split_whitespace()
+                        .next()
+                        .and_then(|c| c.parse().ok())
+                        .unwrap_or_else(|| panic!("no count in `{line}`"))
+                };
+                // n, then masked + leaked + blocked must add up to it.
+                assert_eq!(count(4) + count(5) + count(6), count(3), "{line}");
+                count(3)
+            })
+        })
+        .unwrap_or_else(|| panic!("no `all` {mode} split row in:\n{rows:#?}"));
+    let prefix = format!("Tier C, held-out-2, gate {mode} ");
+    let recall = rows
+        .iter()
+        .find(|line| line.starts_with(&prefix) && !line.contains("Deep"))
+        .unwrap_or_else(|| panic!("no {mode} recall row in:\n{rows:#?}"));
+    let denominator = recall
+        .rsplit('/')
+        .next()
+        .and_then(|d| d.trim().parse().ok())
+        .unwrap_or_else(|| panic!("no denominator in `{recall}`"));
+    (split, denominator)
+}
+
+/// The split's "all" row counts exactly the values the recall is computed
+/// over, and its three outcomes add up to that count, in both modes.
+#[test]
+fn the_split_total_matches_the_recall_denominator() {
+    let cases: Vec<Case> = include_str!("../../tests/fixtures/tier-c-breakdown.jsonl")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("synthetic case parses"))
+        .collect();
+    let v1: Vec<&Case> = Vec::new();
+    let rows = tier_c_rows(&Registry::new(), &TierTally::default(), &v1, &cases, None)
+        .expect("fixture rows");
+    for mode in ["Private", "Open"] {
+        let (split_n, denominator) = printed_split_n_and_recall_denominator(&rows, mode);
+        assert_eq!(
+            split_n, denominator,
+            "{mode}: split n vs recall denominator"
+        );
+        assert!(denominator > 0, "{mode}: the fixture measured nothing");
+    }
+}
+
+/// A blocked value is in the recall denominator (as a miss) and in the split
+/// (as blocked); a value outside Tier C is in neither.
+#[test]
+fn a_blocked_value_is_counted_in_both_the_recall_and_the_split() {
+    let text = "iban FAKEIBANZZ01 mail a@b.example";
+    let mut paths = TierCPaths::default();
+    let iban = GoldSpan::new(EntityKind::Iban, 5, 17);
+    // Private blocked, Open masked.
+    record_tier_c_gold(
+        &mut paths,
+        "fr",
+        text,
+        &iban,
+        &[],
+        None,
+        Some("iban ⟦IBAN_1⟧ x"),
+    );
+    // Leaked in both modes.
+    record_tier_c_gold(&mut paths, "fr", text, &iban, &[], Some(text), Some(text));
+    // Not Tier C: the split ignores it, as the recall does.
+    paths.add_outcome(EntityKind::Email, Outcome::Leaked, Outcome::Leaked);
+    for (recall, split) in [
+        (&paths.private, paths.private_outcome_total),
+        (&paths.open, paths.open_outcome_total),
+    ] {
+        assert_eq!(recall.total, 2);
+        assert_eq!(split.total(), recall.total);
+    }
+    assert_eq!(paths.private_outcome_total.blocked, 1);
+    assert_eq!(paths.private.caught, 0, "a refusal is a miss");
+}
