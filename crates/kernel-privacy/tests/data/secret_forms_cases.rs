@@ -501,6 +501,20 @@ pub fn positives() -> Vec<Case> {
         c("kv02-s3", "htpasswd -nb carol \"{}\"", "my pass word"),
         c("kv02-s3", "htpasswd -nbB carol '{}' > users.db", "pass word"),
         c("kv02-s3", "htpasswd -cB site.db dan {}", "FakeFPw9x"),
+        // Round 2 addendum (DeepSeek seal of #99): digit flags and a `-r` rounds
+        // value, a CRLF-wrapped SSWS token, and a token after listed words.
+        c("kv02-s3", "htpasswd -b -2 /etc/htpasswd alice {}", "S3cr3tPass!"),
+        c("kv02-s3", "htpasswd -b -5 /etc/htpasswd alice {}", "S3cr3tPass!"),
+        c("kv02-s3", "htpasswd -b -2 -r 5000 file alice {}", "S3cr3tPass!"),
+        c("kv02-s3", "htpasswd -nb2 alice {}", "S3cr3tPass!"),
+        c("kv02-s3", "htpasswd -nb5 -r 100000 alice \"{}\"", "my pass word"),
+        c("kv02-s3", "Authorization: SSWS credentials\r\n{}", &format!("00{}", k(ALNUM, 40, 1013))),
+        c("kv02-s3", "SSWS header: {}", &format!("00{}", k(ALNUM, 40, 1014))),
+        c("kv02-s3", "SSWS credentials {}", &format!("00{}", k(ALNUM, 40, 1015))),
+        c("kv02-s3", "SSWS auth {}", &format!("00{}", k(ALNUM, 40, 1016))),
+        c("kv02-s3", "SSWS token header {}", &format!("00{}", k(ALNUM, 40, 1017))),
+        c("kv02-s3", "SSWS token\n{}", &format!("00{}", k(ALNUM, 40, 1018))),
+        c("kv02-s3", "Authorization: SSWS Token = '{}'", &format!("00{}", k(ALNUM, 40, 1019))),
     ]
 }
 

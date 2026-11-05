@@ -193,6 +193,9 @@ const VALUE_SHAPES: &[(&str, usize)] = &[
     // The response of a Digest credential, and a Discord webhook with an API version.
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?Digest\s[^\n]*?\bresponse\s*=\s*["']?([0-9a-f]+)"#, 16),
     (r"discord(?:app)?\.com/api/v[0-9]+/webhooks/([0-9]+/[A-Za-z0-9_\-]+)", 30),
+    // An Okta token after `SSWS` and words that name it (`SSWS header: <token>`,
+    // `SSWS token` then the token on the next line).
+    (r#"\bSSWS(?:[ \t]+(?i:authentication|authorization|credentials?|headers?|prefix|scheme|tokens?|auth)\b)+[ \t]*[:=]?[ \t]*(?:\r?\n[ \t]*)?["']?([A-Za-z0-9._~+/=\-]+)"#, 20),
     // URL userinfo whose password holds `@`, or `/` (not a port before a path,
     // `localhost:5173/@vite`), and a scheme-less one in a `…_URL=` value with no
     // path (`DATABASE_URL=alice:pw@db.example.com`).
@@ -228,11 +231,13 @@ const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"(?i)Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token|ApiKey|Bot|SSWS|DeepL-Auth-Key)\s+["']([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
     (r#"\bSSWS[ \t]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, Credential),
-    // `htpasswd -nb user password`, a quoted password whole.
-    (r#"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+("[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, NoFile),
-    // `htpasswd -b file user password`, the flags in any order, `--`, a `-C` cost
-    // spaced or attached, a quoted password whole.
-    (r#"\bhtpasswd(?:[ \t]+(?:-[a-zA-Z]+[0-9]*|--)(?:[ \t]+[0-9]{1,3})?)+[ \t]+[^\s\-]\S*[ \t]+[^\s\-]\S*[ \t]+("[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, WithFile),
+    // `htpasswd -nb user password`.
+    (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, NoFile),
+    // `htpasswd -nb user password` and `htpasswd -b file user password`: flags
+    // with digits (`-2`, `-nb5`) in any order, `--`, a numeric value (`-C 10`,
+    // `-r 5000`), a quoted password whole.
+    (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,6})?)+[ \t]+[^\s\-]\S*[ \t]+("[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, NoFile),
+    (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,6})?)+[ \t]+[^\s\-]\S*[ \t]+[^\s\-]\S*[ \t]+("[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, WithFile),
     // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage), and
     // the V2 `Signature` (S3, Google Cloud Storage, CloudFront, Alibaba OSS).
     (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16, NotPlaceholder),
