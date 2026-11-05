@@ -3,6 +3,7 @@
 use kernel_privacy::eval::GoldSpan;
 use kernel_privacy::{EntityKind, Span};
 
+use crate::gate::Outcome;
 use crate::table::hundredths;
 
 /// Whether a kind belongs to Tier C: [`EntityKind::is_prohibited`] itself, not
@@ -94,6 +95,31 @@ impl TierTally {
     /// `None` when nothing was measured.
     pub(crate) fn hundredths(&self) -> Option<u64> {
         hundredths(self.caught, self.total)
+    }
+}
+
+/// The gate outcomes of one class, or of the total. A partial mask is counted
+/// in `leaked`, because the 6-character run rule is the only read test the
+/// scorer has: a half mask and a full leak read the same.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct OutcomeTally {
+    pub(crate) masked: u64,
+    pub(crate) leaked: u64,
+    pub(crate) blocked: u64,
+}
+
+impl OutcomeTally {
+    pub(crate) fn add(&mut self, outcome: Outcome) {
+        match outcome {
+            Outcome::Masked => self.masked += 1,
+            Outcome::Leaked => self.leaked += 1,
+            Outcome::Blocked => self.blocked += 1,
+        }
+    }
+
+    /// Every gold value of the class, including the ones a refusal blocked.
+    pub(crate) fn total(self) -> u64 {
+        self.masked + self.leaked + self.blocked
     }
 }
 

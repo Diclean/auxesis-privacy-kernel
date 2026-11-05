@@ -48,6 +48,29 @@ pub(crate) fn leaked(text: &str, gold: &GoldSpan, issued: &str) -> bool {
         })
 }
 
+/// What the gate did with one gold value.
+///
+/// A partial mask lands in [`Outcome::Leaked`]: the 6-character run is the only
+/// read test the scorer has, so it cannot tell a half mask from a full leak.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Outcome {
+    /// The text went through and no readable run of the value is left.
+    Masked,
+    /// The text went through and a run of 6 (all, when shorter) is readable.
+    Leaked,
+    /// The gate refused the whole text, so it issued nothing.
+    Blocked,
+}
+
+/// Classify one gold value from what the gate issued, if anything.
+pub(crate) fn outcome(text: &str, gold: &GoldSpan, issued: Option<&str>) -> Outcome {
+    match issued {
+        None => Outcome::Blocked,
+        Some(issued) if leaked(text, gold, issued) => Outcome::Leaked,
+        Some(_) => Outcome::Masked,
+    }
+}
+
 pub(crate) fn gate_hides(text: &str, gold: &GoldSpan, issued: Option<&str>) -> bool {
-    issued.is_some_and(|issued| !leaked(text, gold, issued))
+    outcome(text, gold, issued) == Outcome::Masked
 }
