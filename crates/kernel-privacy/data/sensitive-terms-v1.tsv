@@ -1540,3 +1540,588 @@ HEALTH	fr	paralysie de Bell
 HEALTH	fr	syndrome de Gilles de la Tourette
 HEALTH	fr	maladie de Gilles de la Tourette
 HEALTH	fr	hodgkinien*
+# KV02-HEALTH (2026-11-05): wider health recall. Multi-word conditions,
+# stages, mental health, pregnancy, procedures, lab tests, disability and
+# allergies in the six languages, written for this list from common clinical
+# vocabulary (ICD chapter condition names, WHO INN names). An ambiguous single
+# word (cold, pressure, operation, test, positive, joint, transfusion, apnée)
+# is never a row: only its multi-word medical form is. Lithium, pacemaker,
+# Ambien, Lyrica and Concerta stay out: each is also a common word or a name
+# prefix (`lyrical`, `ambient`).
+HEALTH	en	irritable bowel syndrome
+HEALTH	en	celiac disease
+HEALTH	en	coeliac
+HEALTH	en	celiac
+HEALTH	en	atrial fibrillation
+HEALTH	en	AFib
+HEALTH	en	sleep apnoea
+HEALTH	en	sleep apnea
+HEALTH	en	apnoea
+HEALTH	en	apnea
+HEALTH	en	coronary artery disease
+HEALTH	en	coronary heart disease
+HEALTH	en	heart disease
+HEALTH	en	deep vein thrombosis
+HEALTH	en	DVT
+HEALTH	en	pulmonary embolism
+HEALTH	en	polycystic kidney disease
+HEALTH	en	fatty liver disease
+HEALTH	en	fatty liver
+HEALTH	en	liver disease
+HEALTH	en	liver failure
+HEALTH	en	kidney failure
+HEALTH	en	renal failure
+HEALTH	en	myeloma
+HEALTH	en	multiple myeloma
+HEALTH	en	pancreatic cancer
+HEALTH	en	ovarian cancer
+HEALTH	en	bowel cancer
+HEALTH	en	colon cancer
+HEALTH	en	stomach cancer
+HEALTH	en	liver cancer
+HEALTH	en	kidney cancer
+HEALTH	en	bladder cancer
+HEALTH	en	thyroid cancer
+HEALTH	en	testicular cancer
+HEALTH	en	uterine cancer
+HEALTH	en	oesophageal cancer
+HEALTH	en	esophageal cancer
+HEALTH	en	brain tumour
+HEALTH	en	brain tumor
+HEALTH	en	blood cancer
+HEALTH	en	diabetes mellitus
+HEALTH	en	prediabetes
+HEALTH	en	pre-diabetes
+HEALTH	en	gestational diabetes
+HEALTH	en	dermatitis
+HEALTH	en	atopic dermatitis
+HEALTH	en	hypercholesterolaemia
+HEALTH	en	hypercholesterolemia
+HEALTH	en	arrhythmia
+HEALTH	en	cardiomyopathy
+HEALTH	en	postnatal depression
+HEALTH	en	postpartum depression
+HEALTH	en	post-natal depression
+HEALTH	en	post-partum depression
+HEALTH	en	perinatal depression
+HEALTH	en	personality disorder
+HEALTH	en	borderline personality disorder
+HEALTH	en	generalised anxiety disorder
+HEALTH	en	generalized anxiety disorder
+HEALTH	en	social anxiety
+HEALTH	en	social anxiety disorder
+HEALTH	en	suicidal thoughts
+HEALTH	en	suicidal ideation
+HEALTH	en	suicidal feelings
+HEALTH	en	nervous breakdown
+HEALTH	en	mental breakdown
+HEALTH	en	seasonal affective disorder
+HEALTH	en	dyslexia
+HEALTH	en	dyslexic
+HEALTH	en	dyspraxia
+HEALTH	en	dyscalculia
+HEALTH	en	major depressive disorder
+HEALTH	en	clinical depression
+HEALTH	en	manic depression
+HEALTH	en	psychotic episode
+HEALTH	en	binge eating
+HEALTH	en	stress leave
+HEALTH	en	off sick
+HEALTH	en	called in sick
+HEALTH	en	morning sickness
+HEALTH	en	caesarean
+HEALTH	en	cesarean
+HEALTH	en	caesarean section
+HEALTH	en	cesarean section
+HEALTH	en	stillbirth
+HEALTH	en	stillborn
+HEALTH	en	ectopic pregnancy
+HEALTH	en	antenatal
+HEALTH	en	prenatal
+HEALTH	en	postnatal
+HEALTH	en	postpartum
+HEALTH	en	colonoscopy
+HEALTH	en	endoscopy
+HEALTH	en	gastroscopy
+HEALTH	en	bronchoscopy
+HEALTH	en	cystoscopy
+HEALTH	en	biopsy
+HEALTH	en	mammogram
+HEALTH	en	mammography
+HEALTH	en	mastectomy
+HEALTH	en	lumpectomy
+HEALTH	en	hysterectomy
+HEALTH	en	appendectomy
+HEALTH	en	appendicectomy
+HEALTH	en	vasectomy
+HEALTH	en	tonsillectomy
+HEALTH	en	arthroscopy
+HEALTH	en	angioplasty
+HEALTH	en	angiogram
+HEALTH	en	hip replacement
+HEALTH	en	knee replacement
+HEALTH	en	kidney transplant
+HEALTH	en	liver transplant
+HEALTH	en	heart transplant
+HEALTH	en	lung transplant
+HEALTH	en	bone marrow transplant
+HEALTH	en	organ transplant
+HEALTH	en	stem cell transplant
+HEALTH	en	heart bypass
+HEALTH	en	coronary bypass
+HEALTH	en	gastric bypass
+HEALTH	en	blood transfusion
+HEALTH	en	physical therapy
+HEALTH	en	occupational therapy
+HEALTH	en	speech therapy
+HEALTH	en	radiation therapy
+HEALTH	en	ECG
+HEALTH	en	EKG
+HEALTH	en	echocardiogram
+HEALTH	en	PET scan
+HEALTH	en	smear test
+HEALTH	en	pap smear
+HEALTH	en	skin graft
+HEALTH	en	keyhole surgery
+HEALTH	en	inhaler
+HEALTH	en	insulin glargine
+HEALTH	en	insulin aspart
+HEALTH	en	insulin lispro
+HEALTH	en	insulin detemir
+HEALTH	en	aspirin
+HEALTH	en	TSH
+HEALTH	en	PSA level
+HEALTH	en	PSA test
+HEALTH	en	haemoglobin
+HEALTH	en	hemoglobin
+HEALTH	en	ferritin
+HEALTH	en	creatinine
+HEALTH	en	eGFR
+HEALTH	en	LDL cholesterol
+HEALTH	en	HDL cholesterol
+HEALTH	en	blood glucose
+HEALTH	en	fasting glucose
+HEALTH	en	glucose tolerance test
+HEALTH	en	blood pressure
+HEALTH	en	triglycerides
+HEALTH	en	liver function test
+HEALTH	en	CD4 count
+HEALTH	en	white blood cell count
+HEALTH	en	platelet count
+HEALTH	en	covid
+HEALTH	en	coronavirus
+HEALTH	en	registered blind
+HEALTH	en	partially sighted
+HEALTH	en	visually impaired
+HEALTH	en	sight impaired
+HEALTH	en	hearing impaired
+HEALTH	en	hard of hearing
+HEALTH	en	hearing aid
+HEALTH	en	learning disability
+HEALTH	en	autism spectrum disorder
+HEALTH	en	autism spectrum
+HEALTH	en	paraplegic
+HEALTH	en	quadriplegic
+HEALTH	en	tetraplegic
+HEALTH	en	amputee
+HEALTH	en	prosthetic leg
+HEALTH	en	prosthetic limb
+HEALTH	en	mobility scooter
+HEALTH	en	peanut allergy
+HEALTH	en	nut allergy
+HEALTH	en	latex allergy
+HEALTH	en	penicillin allergy
+HEALTH	en	food allergy
+HEALTH	en	egg allergy
+HEALTH	en	milk allergy
+HEALTH	en	shellfish allergy
+HEALTH	en	lactose intolerance
+HEALTH	en	lactose intolerant
+HEALTH	en	gluten intolerance
+HEALTH	en	gluten intolerant
+HEALTH	en	dairy intolerance
+HEALTH	fr	polyarthrite rhumatoïde
+HEALTH	fr	rectocolite hémorragique
+HEALTH	fr	rectocolite
+HEALTH	fr	syndrome du côlon irritable
+HEALTH	fr	côlon irritable
+HEALTH	fr	apnée du sommeil
+HEALTH	fr	fibrillation auriculaire
+HEALTH	fr	insuffisance rénale
+HEALTH	fr	insuffisance hépatique
+HEALTH	fr	insuffisance respiratoire
+HEALTH	fr	hypercholestérolémie
+HEALTH	fr	hypertension artérielle
+HEALTH	fr	tension artérielle
+HEALTH	fr	spondylarthrite*
+HEALTH	fr	myélome
+HEALTH	fr	cancer du pancréas
+HEALTH	fr	cancer de l'ovaire
+HEALTH	fr	cancer des ovaires
+HEALTH	fr	cancer du côlon
+HEALTH	fr	cancer du foie
+HEALTH	fr	cancer de l'estomac
+HEALTH	fr	cancer de la vessie
+HEALTH	fr	cancer du rein
+HEALTH	fr	cancer de la thyroïde
+HEALTH	fr	cancer du testicule
+HEALTH	fr	cancer de l'utérus
+HEALTH	fr	cancer de l'endomètre
+HEALTH	fr	cancer de l'œsophage
+HEALTH	fr	cancer de l'oesophage
+HEALTH	fr	tumeur cérébrale
+HEALTH	fr	tumeur au cerveau
+HEALTH	fr	dépression post-partum
+HEALTH	fr	dépression postnatale
+HEALTH	fr	trouble de la personnalité
+HEALTH	fr	personnalité borderline
+HEALTH	fr	idée suicidaire
+HEALTH	fr	pensée suicidaire
+HEALTH	fr	crise d'angoisse
+HEALTH	fr	trouble anxieux généralisé
+HEALTH	fr	phobie sociale
+HEALTH	fr	dyslexie
+HEALTH	fr	dyslexique*
+HEALTH	fr	dyspraxie
+HEALTH	fr	dyscalculie
+HEALTH	fr	césarienne
+HEALTH	fr	nausée de grossesse
+HEALTH	fr	grossesse extra-utérine
+HEALTH	fr	prothèse de hanche
+HEALTH	fr	prothèse du genou
+HEALTH	fr	prothèse de genou
+HEALTH	fr	coloscopie
+HEALTH	fr	endoscopie
+HEALTH	fr	fibroscopie
+HEALTH	fr	gastroscopie
+HEALTH	fr	biopsie
+HEALTH	fr	greffe de rein
+HEALTH	fr	greffe du rein
+HEALTH	fr	greffe de foie
+HEALTH	fr	greffe du foie
+HEALTH	fr	greffe de moelle
+HEALTH	fr	greffe du cœur
+HEALTH	fr	mammographie
+HEALTH	fr	mastectomie
+HEALTH	fr	hystérectomie
+HEALTH	fr	appendicectomie
+HEALTH	fr	vasectomie
+HEALTH	fr	pontage coronarien
+HEALTH	fr	stimulateur cardiaque
+HEALTH	fr	hémoglobine glyquée
+HEALTH	fr	taux de PSA
+HEALTH	fr	glycémie à jeun
+HEALTH	fr	malvoyant*
+HEALTH	fr	malentendant*
+HEALTH	fr	non-voyant*
+HEALTH	fr	RQTH
+HEALTH	fr	intolérant au lactose
+HEALTH	fr	intolérance au lactose
+HEALTH	fr	intolérance au gluten
+HEALTH	af	hoë bloeddruk
+HEALTH	af	bloeddruk
+HEALTH	af	hoë cholesterol
+HEALTH	af	rumatoïede artritis
+HEALTH	af	slaapapnee
+HEALTH	af	hartsiekte
+HEALTH	af	niersiekte
+HEALTH	af	kroniese niersiekte
+HEALTH	af	diabeet*
+HEALTH	af	nageboortelike depressie
+HEALTH	af	disleksie
+HEALTH	af	keisersnee
+HEALTH	af	oggendnaarheid
+HEALTH	af	knievervanging
+HEALTH	af	heupvervanging
+HEALTH	af	kolonoskopie
+HEALTH	af	biopsie
+HEALTH	af	bloedsuiker
+HEALTH	af	gehoorgestremd*
+HEALTH	af	swaksiende
+HEALTH	af	laktose-onverdraagsaam*
+HEALTH	hu	pitvarfibrilláció*
+HEALTH	hu	időskori demencia
+HEALTH	hu	1-es típusú cukorbeteg*
+HEALTH	hu	2-es típusú cukorbeteg*
+HEALTH	hu	1-es típusú diabétesz*
+HEALTH	hu	2-es típusú diabétesz*
+HEALTH	hu	szülés utáni depresszió
+HEALTH	hu	autista
+HEALTH	hu	diszlexi*
+HEALTH	hu	vastagbéltükrözés*
+HEALTH	hu	gyomortükrözés*
+HEALTH	hu	csípőprotézis*
+HEALTH	hu	térdprotézis*
+HEALTH	hu	csípőprotézis-műtét*
+HEALTH	hu	térdprotézis-műtét*
+HEALTH	hu	szürkehályog-műtét*
+HEALTH	hu	császármetszés*
+HEALTH	hu	vércukor*
+HEALTH	hu	vércukr*
+HEALTH	hu	koleszterin*
+HEALTH	hu	hallássérült*
+HEALTH	hu	látássérült*
+HEALTH	hu	kerekesszék*
+HEALTH	hu	laktózérzékeny*
+HEALTH	hu	laktózintolerancia*
+HEALTH	hu	gluténérzékeny*
+HEALTH	hu	mammográfi*
+HEALTH	hu	biopszi*
+HEALTH	sl	visok krvni tlak
+HEALTH	sl	krvni tlak
+HEALTH	sl	revmatoidni artritis
+HEALTH	sl	rak trebušne slinavke
+HEALTH	sl	rak jeter
+HEALTH	sl	rak ledvic
+HEALTH	sl	rak mehurja
+HEALTH	sl	rak želodca
+HEALTH	sl	rak jajčnikov
+HEALTH	sl	rak ščitnice
+HEALTH	sl	rak danke
+HEALTH	sl	kronična obstruktivna pljučna bolezen
+HEALTH	sl	atopijski dermatitis
+HEALTH	sl	panični napad
+HEALTH	sl	jutranja slabost
+HEALTH	sl	carski rez
+HEALTH	sl	kolonoskopij*
+HEALTH	sl	gastroskopij*
+HEALTH	sl	presaditev ledvic*
+HEALTH	sl	presaditev jeter
+HEALTH	sl	operacija kolka
+HEALTH	sl	operacija kolena
+HEALTH	sl	krvni sladkor
+HEALTH	sl	slabovid*
+HEALTH	sl	naglušn*
+HEALTH	sl	invalidsk* vozič*
+HEALTH	sl	laktozna intoleranca
+HEALTH	sl	mamografij*
+HEALTH	sl	biopsij*
+HEALTH	sl	disleksij*
+HEALTH	zh	胰腺癌
+HEALTH	zh	卵巢癌
+HEALTH	zh	肝癌
+HEALTH	zh	胃癌
+HEALTH	zh	结肠癌
+HEALTH	zh	直肠癌
+HEALTH	zh	结直肠癌
+HEALTH	zh	膀胱癌
+HEALTH	zh	肾癌
+HEALTH	zh	甲状腺癌
+HEALTH	zh	鼻咽癌
+HEALTH	zh	食管癌
+HEALTH	zh	子宫内膜癌
+HEALTH	zh	脑瘤
+HEALTH	zh	类风湿性关节炎
+HEALTH	zh	类风湿关节炎
+HEALTH	zh	高血脂
+HEALTH	zh	高血脂症
+HEALTH	zh	高胆固醇
+HEALTH	zh	胆固醇
+HEALTH	zh	胆固醇偏高
+HEALTH	zh	血糖
+HEALTH	zh	血糖偏高
+HEALTH	zh	血压
+HEALTH	zh	血压偏高
+HEALTH	zh	糖化血红蛋白
+HEALTH	zh	房颤
+HEALTH	zh	心房颤动
+HEALTH	zh	睡眠呼吸暂停
+HEALTH	zh	二甲双胍
+HEALTH	zh	舍曲林
+HEALTH	zh	阿莫西林
+HEALTH	zh	布洛芬
+HEALTH	zh	对乙酰氨基酚
+HEALTH	zh	产后抑郁
+HEALTH	zh	自杀念头
+HEALTH	zh	自杀倾向
+HEALTH	zh	剖腹产
+HEALTH	zh	剖宫产
+HEALTH	zh	结肠镜
+HEALTH	zh	结肠镜检查
+HEALTH	zh	胃镜
+HEALTH	zh	肾移植
+HEALTH	zh	肝移植
+HEALTH	zh	器官移植
+HEALTH	zh	乳腺切除
+HEALTH	zh	子宫切除
+HEALTH	zh	切除手术
+HEALTH	zh	移植手术
+HEALTH	zh	听障
+HEALTH	zh	听障人士
+HEALTH	zh	视障
+HEALTH	zh	轮椅
+HEALTH	zh	花生过敏
+HEALTH	zh	青霉素过敏
+HEALTH	zh	海鲜过敏
+HEALTH	zh	乳糖不耐受
+HEALTH	zh	2型糖尿病
+HEALTH	zh	1型糖尿病
+# KV02-HEALTH medicines (xx): INN names from the WHO INN lists, and two
+# Afrikaans spellings (metformien, parasetamol).
+HEALTH	xx	rosuvastatin
+HEALTH	xx	pravastatin
+HEALTH	xx	ezetimibe
+HEALTH	xx	lamotrigine
+HEALTH	xx	levetiracetam
+HEALTH	xx	valproate
+HEALTH	xx	carbamazepine
+HEALTH	xx	topiramate
+HEALTH	xx	pregabalin
+HEALTH	xx	bupropion
+HEALTH	xx	trazodone
+HEALTH	xx	vortioxetine
+HEALTH	xx	zolpidem
+HEALTH	xx	zopiclone
+HEALTH	xx	clonazepam
+HEALTH	xx	buprenorphine
+HEALTH	xx	naloxone
+HEALTH	xx	naltrexone
+HEALTH	xx	fentanyl
+HEALTH	xx	diclofenac
+HEALTH	xx	naproxen
+HEALTH	xx	cetirizine
+HEALTH	xx	loratadine
+HEALTH	xx	montelukast
+HEALTH	xx	fluticasone
+HEALTH	xx	budesonide
+HEALTH	xx	salmeterol
+HEALTH	xx	tiotropium
+HEALTH	xx	propranolol
+HEALTH	xx	bisoprolol
+HEALTH	xx	atenolol
+HEALTH	xx	ramipril
+HEALTH	xx	perindopril
+HEALTH	xx	enalapril
+HEALTH	xx	candesartan
+HEALTH	xx	valsartan
+HEALTH	xx	irbesartan
+HEALTH	xx	hydrochlorothiazide
+HEALTH	xx	spironolactone
+HEALTH	xx	digoxin
+HEALTH	xx	rivaroxaban
+HEALTH	xx	dabigatran
+HEALTH	xx	edoxaban
+HEALTH	xx	ticagrelor
+HEALTH	xx	semaglutide
+HEALTH	xx	liraglutide
+HEALTH	xx	dulaglutide
+HEALTH	xx	tirzepatide
+HEALTH	xx	empagliflozin
+HEALTH	xx	dapagliflozin
+HEALTH	xx	sitagliptin
+HEALTH	xx	gliclazide
+HEALTH	xx	glimepiride
+HEALTH	xx	pioglitazone
+HEALTH	xx	lansoprazole
+HEALTH	xx	esomeprazole
+HEALTH	xx	mesalazine
+HEALTH	xx	mesalamine
+HEALTH	xx	azathioprine
+HEALTH	xx	hydroxychloroquine
+HEALTH	xx	adalimumab
+HEALTH	xx	infliximab
+HEALTH	xx	etanercept
+HEALTH	xx	allopurinol
+HEALTH	xx	colchicine
+HEALTH	xx	alendronate
+HEALTH	xx	estradiol
+HEALTH	xx	levonorgestrel
+HEALTH	xx	finasteride
+HEALTH	xx	tamsulosin
+HEALTH	xx	sildenafil
+HEALTH	xx	tadalafil
+HEALTH	xx	isotretinoin
+HEALTH	xx	doxycycline
+HEALTH	xx	azithromycin
+HEALTH	xx	clarithromycin
+HEALTH	xx	ciprofloxacin
+HEALTH	xx	nitrofurantoin
+HEALTH	xx	fluconazole
+HEALTH	xx	aciclovir
+HEALTH	xx	acyclovir
+HEALTH	xx	valaciclovir
+HEALTH	xx	oseltamivir
+HEALTH	xx	lisdexamfetamine
+HEALTH	xx	atomoxetine
+HEALTH	xx	buspirone
+HEALTH	xx	hydroxyzine
+HEALTH	xx	lurasidone
+HEALTH	xx	carbimazole
+HEALTH	xx	liothyronine
+HEALTH	xx	hydrocortisone
+HEALTH	xx	dexamethasone
+HEALTH	xx	metformien
+HEALTH	xx	parasetamol
+# KV02-HEALTH brand names (xx), by product source. Grouped from general
+# knowledge of the registers, not checked name by name in this round.
+# EMA EPAR, centrally authorised:
+HEALTH	xx	Ozempic
+HEALTH	xx	Wegovy
+HEALTH	xx	Mounjaro
+HEALTH	xx	Victoza
+HEALTH	xx	Saxenda
+HEALTH	xx	Trulicity
+HEALTH	xx	Jardiance
+HEALTH	xx	Forxiga
+HEALTH	xx	Januvia
+HEALTH	xx	Eliquis
+HEALTH	xx	Xarelto
+HEALTH	xx	Pradaxa
+HEALTH	xx	Plavix
+HEALTH	xx	Lantus
+HEALTH	xx	Levemir
+HEALTH	xx	NovoRapid
+HEALTH	xx	Humalog
+HEALTH	xx	Tresiba
+HEALTH	xx	Humira
+HEALTH	xx	Enbrel
+HEALTH	xx	Remicade
+HEALTH	xx	Dupixent
+HEALTH	xx	Cymbalta
+HEALTH	xx	Keppra
+HEALTH	xx	Zyprexa
+HEALTH	xx	Suboxone
+HEALTH	xx	Tamiflu
+HEALTH	xx	Paxlovid
+HEALTH	xx	Viagra
+HEALTH	xx	Cialis
+# ANSM, France:
+HEALTH	xx	Doliprane
+HEALTH	xx	Dafalgan
+HEALTH	xx	Efferalgan
+HEALTH	xx	Kardégic
+HEALTH	xx	Previscan
+HEALTH	xx	Levothyrox
+HEALTH	xx	Deroxat
+HEALTH	xx	Seroplex
+HEALTH	xx	Temesta
+HEALTH	xx	Stilnox
+HEALTH	xx	Depakine
+# National registers (MHRA, BfArM and others):
+HEALTH	xx	Glucophage
+HEALTH	xx	Lipitor
+HEALTH	xx	Crestor
+HEALTH	xx	Ventolin
+HEALTH	xx	Seretide
+HEALTH	xx	Symbicort
+HEALTH	xx	Spiriva
+HEALTH	xx	Euthyrox
+HEALTH	xx	Lasix
+HEALTH	xx	Effexor
+HEALTH	xx	Lamictal
+HEALTH	xx	Tegretol
+HEALTH	xx	Rivotril
+HEALTH	xx	Elvanse
+HEALTH	xx	Strattera
+HEALTH	xx	Medikinet
+HEALTH	xx	Subutex
+HEALTH	xx	Roaccutane
+HEALTH	xx	EpiPen
+HEALTH	xx	Nurofen
+HEALTH	xx	Voltaren
+# FDA, United States:
+HEALTH	xx	Synthroid
+HEALTH	xx	Wellbutrin
+HEALTH	xx	Depakote
+HEALTH	xx	Adderall
+HEALTH	xx	Vyvanse

@@ -6,6 +6,14 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Health detection reaches further in FR, EN, AF, HU, SL and ZH: multi-word
+  conditions, `type 2` and `stage 4` classifiers, medicines with their dose
+  (`500 mg of metformin`), lab results (`HbA1c was 58 mmol/mol`, `blood
+  pressure of 160/100`), pregnancy weeks, procedures, disability and allergens
+  (`allergic to penicillin`). Detections are only added.
+
 ## [0.1.3] - 2026-11-04
 
 The v0.1.1 and v0.1.2 tags were made without their own section in this
