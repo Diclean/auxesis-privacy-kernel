@@ -37,10 +37,10 @@ The changes since v0.1.3, in plain words.
   (`500 mg of metformin`), lab results (`HbA1c was 58 mmol/mol`, `blood
   pressure of 160/100`), pregnancy weeks, procedures, disability and allergens
   (`allergic to penicillin`). Detections are only added.
-- Three harmless look-alike lines that the previous release hid are left as
-  written: an `Authorization` line whose credential is a status word such as
-  `refreshes`, a docs placeholder after `?sig=` such as `your-signature-here`,
-  and a `curl -u` link. A `user:password@` inside such a link is still hidden.
+- Two harmless look-alike lines are left as written: an `Authorization` line
+  whose credential is a status word such as `refreshes`, and a docs
+  placeholder after `?sig=` such as `your-signature-here`. A `curl -u` value
+  is still hidden whole, link or not.
 - The privacy eval splits the Tier C results of each class into masked, leaked
   and blocked, in Private and Open mode. The recall figures it prints are
   unchanged.
