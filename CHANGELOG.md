@@ -6,6 +6,16 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The secret recogniser masks more: an `htpasswd` password with no quotes or
+  digits that ends the command after a quoted user name (the line ends, or a
+  shell operator, a redirect such as `2>/dev/null`, a `#` comment or a `\`
+  follows), and an Okta `SSWS` token of 42 characters with no digit, after up
+  to six blank lines, or of 8 to 19 characters after `SSWS:` in any case (a
+  value with no dot that is not a listed word). Nothing it masked before is
+  left clear.
+
 ## [0.1.5] - 2026-11-06
 
 ### Added

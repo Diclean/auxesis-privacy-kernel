@@ -179,3 +179,52 @@ fn a_quoted_htpasswd_user_takes_only_a_quoted_or_secret_shaped_password() {
         assert!(hits(&line).contains(&password), "{line}: {:?}", hits(&line));
     }
 }
+
+#[test]
+fn a_quoted_htpasswd_user_takes_a_plain_password_that_ends_the_command() {
+    for line in [
+        "htpasswd -b site.db \"alice smith\" correcthorse",
+        "htpasswd -b site.db \"alice smith\" correcthorse\r\nnext",
+        "htpasswd -bB site.db 'alice smith' correcthorse && nginx -s reload",
+        "htpasswd -b site.db \"alice smith\" correcthorse > /dev/null",
+    ] {
+        assert!(
+            hits(line).contains(&"correcthorse"),
+            "{line:?}: {:?}",
+            hits(line)
+        );
+    }
+    // A word with more prose after it stays clear, as on main.
+    let line = "htpasswd -b site.db \"alice smith\" then restart";
+    assert!(
+        clear_of(line).ends_with(" then restart"),
+        "{:?}",
+        hits(line)
+    );
+}
+
+#[test]
+fn the_three_ssws_paths_agree_on_a_token() {
+    let letters = "FakeOktaTokenLettersOnlyNoDigitsAbcdEfGhIj";
+    assert_eq!(letters.len(), 42);
+    for frame in [
+        "SSWS: {}",
+        "ssws: {}",
+        "SSWS token\n\n{}",
+        "ssws header:\n\n\n\n{}",
+        "ssws {}",
+    ] {
+        let line = frame.replace("{}", &letters.to_ascii_lowercase());
+        assert!(
+            hits(&line).contains(&letters.to_ascii_lowercase().as_str()),
+            "{line:?}"
+        );
+    }
+    for line in [
+        "SSWS: required",
+        "SSWS: credentials",
+        "SSWS token\n\n\n\n\nThisIsALongIdentifierName",
+    ] {
+        assert!(hits(line).is_empty(), "{line:?}: {:?}", hits(line));
+    }
+}
