@@ -52,6 +52,12 @@ card, IDs, secrets, health.
   The Registry row prints beside it with no bar.
 - **Old row**: `Tier C, v1 all langs (old row), Registry` is the tally the
   table printed before (41 spans), with its bar. The bar is still 99.5 %.
+- **Outcome split**: after the recall rows the block prints `masked`, `leaked`
+  and `blocked` per class and in total, Private and Open. `masked` is the recall
+  numerator, so the existing rates do not move. `blocked` is a whole-text gate
+  refusal. A partial mask counts in `leaked`: the 6-character run is the only
+  read test, so the scorer cannot tell a half mask from a full leak. The rows
+  are counts and percentages only, never a value or a case text.
 
 Tier C calls `EntityKind::is_prohibited` at runtime, not a list copied here, so
 a kind joining that set joins Tier C with no edit. Tier H keeps the bars above,

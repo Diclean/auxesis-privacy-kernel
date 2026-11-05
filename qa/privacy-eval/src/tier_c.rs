@@ -6,7 +6,9 @@ use kernel_privacy::EntityKind;
 
 use crate::cases::IN_SCOPE_LANGS;
 use crate::classes::report_class;
-use crate::tiers::TierTally;
+use crate::gate::Outcome;
+use crate::table::{rate_cell, NO_RATE};
+use crate::tiers::{scored_tier, OutcomeTally, Tier, TierTally};
 
 pub(crate) mod measure;
 pub(crate) mod shapes;
@@ -29,6 +31,13 @@ pub(crate) struct TierCPaths {
     /// Class -> `[n, Standard registry, gate Private, gate Open, registry hit
     /// left clear in Private, in Open]` (GATE-REGISTRY-GAP-1). Counts only.
     pub(crate) gap: BTreeMap<&'static str, [u64; 6]>,
+    /// Class -> what the gate did with each value, Private and Open. A partial
+    /// mask is in `leaked`; see [`OutcomeTally`].
+    pub(crate) private_outcomes: BTreeMap<&'static str, OutcomeTally>,
+    pub(crate) open_outcomes: BTreeMap<&'static str, OutcomeTally>,
+    /// Every Tier C value, both modes.
+    pub(crate) private_outcome_total: OutcomeTally,
+    pub(crate) open_outcome_total: OutcomeTally,
 }
 
 impl TierCPaths {
@@ -56,6 +65,20 @@ impl TierCPaths {
                 .or_insert([0; 4]);
             row[usize::from(!private_hidden)] += 1;
             row[2 + usize::from(!open_hidden)] += 1;
+        }
+    }
+
+    /// Record one Tier C value's gate outcome in both modes. A value outside
+    /// Tier C is ignored: this split exists only for the classes with the bar.
+    pub(crate) fn add_outcome(&mut self, kind: EntityKind, private: Outcome, open: Outcome) {
+        if scored_tier(kind) != Some(Tier::C) {
+            return;
+        }
+        self.private_outcome_total.add(private);
+        self.open_outcome_total.add(open);
+        if let Some(class) = tier_c_class(kind) {
+            self.private_outcomes.entry(class).or_default().add(private);
+            self.open_outcomes.entry(class).or_default().add(open);
         }
     }
 }
@@ -115,6 +138,51 @@ pub(crate) fn tier_c_breakdown(paths: &TierCPaths) -> Vec<String> {
         ));
     }
     lines
+}
+
+/// The Tier C outcome split: per class and in total, Private and Open.
+///
+/// Counts and percentages only, never a value or a case text. `blocked` is a
+/// gate refusal; `leaked` includes a partial mask, because the 6-character run
+/// is the only read test the scorer has and cannot tell a half mask from a
+/// full leak.
+pub(crate) fn tier_c_outcome_split(paths: &TierCPaths) -> Vec<String> {
+    let mut lines = vec![
+        "held-out-2 Tier C outcome split (counts only; partial masks count in leaked):".to_owned(),
+        "| class | mode | n | masked | leaked | blocked |".to_owned(),
+        "| --- | --- | ---: | ---: | ---: | ---: |".to_owned(),
+    ];
+    let row = |class: &str, mode: &str, tally: OutcomeTally| {
+        let n = tally.total();
+        format!(
+            "| {class} | {mode} | {n} | {} | {} | {} |",
+            split_cell(tally.masked, n),
+            split_cell(tally.leaked, n),
+            split_cell(tally.blocked, n),
+        )
+    };
+    for class in TIER_C_CLASSES {
+        let private = paths
+            .private_outcomes
+            .get(class)
+            .copied()
+            .unwrap_or_default();
+        let open = paths.open_outcomes.get(class).copied().unwrap_or_default();
+        lines.push(row(class, "Private", private));
+        lines.push(row(class, "Open", open));
+    }
+    lines.push(row("all", "Private", paths.private_outcome_total));
+    lines.push(row("all", "Open", paths.open_outcome_total));
+    lines
+}
+
+/// `count (xx.xx %)` of `total`, or the no-rate cell when nothing was measured.
+fn split_cell(count: u64, total: u64) -> String {
+    if total == 0 {
+        NO_RATE.to_string()
+    } else {
+        format!("{count} ({})", rate_cell(count, total))
+    }
 }
 
 pub(crate) fn tier_c_miss_shape(paths: &TierCPaths) -> Vec<String> {

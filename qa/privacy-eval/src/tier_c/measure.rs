@@ -10,13 +10,16 @@ use kernel_privacy::NameDictionary;
 use kernel_privacy::{EntityKind, Gate, Registry, Span};
 
 use crate::cases::{gold_spans, in_scope, Case};
-use crate::gate::gate_hides;
+use crate::gate::{gate_hides, outcome, Outcome};
 use crate::heldout::validate_heldout_2_scope;
 use crate::table::{measured_line, rate_cell, row_line, BAR_C};
 use crate::tiers::{covered, scored_tier, Tier, TierTally};
 
 use super::shapes::miss_shape;
-use super::{tier_c_breakdown, tier_c_class, tier_c_miss_shape, TierCPaths, TIER_C_CLASSES};
+use super::{
+    tier_c_breakdown, tier_c_class, tier_c_miss_shape, tier_c_outcome_split, TierCPaths,
+    TIER_C_CLASSES,
+};
 
 pub(crate) fn record_tier_c_gold(
     paths: &mut TierCPaths,
@@ -27,13 +30,16 @@ pub(crate) fn record_tier_c_gold(
     private_issued: Option<&str>,
     open_issued: Option<&str>,
 ) {
+    let private = outcome(text, gold, private_issued);
+    let open = outcome(text, gold, open_issued);
     paths.add_gold(
         gold.kind,
         lang,
         covered(predicted, gold),
-        gate_hides(text, gold, private_issued),
-        gate_hides(text, gold, open_issued),
+        private == Outcome::Masked,
+        open == Outcome::Masked,
     );
+    paths.add_outcome(gold.kind, private, open);
 }
 
 /// Score `cases` through the Registry and the gate in both modes. A gate
@@ -205,6 +211,7 @@ pub(crate) fn tier_c_rows(
         ));
     }
     rows.extend(tier_c_breakdown(&new));
+    rows.extend(tier_c_outcome_split(&new));
     rows.extend(tier_c_miss_shape(&new));
     rows.extend([
         measured_line("Tier C, v1 all langs (old row), Registry", old, BAR_C),

@@ -6,6 +6,7 @@ use kernel_privacy::eval::GoldSpan;
 use kernel_privacy::{EntityKind, PublicTerms, Registry, Span};
 
 use crate::cases::{gold_spans, Case};
+use crate::gate::Outcome;
 use crate::scoring::measure_standard;
 use crate::tier_c::measure::*;
 use crate::tier_c::shapes::miss_shape;
@@ -202,5 +203,61 @@ fn russian_and_arabic_language_independent_values_get_an_unscored_row() {
     assert!(
         row.contains("2 values") && row.contains("NOT SCORED"),
         "{row}"
+    );
+}
+
+/// The two gate recall rows keep their exact format on the fixed fixture, and
+/// the outcome split prints after them. This pins those two rows only; it does
+/// not compare the other Tier C lines against main.
+#[test]
+fn the_gate_recall_rows_keep_their_format_and_the_split_prints_after_them() {
+    let cases: Vec<Case> = include_str!("../../tests/fixtures/tier-c-breakdown.jsonl")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("synthetic case parses"))
+        .collect();
+    let v1: Vec<&Case> = Vec::new();
+    let rows = tier_c_rows(&Registry::new(), &TierTally::default(), &v1, &cases, None)
+        .expect("fixture rows");
+    assert!(
+        rows.iter().any(|line| line
+            == "Tier C, held-out-2, gate Private          40.00 %   >= 99.5 %  MISSED 2/5"),
+        "{rows:#?}"
+    );
+    assert!(
+        rows.iter().any(|line| line
+            == "Tier C, held-out-2, gate Open             40.00 %   >= 99.5 %  MISSED 2/5"),
+        "{rows:#?}"
+    );
+    let split = rows
+        .iter()
+        .position(|line| line.starts_with("held-out-2 Tier C outcome split"))
+        .expect("outcome split block");
+    let recall = rows
+        .iter()
+        .rposition(|line| line.starts_with("Tier C, held-out-2, gate "))
+        .expect("recall rows");
+    assert!(split > recall, "split must print after the recall rows");
+}
+
+/// The split is one row per class per mode plus the total, counts and
+/// percentages only.
+#[test]
+fn the_outcome_split_prints_per_class_and_total_in_both_modes() {
+    let mut paths = TierCPaths::default();
+    paths.add_outcome(EntityKind::Iban, Outcome::Masked, Outcome::Leaked);
+    paths.add_outcome(EntityKind::Iban, Outcome::Blocked, Outcome::Masked);
+    paths.add_outcome(EntityKind::Health, Outcome::Leaked, Outcome::Blocked);
+    let output = tier_c_outcome_split(&paths).join("\n");
+    for line in [
+        "| IBAN | Private | 2 | 1 (50.00 %) | 0 (0.00 %) | 1 (50.00 %) |",
+        "| IBAN | Open | 2 | 1 (50.00 %) | 1 (50.00 %) | 0 (0.00 %) |",
+        "| all | Private | 3 | 1 (33.33 %) | 1 (33.33 %) | 1 (33.33 %) |",
+        "| all | Open | 3 | 1 (33.33 %) | 1 (33.33 %) | 1 (33.33 %) |",
+    ] {
+        assert!(output.contains(line), "missing `{line}` in:\n{output}");
+    }
+    assert!(
+        !output.contains("FAKE") && !output.contains("fixture-"),
+        "split rendered case data:\n{output}"
     );
 }
