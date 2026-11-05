@@ -16,7 +16,7 @@ mod remove;
 mod write;
 
 #[cfg(all(test, unix))]
-pub(in crate::paths) use remove::{RaceStage, RACE_HOOK};
+pub(in crate::paths) use remove::{checked, same_device, RaceStage, RACE_HOOK, WINDOW};
 
 // ---------------------------------------------------------------------------
 // The write gateway: verified home handle
