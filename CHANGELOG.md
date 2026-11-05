@@ -19,11 +19,15 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `SafeText::join` reads the joined text again across its seams. A value cut
   between two parts (half an IBAN in each, a label in one part and its secret
   in the next, an ID over two lines) is replaced with a fixed marker
-  (`[<class> removed]` or `[value removed]`) in every mode, and a secret too
-  long to read anywhere in the joined text withholds the whole join. Tokens
-  and markers the parts carry stay as they were. A join now costs up to three
-  reads of the joined text by the recognisers, and one more of each part a
-  value is found in.
+  (`[<class> removed]` or `[value removed]`) in every mode. So is the rest of
+  a value a part masked in part: a URL, an e-mail address or a number cut at
+  the seam, or a health term (`cancer du` + `sein`). A secret too long to
+  read anywhere in the joined text, a detector error, or a value that may go
+  on past what the join reads withholds the whole join. Tokens and markers the
+  kernel wrote stay as they were; a token-shaped string a user typed is text.
+  Parts that hide nothing across a seam join as they were issued. A join now
+  costs up to three reads of the joined text by the recognisers, and one more
+  of each part a value is found in.
 
 ## [0.1.3] - 2026-11-04
 

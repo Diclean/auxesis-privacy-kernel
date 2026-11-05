@@ -438,6 +438,37 @@ fn verdict_start(text: &str, words: &[Word], first: usize) -> Option<usize> {
 /// The classifier numbers of a `type 2` or `stage III` group, folded.
 const CLASSIFIER_NUMBERS: &[&str] = &["1", "2", "3", "4", "5", "i", "ii", "iii"];
 
+/// The classifier names of a `type 2` or `stage III` group, folded.
+const CLASSIFIER_NAMES: &[&str] = &[
+    "type", "tipe", "tipa", "stage", "stade", "stadium", "stadij", "stadiju", "stadija",
+];
+
+/// How many of `words` (folded, nearest first) are the classifier group of a
+/// health term hidden next to them: after it, a `de` or `of` may lead a
+/// classifier name and its number (`de type 2`, `stage iii`); before it, a
+/// name and its number (`type 2`, read nearest first). 0 when they start no
+/// group. The gaps between the words are the caller's to check.
+pub(super) fn classifier_group(words: &[String], after: bool) -> usize {
+    let is = |at: usize, list: &[&str]| {
+        words
+            .get(at)
+            .is_some_and(|word| list.contains(&word.as_str()))
+    };
+    if !after {
+        return if is(0, CLASSIFIER_NUMBERS) && is(1, CLASSIFIER_NAMES) {
+            2
+        } else {
+            0
+        };
+    }
+    let lead = usize::from(is(0, &["de", "of"]));
+    if is(lead, CLASSIFIER_NAMES) && is(lead + 1, CLASSIFIER_NUMBERS) {
+        lead + 2
+    } else {
+        0
+    }
+}
+
 /// Whether the classifier word before `first` is half of a `type 2` or `stage
 /// III` pair that ends at `first`, before a condition (word `condition`) that
 /// starts in lower case: `type 2 diabetes` is the condition in any sentence,
@@ -468,9 +499,6 @@ fn classifier_pair(text: &str, words: &[Word], first: usize, condition: usize) -
 /// may lead it (`diabétique de type 2`, `cancer de stade 4`), then a classifier
 /// name and its number, all on one line with no comma.
 fn trailing_group(text: &str, words: &[Word], last: usize) -> Option<usize> {
-    const NAMES: &[&str] = &[
-        "type", "tipe", "tipa", "stage", "stade", "stadium", "stadij", "stadiju", "stadija",
-    ];
     let lead = words
         .get(last + 1)
         .is_some_and(|word| matches!(word.folded.as_str(), "de" | "of"));
@@ -478,7 +506,7 @@ fn trailing_group(text: &str, words: &[Word], last: usize) -> Option<usize> {
     let number = name + 1;
     let found = words
         .get(name)
-        .is_some_and(|word| NAMES.contains(&word.folded.as_str()))
+        .is_some_and(|word| CLASSIFIER_NAMES.contains(&word.folded.as_str()))
         && words
             .get(number)
             .is_some_and(|word| CLASSIFIER_NUMBERS.contains(&word.folded.as_str()))

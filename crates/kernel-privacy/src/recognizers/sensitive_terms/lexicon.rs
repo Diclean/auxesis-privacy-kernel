@@ -258,17 +258,26 @@ impl Lexicon {
         }
     }
 
-    /// Whether a folded word is a word of a multi-word phrase other than its
-    /// first (`later`), or other than its last. A scan of every phrase.
-    pub(super) fn phrase_word(&self, word: &str, later: bool) -> bool {
-        self.phrases.iter().any(|phrase| {
+    /// How many of `words` (folded, nearest first) go on with a hidden piece of
+    /// a multi-word phrase, the phrase ending among them: `after` a hidden first
+    /// part, its next words; before a hidden last part, its previous words. The
+    /// longest such run; a scan of every phrase.
+    pub(super) fn phrase_reach(&self, words: &[String], after: bool) -> usize {
+        let mut best = 0;
+        for phrase in &self.phrases {
             let last = phrase.tokens.len() - 1;
-            let range = if later { 1..last + 1 } else { 0..last };
-            phrase.tokens[range.clone()]
-                .iter()
-                .zip(range)
-                .any(|(token, at)| token.matches(word, at == last))
-        })
+            for cut in 1..=last {
+                let len = if after { last + 1 - cut } else { cut };
+                let at = |n: usize| if after { cut + n } else { cut - 1 - n };
+                if len > best
+                    && len <= words.len()
+                    && (0..len).all(|n| phrase.tokens[at(n)].matches(&words[n], at(n) == last))
+                {
+                    best = len;
+                }
+            }
+        }
+        best
     }
 
     /// Record phrase `id` if its remaining tokens match the words after `index`.

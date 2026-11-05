@@ -40,7 +40,7 @@ use crate::recognizer::Recognizer;
 use crate::span::{EntityKind, Span};
 
 use self::conditions::{
-    extend_condition_spans, extend_quantified_health, personal_condition_spans,
+    classifier_group, extend_condition_spans, extend_quantified_health, personal_condition_spans,
 };
 use self::disease::{push_disease_names, push_hu_rak};
 use self::eponyms::push_eponym_possessives;
@@ -68,10 +68,14 @@ pub const SCORE: f32 = 1.0;
 /// The name echoed in [`Span::recognizer`].
 const NAME: &str = "sensitive_terms";
 
-/// Whether `word` can be a word of a multi-word term other than its first
-/// (`later`), or other than its last.
-pub(crate) fn phrase_word(word: &str, later: bool) -> bool {
-    lexicons().terms.phrase_word(&text::fold_str(word), later)
+/// How many of `words` (nearest first) go on with a sensitive term hidden
+/// next to them: after it, the rest of a multi-word phrase it starts, then a
+/// classifier group (`de type 2`); before it, the start of a phrase it ends,
+/// or a `type 2`. A phrase counts only when it ends among the words.
+pub(crate) fn term_reach(words: &[&str], after: bool) -> usize {
+    let folded: Vec<String> = words.iter().map(|word| text::fold_str(word)).collect();
+    let phrase = lexicons().terms.phrase_reach(&folded, after);
+    phrase + classifier_group(&folded[phrase..], after)
 }
 
 /// Whether `ch` is a letter or digit of a Latin word: a Han ideograph is not.

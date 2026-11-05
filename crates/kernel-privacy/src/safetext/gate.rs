@@ -17,6 +17,7 @@ use super::detector::{
 };
 use super::report::{DetectionReport, GateError};
 use super::safe_text::{NameCoverage, SafeText, SafeValue};
+use super::seams::Origin;
 use super::ASSISTANT_NAMES;
 use crate::anonymize::Anonymizer;
 use crate::known_names::NameDictionary;
@@ -265,10 +266,12 @@ impl Gate {
         self.names_run = None;
         let (masked, report) = self.mask(text)?;
         let names = self.coverage();
+        let origin = Origin::issued(&masked, text, self.policy == GrantPolicy::Tokenised);
         Ok((
             SafeText {
                 text: masked,
                 names,
+                origin,
             },
             report,
         ))

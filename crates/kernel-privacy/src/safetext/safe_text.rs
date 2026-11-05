@@ -4,6 +4,9 @@
 use serde::Serialize;
 use serde_json::Value;
 
+use super::detector::{without_names, StandardDetector, PRIVATE_DETECTOR};
+use super::seams::{Origin, WITHHELD};
+
 /// Whether the gate's detection covered person and organisation names.
 ///
 /// The deterministic recognisers find a name only through the e-mail layer's
@@ -60,6 +63,10 @@ pub struct SafeText {
     pub(super) text: String,
     #[serde(skip)]
     pub(super) names: NameCoverage,
+    /// Where the kernel wrote into the text: what a join keeps and reads as
+    /// a stand-in.
+    #[serde(skip)]
+    pub(super) origin: Origin,
 }
 
 /// A fixed, kernel-authored string that may be issued as a [`SafeText`]
@@ -83,7 +90,7 @@ impl KernelMarker {
     /// The fixed text of this marker, written here and nowhere else.
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
-            Self::RefusalPlaceholder => super::seams::WITHHELD,
+            Self::RefusalPlaceholder => WITHHELD,
         }
     }
 }
@@ -98,8 +105,10 @@ impl SafeText {
     /// not required, because no caller-supplied byte reaches the text.
     #[cfg(test)]
     pub(crate) fn from_marker(marker: KernelMarker) -> Self {
+        let text = marker.as_str().to_string();
         Self {
-            text: marker.as_str().to_string(),
+            origin: Origin::marker(text.len()),
+            text,
             names: NameCoverage::AppAuthored,
         }
     }
@@ -108,24 +117,34 @@ impl SafeText {
     /// it was issued, and the joined text is read again across the seams: a
     /// value only a seam shows (half an IBAN in each part, a label and its
     /// secret, an ID cut over two lines), and the rest of a value a part
-    /// already masked in part, is replaced with a fixed marker
-    /// (`[<class> removed]`, or `[value removed]`), in every mode. Every token
-    /// and marker a part carries stays as it was, so its tokens restore as
-    /// before. When the joined text cannot be read, the join issues
-    /// `[auxesis: withheld]` and nothing of its parts.
+    /// already masked in part (a URL, a term, a number cut at the seam), is
+    /// replaced with a fixed marker (`[<class> removed]`, or `[value
+    /// removed]`). A value of a class open mode leaves in clear stays in clear
+    /// when every part it touches is open. Every token and marker the kernel
+    /// wrote into a part stays as it was, so its tokens restore as before;
+    /// parts that hide nothing across a seam join as they were issued. When
+    /// the joined text cannot be read, or a value may go on past what the
+    /// join reads, the join issues `[auxesis: withheld]` and nothing of its
+    /// parts.
     pub fn join(parts: impl IntoIterator<Item = SafeText>) -> Self {
-        let (texts, names): (Vec<String>, Vec<NameCoverage>) = parts
-            .into_iter()
-            .map(|part| (part.text, part.names))
-            .unzip();
-        let (text, names) = match super::seams::join(&texts) {
-            Some(text) => (text, NameCoverage::of_parts(names)),
+        let parts: Vec<SafeText> = parts.into_iter().collect();
+        let detector = PRIVATE_DETECTOR.get_or_init(|| without_names(StandardDetector::new()));
+        let (text, names, origin) = match super::seams::join(&parts, detector.as_ref()) {
+            Some((text, origin)) => {
+                let names = NameCoverage::of_parts(parts.iter().map(|part| part.names));
+                (text, names, origin)
+            }
             None => (
-                super::seams::WITHHELD.to_string(),
+                WITHHELD.to_string(),
                 NameCoverage::AppAuthored,
+                Origin::marker(WITHHELD.len()),
             ),
         };
-        Self { text, names }
+        Self {
+            text,
+            names,
+            origin,
+        }
     }
 
     /// The masked text, read-only.
