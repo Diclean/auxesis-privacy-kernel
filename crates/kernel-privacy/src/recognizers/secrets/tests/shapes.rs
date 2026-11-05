@@ -144,8 +144,6 @@ fn htpasswd_with_i_reads_stdin_so_the_word_after_the_user_stays_clear() {
             " users.db",
             &["-i -B -r 1000000", "-iB -r 1000000"],
         ),
-        ("-nb", "", &["-nb -i", "-nbi"]),
-        ("-nB", "", &["-nB -i", "-i -nB"]),
     ];
     for (flags, file, skips) in lines {
         let line = format!("htpasswd {flags}{file} kim reads stdin");
@@ -158,6 +156,15 @@ fn htpasswd_with_i_reads_stdin_so_the_word_after_the_user_stays_clear() {
 }
 
 #[test]
+fn htpasswd_n_with_i_still_masks_what_main_masks() {
+    // Strict superset: main's `-n` rule ignores `-i`, so these words stay masked.
+    for flags in ["-nb -i", "-nbi", "-nB -i", "-i -nB", "-ni -b"] {
+        let line = format!("htpasswd {flags} kim reads stdin");
+        assert!(hits(&line).contains(&"reads"), "{line}: {:?}", hits(&line));
+    }
+}
+
+#[test]
 fn a_quoted_htpasswd_user_takes_only_a_quoted_or_secret_shaped_password() {
     // Main masks `smith"` here; the word after the quoted user stays clear.
     let line = "htpasswd -b site.db \"alice smith\" then restart";
@@ -166,6 +173,7 @@ fn a_quoted_htpasswd_user_takes_only_a_quoted_or_secret_shaped_password() {
         "{:?}",
         hits(line)
     );
+    assert!(hits(line).contains(&"smith\""), "{:?}", hits(line));
     for password in ["\"my pass word\"", "S3cretPass"] {
         let line = format!("htpasswd -b site.db \"alice smith\" {password} now");
         assert!(hits(&line).contains(&password), "{line}: {:?}", hits(&line));

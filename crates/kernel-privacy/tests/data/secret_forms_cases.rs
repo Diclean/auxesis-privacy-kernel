@@ -680,7 +680,7 @@ pub fn negatives() -> Vec<String> {
         "htpasswd -i -B users.db kim reads stdin",
         "ssws token goes here",
         // Round 2: `ssws` before an ordinary word (and a line after it), a long
-        // identifier after a blank line, `-i` with `-n` and with a rounds value.
+        // identifier after a blank line, `-i` with a rounds value.
         "Our ssws implementation uses the Okta API.",
         "Set the ssws endpoint in the config.",
         "The ssws configuration lives in one file.",
@@ -688,7 +688,6 @@ pub fn negatives() -> Vec<String> {
         "Every ssws signature is checked.",
         "Our ssws implementation\nchanged",
         "SSWS token\n\nThisIsALongIdentifierName",
-        "htpasswd -nB -i alice reads stdin",
         "htpasswd -iB -r 5000 users.db kim reads stdin",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()

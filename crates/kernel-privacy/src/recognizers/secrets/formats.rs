@@ -214,7 +214,7 @@ enum Keep {
     Credential,
     /// Not a placeholder the docs write for a signature.
     NotPlaceholder,
-    /// An `htpasswd` line with `-n` and `-b` or `-B` and no `-i`: no file, the
+    /// An `htpasswd` line with `-n` and `-b` or `-B`: no file, the
     /// password is second.
     NoFile,
     /// An `htpasswd` line with `-b` or `-B` and no `-n` or `-i`: the password follows
@@ -330,7 +330,7 @@ fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
         NotPlaceholder => !is_placeholder(found),
         NoFile => {
             let flags = htpasswd_flags(head);
-            !flags.contains('i') && flags.contains('n') && flags.contains(['b', 'B'])
+            flags.contains('n') && flags.contains(['b', 'B'])
         }
         WithFile => {
             let flags = htpasswd_flags(head);
