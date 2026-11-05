@@ -11,6 +11,8 @@
 //! (`seal-2`, `seal-95`) and the look-alikes #92 masked, which hold no secret
 //! span in either mode. KV02-SECRETS-3 (`kv02-s3`) adds `htpasswd -b` with a
 //! file and any flags, and keeps `SSWS` before one ordinary word clear.
+//! KV02-SECRETS-4 (`kv02-s4`) adds an `SSWS` token after a blank line, in lower
+//! case or after a no-break space, and htpasswd quoting and long rounds.
 
 use std::collections::BTreeMap;
 
