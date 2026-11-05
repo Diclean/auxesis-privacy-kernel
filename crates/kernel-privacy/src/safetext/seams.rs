@@ -131,11 +131,15 @@ fn read(
     Some(true)
 }
 
-/// What `mark` reads as: a value that runs on past it, or a stand-in and a line end.
+/// What `mark` reads as: a value that runs on past it (an address after a
+/// street, a comma and a short city, as their postcode), or a stand-in and a line end.
 fn push_stand_in(view: &mut String, mark: &str) {
+    let (_, tail) = view.rsplit_once("1 Main Street, ").unwrap_or_default();
+    let city = tail.starts_with(char::is_uppercase) && tail.split_whitespace().nth(3).is_none();
     match kind(mark) {
         _ if mark.is_empty() => {}
         Some(EntityKind::Health) => view.push_str("Cancer"),
+        Some(EntityKind::Address) if city => view.push_str("W1A 1AA"),
         Some(EntityKind::Address) => view.push_str("1 Main Street"),
         Some(EntityKind::Secret) => view.push_str("Fake-Pass-42"),
         _ => view.extend([MASKED_STAND_IN, '\n']),
