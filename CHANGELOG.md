@@ -6,6 +6,14 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-11-06
+
+### Changed
+
+- A secret block under a commented header is now withheld wherever text is
+  cut. Trimming trailing blank lines is linear in the length of the text. The
+  gate and the join agree on non-breaking spaces.
+
 ## [0.1.8] - 2026-11-06
 
 ### Changed

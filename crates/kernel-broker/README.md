@@ -11,7 +11,7 @@ tool argument does not end up in a line pasted into a ticket.
 
 ```toml
 [dependencies]
-auxesis-kernel-broker = "0.1.8"
+auxesis-kernel-broker = "0.1.9"
 ```
 
 The package is `auxesis-kernel-broker`; the library name stays `kernel_broker`.

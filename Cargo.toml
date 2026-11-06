@@ -13,7 +13,7 @@ members = [
 default-members = ["crates/kernel-privacy"]
 
 [workspace.package]
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 authors = ["The Auxesis kernel authors"]
 license = "PolyForm-Noncommercial-1.0.0"
