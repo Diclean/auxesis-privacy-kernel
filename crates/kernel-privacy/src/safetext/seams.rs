@@ -74,7 +74,7 @@ const CITIES: &str = "lyon lille marseille toulouse nice nantes strasbourg montp
 static CITY_FOLDS: LazyLock<Vec<String>> =
     LazyLock::new(|| CITIES.split_whitespace().map(fold).collect());
 /// Words on the line above a base64 block that name a key.
-const KEY_WORDS: [&str; 7] = ["key", "secret", "token", "password", "passphrase", "private", "credential"];
+const KEY_WORDS: &str = "key secret token password passphrase private credential";
 
 /// The marks of a text a tokenising gate issued: it doubles a typed `⟦`.
 pub(super) fn token_marks(text: &str) -> Marks {
@@ -156,7 +156,13 @@ fn cuts(text: &str, at: usize) -> bool {
 fn framed(text: &str, seam: usize) -> bool {
     let lo = text.floor_char_boundary(seam.saturating_sub(MAX_KEY_BYTES));
     let hi = text.floor_char_boundary(text.len().min(seam + MAX_KEY_BYTES));
-    let signs = ["----BEGIN", "---- BEGIN", "----END", "---- END", "PuTTY-User-Key-File"];
+    let signs = [
+        "----BEGIN",
+        "---- BEGIN",
+        "----END",
+        "---- END",
+        "PuTTY-User-Key-File",
+    ];
     signs.iter().any(|sign| text[lo..hi].contains(sign))
 }
 
@@ -194,7 +200,9 @@ fn key_break(text: &str, marks: &[Mark], at: usize, framed: &dyn Fn() -> bool) -
         }
         end = start - 1;
     };
-    let named = KEY_WORDS.iter().any(|word| label.contains(word));
+    let named = KEY_WORDS
+        .split_whitespace()
+        .any(|word| label.contains(word));
     wide || named || marks_in(marks, (from, to)).any(secret) || framed()
 }
 

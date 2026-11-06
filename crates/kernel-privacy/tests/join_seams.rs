@@ -353,7 +353,10 @@ fn corpus() -> Vec<Vec<String>> {
         corpus.push(vec![key[..at].to_string(), key[at..].to_string()]);
     }
     // Tables cut in half: hex lines, a rule above them, a secret column.
-    let (hex, rows) = ("0123456789abcdef\n".repeat(50), "0123456789abcdef,fedcba9876543210\n".repeat(50));
+    let (hex, rows) = (
+        "0123456789abcdef\n".repeat(50),
+        "0123456789abcdef,fedcba9876543210\n".repeat(50),
+    );
     for (head, tail) in [(hex.clone(), hex.clone()), (format!("----\n{hex}"), hex)] {
         corpus.push(vec![head, tail]);
     }
@@ -483,7 +486,7 @@ fn a_join_hides_all_that_main_hid_and_all_the_whole_text_hides() {
     }
     seen.sort_unstable();
     seen.dedup();
-    assert_eq!((seen.len(), main.len()), (main.len(), main.len()), "a main join per case");
+    assert_eq!(seen.len(), main.len(), "a main join per case");
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
