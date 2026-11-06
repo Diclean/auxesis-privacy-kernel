@@ -25,6 +25,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   to six blank lines, or of 8 to 19 characters after `SSWS:` in any case (a
   value with no dot that is not a listed word). Nothing it masked before is
   left clear.
+- A join withholds a line break between base64 lines only on a sign of a key
+  (a frame or PuTTY header near it, a line of 40 base64 characters or more, or
+  a key token beside it): a table of short hex lines joins as it is. Open
+  judges a digest on the text as well as on the read, and an address after a
+  seam also ends with a major city (Lyon, Lille, …).
 
 ## [0.1.5] - 2026-11-06
 

@@ -16,7 +16,7 @@ use crate::anonymize::{kind_of_token, PLACEHOLDER_OPEN};
 use crate::public_terms::PublicTerms;
 use crate::recognizer::span_is_well_formed;
 use crate::recognizers::secrets::value_too_long;
-use crate::span::EntityKind;
+use crate::span::{EntityKind, Span};
 
 /// A byte range of a text.
 pub(super) type Mark = (usize, usize);
@@ -57,8 +57,19 @@ fn blanks(text: &str, back: bool) -> Option<usize> {
     }
     None
 }
-/// The built-in public terms, whose capital cities an address may end with.
-static CITIES: LazyLock<PublicTerms> = LazyLock::new(PublicTerms::builtin);
+/// The built-in public terms an address may end with, as on 0.1.5 (their
+/// capitals, and brands kept so no join shows more than it did).
+static PUBLIC: LazyLock<PublicTerms> = LazyLock::new(PublicTerms::builtin);
+/// Major cities past the capitals of [`PUBLIC`] that an address may end with.
+const CITIES: &str = "lyon lille marseille toulouse nice nantes strasbourg montpellier \
+    bordeaux rennes reims grenoble dijon angers nîmes toulon brest metz rouen caen nancy \
+    orléans tours limoges amiens perpignan besançon mulhouse avignon clermont-ferrand \
+    manchester birmingham liverpool leeds glasgow edinburgh bristol sheffield cardiff belfast \
+    hamburg munich münchen cologne köln frankfurt stuttgart düsseldorf leipzig dresden \
+    barcelona valencia seville sevilla milan milano naples napoli turin torino florence \
+    porto rotterdam antwerp antwerpen ghent gent liège geneva genève zurich zürich basel \
+    lausanne bern luxembourg debrecen szeged pécs győr miskolc ljubljana maribor kraków \
+    gdańsk wrocław brno bratislava zagreb split durban bloemfontein";
 
 /// The marks of a text a tokenising gate issued: it doubles a typed `⟦`.
 pub(super) fn token_marks(text: &str) -> Marks {
@@ -87,7 +98,7 @@ pub(super) fn mend(
             .into_iter()
             .map(|times| {
                 let at = window(text, marks, seam, times * WINDOW_CHARS);
-                let key = key_break(text, at.0) || key_break(text, at.1);
+                let key = key_break(text, marks, at.0) || key_break(text, marks, at.1);
                 if times < 16 && (key || cuts(text, at.0) || cuts(text, at.1)) {
                     return Some(false);
                 }
@@ -130,17 +141,34 @@ fn cuts(text: &str, at: usize) -> bool {
 }
 
 /// Whether a window edge at `at` is a line break inside a key: 16 base64
-/// characters or more on each side.
-fn key_break(text: &str, at: usize) -> bool {
+/// characters or more on each side, and a sign of a key within
+/// [`MAX_KEY_BYTES`]: a `----` frame or a PuTTY header, a line of 40 base64
+/// characters or more beside the break, or a key mark on a line beside it.
+fn key_break(text: &str, marks: &[Mark], at: usize) -> bool {
     let (Some(back), Some(on)) = (blanks(&text[..at], true), blanks(&text[at..], false)) else {
         return false;
     };
     let (head, tail) = (&text[..at - back], &text[at + on..]);
-    let long =
-        |chars: &mut dyn Iterator<Item = char>| chars.take(16).filter(|&c| b64(c)).count() == 16;
-    text[at - back..at + on].contains('\n')
-        && long(&mut head.chars().rev())
-        && long(&mut tail.chars())
+    let long = |chars: &mut dyn Iterator<Item = char>, len: usize| {
+        chars.take(len).filter(|&c| b64(c)).count() == len
+    };
+    let cut = text[at - back..at + on].contains('\n')
+        && long(&mut head.chars().rev(), 16)
+        && long(&mut tail.chars(), 16);
+    if !cut {
+        return false;
+    }
+    let lo = text.floor_char_boundary(at.saturating_sub(MAX_KEY_BYTES));
+    let hi = text.floor_char_boundary(text.len().min(at + MAX_KEY_BYTES));
+    let near = &text[lo..hi];
+    let framed = ["----", "PuTTY-User-Key-File"]
+        .iter()
+        .any(|sign| near.contains(sign));
+    let wide = long(&mut head.chars().rev(), 40) || long(&mut tail.chars(), 40);
+    let from = text[lo..at - back].rfind('\n').map_or(lo, |i| lo + i);
+    let to = text[at + on..hi].find('\n').map_or(hi, |i| at + on + i);
+    let secret = |(start, end): Mark| kind(&text[start..end]) == Some(EntityKind::Secret);
+    framed || wide || marks_in(marks, (from, to)).any(secret)
 }
 
 /// Whether `ch` is a base64 character, and `value` a line of them.
@@ -176,11 +204,22 @@ fn read(
     }
     let mut hide = Vec::new();
     for span in spans.iter().filter(|span| span_is_well_formed(&view, span)) {
-        if !tokenised && (!span.is_prohibited() || is_hash_fragment(&view, span)) {
+        let first = clear.partition_point(|c| c.0 + c.2 <= span.start);
+        // A digest is one in the text too, when the span is in one clear stretch.
+        let in_text = clear
+            .get(first)
+            .filter(|c| c.0 <= span.start && span.end <= c.0 + c.2);
+        let in_text = in_text.map(|&(view_at, text_at, _)| Span {
+            start: text_at + span.start - view_at,
+            end: text_at + span.end - view_at,
+            ..*span
+        });
+        let digest = is_hash_fragment(&view, span)
+            && in_text.is_none_or(|span| is_hash_fragment(text, &span));
+        if !tokenised && (!span.is_prohibited() || digest) {
             continue;
         }
         let found = hide.len();
-        let first = clear.partition_point(|c| c.0 + c.2 <= span.start);
         for &(view_at, text_at, len) in clear[first..].iter().take_while(|c| c.0 < span.end) {
             let (start, end) = (span.start.max(view_at), span.end.min(view_at + len));
             let bytes = (text_at + start - view_at, text_at + end - view_at);
@@ -323,7 +362,8 @@ fn key_lines(text: &str, marks: &[Mark], seam: usize, back: bool, glued: bool) -
 /// The words of an address that run on from its mark across `seam`, going
 /// `back` or on, at most [`MAX_ADDRESS_WORDS`], to a sentence end, a blank line
 /// or a mark: those up to a number, a street word or an address mark, a city
-/// after a number and a capital city. Other capitalised words are prose.
+/// after a number and a city ([`CITIES`], or a public term). Other
+/// capitalised words are prose.
 fn address_words(text: &str, marks: &[Mark], seam: usize, back: bool) -> Marks {
     const STREET: &str = "rue avenue boulevard bd place chemin allée impasse quai route \
         street road lane";
@@ -381,7 +421,8 @@ fn address_words(text: &str, marks: &[Mark], seam: usize, back: bool) -> Marks {
             break;
         }
         words = Some(words.map_or(word, |(from, to)| (from.min(word.0), to.max(word.1))));
-        if street || digits || (capital && number && !back) || CITIES.contains(bare) {
+        let city = PUBLIC.contains(bare) || CITIES.split_whitespace().any(|city| city == lower);
+        if street || digits || (capital && number && !back) || city {
             taken = words;
         }
         (at, number) = (if back { word.0 } else { word.1 }, digits);
@@ -491,7 +532,21 @@ fn rewrite(text: &str, marks: &[Mark], mut pieces: Vec<Piece>) -> (String, Marks
 
 #[cfg(test)]
 mod tests {
-    use super::rewrite;
+    use super::super::detector::{without_names, StandardDetector};
+    use super::{mend, rewrite, GrantPolicy};
+
+    /// Open shows a digest, judged on the text too: a hex run after a key
+    /// marker is 30 characters there, though the key's stand-in (`…42`) makes
+    /// it 32 in the read.
+    #[test]
+    fn a_digest_is_one_in_the_text_too() {
+        let text = "x [secret removed]DE00ABCDEF0123456789ABCDEF0123 ok";
+        let seam = text.find(" ok").expect("seam");
+        let scan = without_names(StandardDetector::new());
+        let open = GrantPolicy::Passthrough;
+        let (out, _) = mend(text, &[(2, 18)], &[seam], open, scan.as_ref());
+        assert!(!out.contains("ABCDEF0123456789"), "{out}");
+    }
 
     /// A piece that overlaps one already written writes its tail: no byte vanishes.
     #[test]

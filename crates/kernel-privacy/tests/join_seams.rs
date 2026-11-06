@@ -189,18 +189,16 @@ fn clear_words(text: &str) -> Vec<String> {
 }
 
 /// The words `joined` shows in clear that are a word, or a piece of one, that
-/// `whole` hides: the value must be absent whole, not only in long runs.
+/// `whole` hides, one character long too.
 fn shown_pieces(text: &str, whole: &str, joined: &str) -> Vec<String> {
     let kept = clear_words(whole);
     let words = text.split(|ch: char| !ch.is_alphanumeric());
     let hidden: Vec<&str> = words
-        .filter(|word| word.chars().count() > 1 && !kept.iter().any(|kept| kept == word))
+        .filter(|word| !word.is_empty() && !kept.iter().any(|kept| kept == word))
         .collect();
-    let shown = clear_words(joined).into_iter().filter(|word| {
-        word.chars().count() > 1
-            && !kept.contains(word)
-            && hidden.iter().any(|w| w.contains(word.as_str()))
-    });
+    let shown = clear_words(joined)
+        .into_iter()
+        .filter(|word| !kept.contains(word) && hidden.iter().any(|w| w.contains(word.as_str())));
     shown.collect()
 }
 
@@ -294,5 +292,161 @@ fn a_join_of_three_plain_parts_or_prose_beside_a_value_is_the_concatenation() {
             }
         }
     }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A table of 16-character base64 lines is no key: cut in half at a line
+/// break, it joins as a key never would, and still hides an IBAN row.
+#[test]
+fn a_base64_table_cut_at_a_line_break_joins() {
+    let table = "0123456789abcdef\n".repeat(100);
+    let iban = "0123456789abcdef\n".repeat(9) + "FR7630006000011234567890189\n";
+    for (name, mut gate) in gates() {
+        let (head, tail) = table.split_at(table.len() / 2);
+        let [whole, _, joined] = split(&mut gate, &[head, tail]);
+        assert_eq!(joined, whole, "{name}");
+        let text = iban.repeat(10);
+        let (head, tail) = text.split_at(text.len() / 2 + 6);
+        let [whole, _, joined] = split(&mut gate, &[head, tail]);
+        let shown = shown_pieces(&text, &whole, &joined);
+        assert!(
+            joined != WITHHELD && shown.is_empty(),
+            "{name} {joined} {shown:?}"
+        );
+    }
+}
+
+/// The fixed corpus the oracles read: each text of `CUTS` cut in the middle of
+/// its stretch, prose beside a value, the keys cut before their short last
+/// line, and addresses that end with a city or a brand.
+fn corpus() -> Vec<Vec<String>> {
+    let mut corpus: Vec<Vec<String>> = CUTS
+        .lines()
+        .map(|line| {
+            let cut: Vec<&str> = line.split('|').collect();
+            let mut at = cut[0].find(cut[1]).expect("stretch") + cut[1].len() / 2;
+            while !cut[0].is_char_boundary(at) {
+                at += 1;
+            }
+            vec![cut[0][..at].to_string(), cut[0][at..].to_string()]
+        })
+        .collect();
+    let beside = [
+        "password: hunter2|\nThanks a lot, see you.",
+        "password: hunter2 |\nsee you at noon.",
+        "Send it to 10 Downing Street| today at noon.",
+        "Meeting With Jean Dupont At| 10 Downing Street",
+        "Meet at 10 Downing Street| Thanks Jean.",
+        "Write to 12 rue de la Paix| Lyon today.",
+        "Write to 12 rue de la Paix| Lille.",
+        "Ship to 5 High Street| Uber Orange.",
+    ];
+    corpus.extend(beside.map(|parts| parts.split('|').map(String::from).collect()));
+    for key in keys() {
+        let at = key.rfind("QUJD").expect("last line") - 1;
+        corpus.push(vec![key[..at].to_string(), key[at..].to_string()]);
+    }
+    corpus
+}
+
+/// Main's join (9376e38) of each corpus case, Private then Open, a line
+/// each, its tokens shortened to `⟦⟧`.
+const MAIN_JOINS: &str = "the password: [secret removed]
+password: [secret removed]
+password: [secret removed]
+password: ⟦⟧[value removed] [secret removed]
+Authorization: Bearer [secret removed]
+my card is [card removed]
+my card is ⟦⟧[id removed]
+[value removed] ⟦⟧⟦⟧ ok
+[value removed] ⟦⟧⟦⟧ ok
+call [value removed]
+Le patient a le ⟦⟧ [health removed].
+Le patient a un ⟦⟧ [health removed].
+Le patient a la ⟦⟧[value removed]
+Le patient a le ⟦⟧ [health removed].
+Send it to ⟦⟧[address removed] ⟦⟧ today.
+Écrire au ⟦⟧[value removed] ⟦⟧.
+See ⟦⟧[value removed] now.
+See www.example.org/page?id=42&ref=mail now.
+mail ⟦⟧[value removed] now.
+My key is [value removed]⟦⟧[value removed]
+Passport [value removed]⟦⟧
+Company number [id removed]
+Adószám: ⟦⟧
+VAT reg no: [value removed] ⟦⟧
+password: ⟦⟧ [secret removed]
+password: ⟦⟧  [secret removed]
+Send it to ⟦⟧ today at noon.
+Meeting With Jean Dupont At ⟦⟧
+Meet at ⟦⟧ Thanks Jean.
+Write to ⟦⟧ Lyon today.
+Write to ⟦⟧ Lille.
+Ship to ⟦⟧ [address removed]
+My key: ⟦⟧ [secret removed] [secret removed]
+My key: ⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧ [secret removed] (That was all.)
+the password: [secret removed]
+password: [secret removed]
+password: [secret removed]
+password: [secret removed][value removed] [secret removed]
+Authorization: Bearer [secret removed]
+my card is [card removed]
+my card is 4000 0012 3456-7899-1234
+[value removed] [iban removed][id removed] ok
+[value removed] [iban removed][value removed] [value removed] ok
+call +33 6 12 34 56 78
+Le patient a le [health removed] [health removed].
+Le patient a un [health removed] [health removed].
+Le patient a la [health removed][value removed]
+Le patient a le [health removed] [health removed].
+Send it to [address removed][address removed] [address removed] today.
+Écrire au [address removed][value removed] [address removed].
+See https://example.com/private/page now.
+See www.example.org/page?id=42&ref=mail now.
+mail alice@example.com.fake.com now.
+My key is [secret removed].
+Passport [value removed][id removed]
+Company number [id removed]
+Adószám: [id removed]
+VAT reg no: [id removed]
+password: [secret removed] [secret removed]
+password: [secret removed]  [secret removed]
+Send it to [address removed] today at noon.
+Meeting With Jean Dupont At [address removed]
+Meet at [address removed] Thanks Jean.
+Write to [address removed] Lyon today.
+Write to [address removed] Lille.
+Ship to [address removed] [address removed]
+My key: [secret removed] [secret removed] [secret removed]
+My key: [secret removed] [secret removed] (That was all.)";
+
+/// The words `joined` shows past those `main` shows, counted.
+fn past(main: &str, joined: &str) -> Vec<String> {
+    let mut left = clear_words(main);
+    let words = clear_words(joined).into_iter();
+    let shown = words.filter(|word| match left.iter().position(|kept| kept == word) {
+        Some(at) => left.swap_remove(at).is_empty(),
+        None => true,
+    });
+    shown.collect()
+}
+
+#[test]
+fn a_join_hides_all_that_main_hid_and_all_the_whole_text_hides() {
+    let (mut main, mut failures) = (MAIN_JOINS.lines(), Vec::new());
+    for (name, mut gate) in gates() {
+        for parts in corpus() {
+            let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
+            let [whole, _, joined] = split(&mut gate, &parts);
+            let past = past(main.next().expect("a main join per case"), &joined);
+            let shown = shown_pieces(&parts.concat(), &whole, &joined);
+            if !past.is_empty() || !shown.is_empty() {
+                failures.push(format!(
+                    "{name} {parts:?}\n  whole  {whole}\n  joined {joined}\n  past main {past:?}\n  shows  {shown:?}"
+                ));
+            }
+        }
+    }
+    assert!(main.next().is_none(), "a main join per case");
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
