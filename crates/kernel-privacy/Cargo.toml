@@ -36,7 +36,7 @@ aho-corasick = "1"
 # Verified home handle for the vault. Every vault write goes through its
 # directory descriptor, the write-gateway rule for paths under the home.
 # Also used by the `[privacy] mask_first_names` contract test.
-kernel-core = { package = "auxesis-kernel-core", path = "../kernel-core", version = "0.1.9" }
+kernel-core = { package = "auxesis-kernel-core", path = "../kernel-core", version = "0.1.10" }
 # Keyed pseudonyms for the anonymizer: a per-session HMAC-SHA-256 of the
 # normalised value, never a plain hash.
 hmac = "0.13"
@@ -54,7 +54,7 @@ unicode-normalization = "0.1"
 zeroize = "1"
 # The GLiNER2 runner (crates/gliner2): ONNX Runtime through `ort` with
 # `load-dynamic`, so the build needs no network and no ONNX Runtime library.
-gliner2-rs = { package = "auxesis-gliner2", path = "../gliner2", version = "0.1.9", optional = true }
+gliner2-rs = { package = "auxesis-gliner2", path = "../gliner2", version = "0.1.10", optional = true }
 # Encrypted session vault: AES-256-GCM seals each session's
 # token map, and `getrandom` supplies the key and nonces. Both already sit in the
 # lock through other crates, so this adds no new implementation to the tree.
