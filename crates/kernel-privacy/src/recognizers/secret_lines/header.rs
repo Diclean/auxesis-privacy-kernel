@@ -129,46 +129,62 @@ pub(super) struct Table {
 
 /// The table a header line opens, if a cell of it names a secret column.
 pub(super) fn header(text: &str, start: usize, end: usize, names: Names) -> Option<Table> {
-    b",\t;|".iter().find_map(|&delim| {
+    DELIMS.iter().find_map(|&delim| {
         let row = cells(text, start, end, delim);
-        let short = row.iter().all(|&(s, e)| e - s <= 64);
-        let cell = |column: usize| &text[row[column].0..row[column].1];
-        let led = |column: usize| {
-            let (pair, name) = cell(column).trim().rsplit_once(' ').unwrap_or_default();
-            pair.contains('=') && secret_header(name, names)
-        };
-        let secret: Vec<usize> = (0..row.len())
-            .filter(|&column| secret_header(cell(column), names) || led(column))
-            .collect();
-        let tail = secret
-            .iter()
-            .any(|&column| !secret_header(cell(column), names));
-        let extra: Vec<usize> = secret
-            .iter()
-            .copied()
-            .filter(|&column| {
-                names == Names::Export && !secret_header(cell(column), Names::Wide) && !led(column)
-            })
-            .collect();
-        let verdict = extra
-            .iter()
-            .copied()
-            .filter(|&column| folded(cell(column), true) == "pass")
-            .collect();
-        (row.len() >= 2 && short && !secret.is_empty()).then_some(Table {
-            delim,
-            count: row.len(),
-            secret,
-            rows: 0,
-            broke: false,
-            tail,
-            gap: false,
-            head: (start, end),
-            loose: row
-                .last()
-                .is_some_and(|&(s, e)| text[s..e].trim().is_empty()),
-            extra,
-            verdict,
+        header_of(text, (start, end), names, delim, &row)
+    })
+}
+
+/// The cell delimiters a table may use, in the order a header line tries them.
+pub(super) const DELIMS: [u8; 4] = *b",\t;|";
+
+/// The table a header line opens under `names` when split on `delim` as `row`.
+pub(super) fn header_of(
+    text: &str,
+    (start, end): (usize, usize),
+    names: Names,
+    delim: u8,
+    row: &[(usize, usize)],
+) -> Option<Table> {
+    if row.len() < 2 || row.iter().any(|&(s, e)| e - s > 64) {
+        return None;
+    }
+    let cell = |column: usize| &text[row[column].0..row[column].1];
+    let led = |column: usize| {
+        let (pair, name) = cell(column).trim().rsplit_once(' ').unwrap_or_default();
+        pair.contains('=') && secret_header(name, names)
+    };
+    let secret: Vec<usize> = (0..row.len())
+        .filter(|&column| secret_header(cell(column), names) || led(column))
+        .collect();
+    let tail = secret
+        .iter()
+        .any(|&column| !secret_header(cell(column), names));
+    let extra: Vec<usize> = secret
+        .iter()
+        .copied()
+        .filter(|&column| {
+            names == Names::Export && !secret_header(cell(column), Names::Wide) && !led(column)
         })
+        .collect();
+    let verdict = extra
+        .iter()
+        .copied()
+        .filter(|&column| folded(cell(column), true) == "pass")
+        .collect();
+    (!secret.is_empty()).then_some(Table {
+        delim,
+        count: row.len(),
+        secret,
+        rows: 0,
+        broke: false,
+        tail,
+        gap: false,
+        head: (start, end),
+        loose: row
+            .last()
+            .is_some_and(|&(s, e)| text[s..e].trim().is_empty()),
+        extra,
+        verdict,
     })
 }

@@ -6,6 +6,16 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- A join withholds a seam on any line of a table under a header naming a
+  secret column, however far back the header (wide rows put it past 16 KiB),
+  and on the header line a seam cuts. Prose after a line that closed the table
+  is out of it. One pass for all seams; a megabyte in 1 KiB parts joins in
+  well under a second.
+- A key's label above its block is read across blank lines, and names a key
+  only by a whole word (`monkey` and `tokenizer` name none).
+
 ## [0.1.6] - 2026-11-06
 
 ### Changed

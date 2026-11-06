@@ -561,3 +561,97 @@ fn a_padded_secret_table_cut_far_below_its_header_stays_hidden() {
         }
     }
 }
+
+/// A table of wide rows cut in a row's notes: its header and the last cell
+/// hidden before the seam are both past 16 KiB back, and the rows after the
+/// seam stay hidden.
+#[test]
+fn a_secret_table_of_wide_rows_cut_far_from_its_header_stays_hidden() {
+    let notes = "lorem ipsum ".repeat(1500);
+    let rows: String = (0..3)
+        .map(|n| format!("{n},fedcba98765432{n:02},{notes}\n"))
+        .collect();
+    let text = format!("id,password,notes\n{rows}");
+    let at = text.find("fedcba9876543201").expect("row") + 17 * 1024;
+    let at = text[..at].rfind(' ').expect("blank") + 1;
+    for (name, mut gate) in gates() {
+        let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+        assert!(!whole.contains("fedcba"), "{name} whole");
+        let shown = joined.matches("fedcba").count();
+        assert_eq!(shown, 0, "{name} joined shows {shown} cells");
+    }
+}
+
+/// A block indented under its label past a blank line, cut at the blank line:
+/// the whole text hides the block, so no line of it shows.
+#[test]
+fn a_block_under_a_label_and_a_blank_line_cut_at_the_blank_stays_hidden() {
+    let line = "    U1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF";
+    let text = format!("private_key:\n\n{}\n", [line; 20].join("\n"));
+    let blank = text.find("\n\n").expect("blank line");
+    for at in [blank + 1, blank + 2] {
+        for (name, mut gate) in gates() {
+            let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+            assert!(!whole.contains(line.trim()), "{name} whole {whole}");
+            assert!(!joined.contains(line.trim()), "{name} {at} {joined}");
+        }
+    }
+}
+
+/// A secret table whose header the seam cuts (`id,passw` + `ord`): no cell shows.
+#[test]
+fn a_secret_header_cut_by_the_seam_shows_no_cell() {
+    let rows = "0123456789abcdef,fedcba9876543210\n".repeat(50);
+    let text = format!("id,password\n{rows}");
+    for at in ["id,".len(), "id,passw".len(), "id,password".len()] {
+        for (name, mut gate) in gates() {
+            let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+            assert!(!whole.contains("fedcba"), "{name} whole");
+            assert!(!joined.contains("fedcba"), "{name} {at} {joined}");
+        }
+    }
+}
+
+/// A word that only holds a key word (`monkey`, `tokenizer`) names no key, and
+/// prose after a table that a line closed is out of it: both join as the whole.
+#[test]
+fn a_key_word_inside_a_word_or_prose_after_a_closed_table_joins() {
+    let hex = "0123456789abcdef\n".repeat(60);
+    let prose = "Hello, see the notes below for more\n".repeat(40);
+    let texts = [
+        format!("monkey:\n{hex}"),
+        format!("tokenizer:\n{hex}"),
+        format!("id,password\nThat was all.\n{prose}"),
+    ];
+    for text in texts {
+        let at = text.len() * 2 / 3;
+        let at = text[..at].rfind('\n').expect("break") + 1;
+        for (name, mut gate) in gates() {
+            let [whole, concat, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+            let start = &text[..12];
+            assert_ne!(joined, WITHHELD, "{name} {start}");
+            assert!(whole == concat && joined == concat, "{name} {start}");
+        }
+    }
+}
+
+/// A join stays linear: a megabyte of delimited lines, an e-mail on each, in
+/// 1 KiB parts joins within the bound.
+#[test]
+fn a_megabyte_in_kibibyte_parts_joins_fast() {
+    let line = "Room 12, budget; notes | write to ann@example.com today\n";
+    let text = line.repeat(1024 * 1024 / line.len());
+    for (name, mut gate) in gates() {
+        let issued: Vec<SafeText> = text
+            .as_bytes()
+            .chunks(1024)
+            .map(|part| std::str::from_utf8(part).expect("ascii"))
+            .map(|part| gate.text(part).expect("issued").0)
+            .collect();
+        let started = std::time::Instant::now();
+        let joined = SafeText::join(issued);
+        let took = started.elapsed();
+        assert_ne!(joined.as_str(), WITHHELD, "{name}");
+        assert!(took.as_millis() < 1000, "{name} took {took:?}");
+    }
+}

@@ -21,7 +21,7 @@ pub mod mrz;
 pub mod payment_ids;
 pub mod phone;
 mod secret_lines;
-pub(crate) use secret_lines::{export_scan, secret_table_header};
+pub(crate) use secret_lines::{export_scan, secret_table_lines};
 mod secret_link;
 mod secret_prose;
 pub mod secrets;
