@@ -216,8 +216,9 @@ fn key_break(text: &str, marks: &[Mark], at: usize, framed: &dyn Fn() -> bool) -
 /// that are blank, indented deeper than the label (the block the gate hides)
 /// or of base64 or marks at any depth, however far. Each runs from the label
 /// line (past its first byte: a seam on it cuts the label or its header) to
-/// the end of its last line that is not blank. One pass; `work` counts the
-/// lines read.
+/// the end of its last line that is not blank. A label line inside a block
+/// opens a block of its own, never only extends the open one. One pass;
+/// `work` counts the lines read.
 fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Marks {
     let (bytes, mut blocks, mut at) = (text.as_bytes(), Vec::new(), 0);
     // The open block: its label's depth, its start, the end of its last line,
@@ -241,17 +242,23 @@ fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Mark
         let line = &text[at..end];
         let depth = line.len() - line.trim_start_matches([' ', '\t']).len();
         let blank = line.trim().is_empty();
-        if let Some((deep, start, _, _)) = open.filter(|_| !blank) {
-            if depth > deep || block_line(text, marks, (at, end)) {
-                open = Some((deep, start, end, true));
+        let mut deep = depth;
+        if let Some((outer, start, _, _)) = open.filter(|_| !blank) {
+            if depth > outer || block_line(text, marks, (at, end)) {
+                open = Some((outer, start, end, true));
+                deep = outer.min(depth);
             } else {
                 close(open.take());
             }
         }
-        if open.is_none() && !blank && label_line(text, marks, (at, end)) {
-            // A seam on the label line past its first byte cuts the label or
-            // its header: the part with the block does not read it whole.
-            open = Some((depth, (at + 1).min(end), end, false));
+        if !blank && label_line(text, marks, (at, end)) {
+            // A label line always opens its own block: an open one ends with
+            // it (as it read it), and the new one reads on at the shallower
+            // depth of the two, so a block line it held stays in one. A seam
+            // on the label line past its first byte cuts the label or its
+            // header: the part with the block does not read it whole.
+            close(open.take());
+            open = Some((deep, (at + 1).min(end), end, false));
         }
         at = next + 1;
     }
@@ -267,9 +274,9 @@ fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Mark
 /// ⟦…⟧`, `Authorization: Bearer ⟦…⟧ password: ⟦…⟧`) still opens the block.
 /// Three label reads at most, so a line stays linear.
 ///
-/// Accepted since #114: a commented header takes its block from the header
-/// on, so a very long block under one is tokenised where it was refused with
-/// TooLong. That is the owner rule: private means tokenise, never block.
+/// Since #114 only a long comment on the header no longer trips TooLong: the
+/// gate measures a commented header's block from the header on. A block over
+/// `MAX_BLOCK_BYTES` is still refused.
 fn label_line(text: &str, marks: &[Mark], (start, end): Mark) -> bool {
     let key = |&(from, to): &Mark| from < to && kind(&text[from..to]) == Some(EntityKind::Secret);
     let mut keys = marks_in(marks, (start, end)).filter(key);
