@@ -6,6 +6,16 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- A join reads each seam with the gate's full detector, so a company or tax
+  number cut after its keyword is hidden. A key's mark at a seam takes the key
+  lines that run on from it, to its frame; an address mark takes the address
+  words across the seam; a read whose window cuts a word or a key is widened (a
+  key past the widest is withheld); overlapping hidden ranges keep every byte;
+  and the seam rules read at most 4096 blanks or one 4096-byte word, so a join
+  stays linear.
+
 ### Fixed
 
 - The secret recogniser masks more: an `htpasswd` password with no quotes or
