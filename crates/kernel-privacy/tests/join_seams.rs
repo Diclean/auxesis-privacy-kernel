@@ -149,14 +149,15 @@ fn a_value_past_the_widest_window_or_a_long_run_on_a_token_withholds_the_join() 
 }
 
 /// A fake private key (base64 of a fixed phrase) after a line of prose: framed
-/// with a short last line, and headerless in twelve lines before another.
+/// with a short last line, and headerless in twelve lines and a short last
+/// one before another.
 fn keys() -> [String; 2] {
     let first = "MIIEvQIBADANRkFLRSBLRVkgRk9SIFRFU1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF";
     let line = "U1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRFU1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF";
     let framed = format!("-----BEGIN PRIVATE KEY-----\n{first}\n{line}\n{line}\nQUJD\n");
     let framed = format!("My key:\n{framed}-----END PRIVATE KEY-----");
     let headerless = format!(
-        "My key:\n{first}\n{}\n(That was all.)",
+        "My key:\n{first}\n{}\nQUJD\n(That was all.)",
         [line; 11].join("\n")
     );
     [framed, headerless]

@@ -294,12 +294,14 @@ fn key_lines(text: &str, marks: &[Mark], seam: usize, back: bool, glued: bool) -
         let bounded = !edge && text.as_bytes()[if back { far - 1 } else { far }] != b'\n';
         let next = (!edge && !bounded).then(|| line_at(if back { far - 1 } else { far + 1 }).2);
         let next = next.as_deref().map(str::trim);
-        // A short line ends the key: before a frame, or after a body line.
+        // A short line ends the key: before a frame, after a body line, or
+        // as the first line on from the key's mark (its cut-off last line).
         let short = base64(value) && !long(value);
-        if short && body && next.is_some_and(long) {
+        let cut_off = first && !back && !glued;
+        if short && (body || cut_off) && next.is_some_and(long) {
             return None;
         }
-        let short = short && (body || next.is_some_and(frame));
+        let short = short && (body || cut_off || next.is_some_and(frame));
         let empty = value.is_empty() && (first || marked);
         if !(frame(value) || long(value) || short || empty || (first && glued)) {
             break;
