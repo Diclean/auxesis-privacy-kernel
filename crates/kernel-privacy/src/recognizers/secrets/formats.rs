@@ -273,6 +273,10 @@ const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
     // quoted user takes only a quoted or secret-shaped password.
     (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,9})?)+[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+("(?:\\.|[^"\\\n])*"\S*|'[^'\n]*'(?:\\''[^'\n]*')*\S*|"[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, NoFileQuoting),
     (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,9})?)+[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+("(?:\\.|[^"\\\n])*"\S*|'[^'\n]*'(?:\\''[^'\n]*')*\S*|"[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, WithFileQuoting),
+    // KV02-SECRETS-6, beside the two above: the password on the line after a `\`
+    // line continuation.
+    (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,9})?)+[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]*\\\r?\n[ \t]*("(?:\\.|[^"\\\n])*"\S*|'[^'\n]*'(?:\\''[^'\n]*')*\S*|"[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, NoFileQuoting),
+    (r#"\bhtpasswd(?:[ \t]+(?:-[A-Za-z0-9]+|--)(?:[ \t]+[0-9]{1,9})?)+[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]+(?:"[^"\n]*"\S*|'[^'\n]*'\S*|[^\s\-]\S*)[ \t]*\\\r?\n[ \t]*("(?:\\.|[^"\\\n])*"\S*|'[^'\n]*'(?:\\''[^'\n]*')*\S*|"[^"\n]*"\S*|'[^'\n]*'\S*|\S+)"#, 4, WithFileQuoting),
     // The signature of a presigned URL (Azure SAS, S3, Google Cloud Storage), and
     // the V2 `Signature` (S3, Google Cloud Storage, CloudFront, Alibaba OSS).
     (r"(?i)[?&](?:sig|x-amz-signature|x-goog-signature)=([^&\s#]+)", 16, NotPlaceholder),
@@ -335,9 +339,13 @@ fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
                 && (capitals || is_secret_shaped(found) || found.len() == OKTA_TOKEN_LEN)
         }
         OktaToken => {
-            // A sentence's full stop after the token is not part of it.
-            let found = found.strip_suffix('.').unwrap_or(found);
-            found.bytes().any(|b| b.is_ascii_digit()) || found.len() == OKTA_TOKEN_LEN
+            // A sentence's full stop after the token is not part of it; a value of
+            // the token's length with the stop counts too, as before the stop was
+            // dropped.
+            let bare = found.strip_suffix('.').unwrap_or(found);
+            bare.bytes().any(|b| b.is_ascii_digit())
+                || bare.len() == OKTA_TOKEN_LEN
+                || found.len() == OKTA_TOKEN_LEN
         }
         ColonToken => {
             // The colon makes the value an assignment in any case; a host name
@@ -379,11 +387,18 @@ fn rest<'t>(text: &'t str, value: Match) -> &'t str {
 fn fits_user(head: &str, found: &str, rest: &str) -> bool {
     let quote = ['"', '\''];
     let after = rest.trim_start();
-    let redirect = after.as_bytes().get(1).is_some_and(|b| b"<>".contains(b))
-        && after.starts_with(|ch: char| ch.is_ascii_digit());
+    // A redirect with a file descriptor, a blank before `>` too (`2 >file`).
+    let fd = after.trim_start_matches(|ch: char| ch.is_ascii_digit());
+    let redirect = fd.len() < after.len() && fd.trim_start().starts_with(['<', '>']);
     let last = after.is_empty()
         || redirect
         || after.starts_with(['&', '|', ';', '>', '<', ')', '`', '#', '\\']);
+    // A `\` line continuation before the password is a blank between the two.
+    let head = head.trim_end_matches([' ', '\t']);
+    let head = head.strip_suffix('\n').map_or(head, |line| {
+        let line = line.strip_suffix('\r').unwrap_or(line);
+        line.strip_suffix('\\').unwrap_or(line)
+    });
     !head.trim_end().ends_with(quote) || found.starts_with(quote) || is_secret_shaped(found) || last
 }
 

@@ -14,7 +14,11 @@
 //! KV02-SECRETS-4 (`kv02-s4`) adds an `SSWS` token after a blank line, in lower
 //! case or after a no-break space, and htpasswd quoting and long rounds.
 //! KV02-SECRETS-5 (`kv02-s5`) adds a plain htpasswd password after a quoted
-//! user and `SSWS` tokens with no digit, after more blank lines or after `SSWS:`.
+//! user and `SSWS` tokens with no digit, after more blank lines or after `SSWS:`;
+//! its round 2 (`kv02-s6`) adds a redirect, a comment or a line continuation
+//! after that password, and `SSWS:` in any case. KV02-SECRETS-6 (`kv02-s7`) adds
+//! the password on the line after a `\` continuation, a redirect with a blank
+//! before `>` (`2 >file`), and a 41-character token before a full stop.
 
 use std::collections::BTreeMap;
 

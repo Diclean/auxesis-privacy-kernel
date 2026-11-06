@@ -32,6 +32,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   table whose secret cells were hidden before it withholds the join. Open
   judges a digest on the text as well as on the read, and an address after a
   seam also ends with a major city (Lyon, Lille, …).
+- The secret recogniser also masks an `htpasswd` password on the line after a
+  `\` line continuation, one before a redirect with a blank (`2 >file`), and a
+  41-character Okta token with no digit before a full stop after the words that
+  name it. Nothing it masked before is left clear; lower-case prose such as
+  `ssws: implementation` stays masked.
 
 ## [0.1.5] - 2026-11-06
 
