@@ -6,6 +6,17 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-06
+
+### Changed
+
+- A join withholds a seam in a key block under any indented line, blank lines
+  and deeper-indented lines included, with no 16 KiB limit on the walk back to
+  the label. A label's YAML block-scalar header (`|`, `>`, with `-`, `+` or a
+  digit) is read after the separator, and labels such as `pin:`, `api key:` and
+  `phrase secrète:` open a block too. A quoted table cell with blank lines in
+  it stays held, and prose after the table is no longer held with it.
+
 ## [0.1.7] - 2026-11-06
 
 ### Changed
