@@ -501,9 +501,11 @@ fn a_join_hides_all_that_main_hid_and_all_the_whole_text_hides() {
             let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
             let [whole, _, joined] = split(&mut gate, &parts);
             let case = case(name, &parts);
-            // Where main withheld, the join withholds too.
+            // Where main withheld, the join withholds too, or the whole text
+            // shows the case in clear and the join shows it as the whole does
+            // (the two plain hex blocks of `Open`: nothing there to hide).
             let past = match main.get(case.as_str()) {
-                Some(&WITHHELD) if joined == WITHHELD => Vec::new(),
+                Some(&WITHHELD) if joined == WITHHELD || joined == whole => Vec::new(),
                 Some(&WITHHELD) => vec![format!("main withheld, joined {joined:?}")],
                 Some(main) => past(main, &joined),
                 None => vec![format!("no main join for {case}")],
@@ -1240,26 +1242,38 @@ fn tab_block_cuts(text: &str, (tabbed, value): (&str, &str), failures: &mut Vec<
     }
 }
 
-/// MiniMax's input for the tab rule, end to end: a tab line under a space-
-/// indented label (`    seed_phrase: |`, then `\t\taaaa-bbbb`, then a line six
-/// spaces deep). The gate owns the tab line, so the join must too; before
-/// JOIN-SEAM-10 it showed `aaaa-bbbb` in clear at a cut. Cut at every byte,
-/// both gates: the whole was issued and hides the value (not vacuous), and
-/// the join withholds it or shows no run of four characters of it.
+/// The tab rule, end to end: a tab line under a space-indented label
+/// (`    seed_phrase: |`, then `\t\taaaa-bbbb`) is under it, as the gate's
+/// ownership pass reads it. Two texts, each cut at every byte, both gates: the
+/// whole was issued and hides `aaaa-bbbb` (not vacuous), and the join
+/// withholds it or shows no run of four characters of it.
+/// - MiniMax's input, a line six spaces deep after the tab line. The mend of a
+///   mark glued to a part's edge hides it on the 0.1.10 source too, so this
+///   one is green there.
+/// - The tab line after ten lines six spaces deep: a part cut at the tab line
+///   starts past the label and no mark touches the cut, so only the join's
+///   block scan can hide it. Red on the 0.1.10 source, which closed the block
+///   at the tab line (its two bytes are no deeper than the label's four).
 #[test]
 fn a_tab_line_under_a_space_label_stays_hidden_at_every_cut() {
-    let text = "    seed_phrase: |\n\t\taaaa-bbbb\n      cccc-dddd\n";
+    let deep = "      cccc-dddd\n".repeat(10);
+    let texts = [
+        "    seed_phrase: |\n\t\taaaa-bbbb\n      cccc-dddd\n".to_string(),
+        format!("    seed_phrase: |\n{deep}\t\taaaa-bbbb\n"),
+    ];
     let mut failures = Vec::new();
-    for (name, mut gate) in gates() {
-        for at in (1..text.len()).filter(|&at| text.is_char_boundary(at)) {
-            let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
-            if !whole_hides(&whole, "aaaa-bbbb") {
-                failures.push(format!(
-                    "{name} at {at}: whole {whole:?} shows it or is refused"
-                ));
-            }
-            if !hides(&joined, "aaaa-bbbb") {
-                failures.push(format!("{name} at {at}: {joined:?} shows it"));
+    for text in &texts {
+        for (name, mut gate) in gates() {
+            for at in (1..text.len()).filter(|&at| text.is_char_boundary(at)) {
+                let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+                if !whole_hides(&whole, "aaaa-bbbb") {
+                    failures.push(format!(
+                        "{name} at {at}: whole {whole:?} shows it or is refused"
+                    ));
+                }
+                if !hides(&joined, "aaaa-bbbb") {
+                    failures.push(format!("{name} at {at}: {joined:?} shows it"));
+                }
             }
         }
     }
