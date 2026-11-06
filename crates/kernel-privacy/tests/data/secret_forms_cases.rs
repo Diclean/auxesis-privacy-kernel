@@ -577,6 +577,15 @@ pub fn positives() -> Vec<Case> {
         c("kv02-s6", "ssws: {}", "fakeoktavalue"),
         c("kv02-s6", "Ssws: {}", "fakeoktavalue"),
         c("kv02-s6", "SSWS token\n\n\n\n\n\n\n{}", &format!("00{}", k(ALNUM, 40, 1301))),
+        // KV02-SECRETS-6 (lead TODO of #104): the password after a `\` line
+        // continuation, a redirect with a blank before `>`, and a 41-character
+        // token with no digit before a full stop.
+        c("kv02-s7", "htpasswd -b site.db \"alice smith\" \\\n  {}", "correcthorse"),
+        c("kv02-s7", "htpasswd -nb \"alice smith\" \\\r\n\t{}", "correcthorse"),
+        c("kv02-s7", "htpasswd -b site.db alice \\\n  {}", "S3cretPass"),
+        c("kv02-s7", "htpasswd -b site.db \"alice smith\" {} 2 >file", "correcthorse"),
+        c("kv02-s7", "htpasswd -b site.db \"alice smith\" {} 2 >>file", "correcthorse"),
+        c("kv02-s7", "SSWS token\n\n{}.", &fake(LETTERS, 41, 1401)),
     ]
 }
 
@@ -720,6 +729,8 @@ pub fn negatives() -> Vec<String> {
         "SSWS: credentials",
         "SSWS: login.example.com",
         "SSWS token\n\n\n\n\nThisIsALongIdentifierName",
+        // KV02-SECRETS-6: a host name that ends a sentence after `SSWS:`.
+        "SSWS: login.example.com.",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()
 }
