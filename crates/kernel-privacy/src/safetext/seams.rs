@@ -210,23 +210,28 @@ fn key_break(text: &str, marks: &[Mark], at: usize, framed: &dyn Fn() -> bool) -
     wide || named || marks_in(marks, (from, to)).any(secret) || framed()
 }
 
-/// The key blocks of `text` to the line holding `last`: under a label line
-/// the gate reads as a secret's (`myapikey:`, `pin:`, `password: |`), with no
-/// mark on it, the lines that are blank, indented deeper than the label (the
-/// block the gate hides) or of base64 or marks at any depth, however far. Each
-/// runs from the label's line end to the end of its last line that is not
-/// blank. One pass; `work` counts the lines read.
+/// The key blocks of `text` to the line holding `last`, and on to the first
+/// line past it a block reaches: under a label line the gate reads as a
+/// secret's ([`label_line`]: `myapikey:`, `pin:`, `password: |`), the lines
+/// that are blank, indented deeper than the label (the block the gate hides)
+/// or of base64 or marks at any depth, however far. Each runs from the label
+/// line (past its first byte: a seam on it cuts the label or its header) to
+/// the end of its last line that is not blank. One pass; `work` counts the
+/// lines read.
 fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Marks {
     let (bytes, mut blocks, mut at) = (text.as_bytes(), Vec::new(), 0);
-    // The open block: its label's depth, its start, the end of its last line.
-    let mut open: Option<(usize, usize, usize)> = None;
-    let mut close = |open: Option<(usize, usize, usize)>| {
+    // The open block: its label's depth, its start, the end of its last line,
+    // and whether a line is under the label yet.
+    let mut open: Option<(usize, usize, usize, bool)> = None;
+    let mut close = |open: Option<(usize, usize, usize, bool)>| {
         blocks.extend(
-            open.filter(|b| b.1 < b.2)
-                .map(|(_, start, stop)| (start, stop)),
+            open.filter(|b| b.3 && b.1 < b.2)
+                .map(|(_, start, stop, _)| (start, stop)),
         );
     };
-    while at <= last.min(text.len()) {
+    // A block with no line yet, or whose lines end by `last`, is read on, so
+    // a seam on its label or its last line sees whether it runs past.
+    while at <= text.len() && (at <= last || open.is_some_and(|b| !b.3 || b.2 <= last)) {
         *work += 1;
         let next = bytes[at..]
             .iter()
@@ -236,21 +241,38 @@ fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Mark
         let line = &text[at..end];
         let depth = line.len() - line.trim_start_matches([' ', '\t']).len();
         let blank = line.trim().is_empty();
-        if let Some((deep, start, _)) = open.filter(|_| !blank) {
+        if let Some((deep, start, _, _)) = open.filter(|_| !blank) {
             if depth > deep || block_line(text, marks, (at, end)) {
-                open = Some((deep, start, end));
+                open = Some((deep, start, end, true));
             } else {
                 close(open.take());
             }
         }
-        let clean = || marks_in(marks, (at, end)).all(|(from, to)| from == to);
-        if open.is_none() && !blank && clean() && labels_a_secret(line) {
-            open = Some((depth, end, end));
+        if open.is_none() && !blank && label_line(text, marks, (at, end)) {
+            // A seam on the label line past its first byte cuts the label or
+            // its header: the part with the block does not read it whole.
+            open = Some((depth, (at + 1).min(end), end, false));
         }
         at = next + 1;
     }
     close(open);
     blocks
+}
+
+/// Whether `text[start..end]` is a label line the gate reads as a secret's:
+/// with no mark on it, or read up to its first mark when that mark is a key's
+/// (the gate hides a block-scalar header with a comment on the label line,
+/// `dbapikey: | # the db one`, so a part shows only `dbapikey: ⟦…⟧`).
+fn label_line(text: &str, marks: &[Mark], (start, end): Mark) -> bool {
+    let first = marks_in(marks, (start, end)).find(|(from, to)| from < to);
+    let label = match first {
+        None => &text[start..end],
+        Some((from, to)) if kind(&text[from..to]) == Some(EntityKind::Secret) => {
+            &text[start..from.max(start)]
+        }
+        Some(_) => return false,
+    };
+    labels_a_secret(label)
 }
 
 /// Whether `seam` is in one of the key `blocks` (its ends included): the
