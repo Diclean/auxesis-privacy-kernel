@@ -23,6 +23,7 @@ pub mod phone;
 mod secret_lines;
 pub(crate) use secret_lines::{export_scan, secret_table_lines};
 mod secret_link;
+pub(crate) use secret_link::keys_a_block;
 mod secret_prose;
 pub mod secrets;
 pub mod sensitive_terms;
