@@ -799,4 +799,31 @@ mod tests {
             assert!(in_key_block(&blocks, seam), "{label}: {blocks:?}");
         }
     }
+
+    /// A label line under an open block (`password` under a deeper label
+    /// line) opens its own block: the shallower line under it is in one, at
+    /// every byte, and so is the label line itself.
+    #[test]
+    fn a_label_line_under_an_open_block_opens_its_own() {
+        let first = "Contact [email removed] for the password: [secret removed]";
+        let value = "zzzz-wwww-yyyy-xxxx";
+        let text = format!(
+            "{}{first}\npassword\n{}{value}\n",
+            " ".repeat(100),
+            " ".repeat(60)
+        );
+        let marks: Vec<_> = ["[email removed]", "[secret removed]"]
+            .iter()
+            .flat_map(|mark| text.match_indices(mark))
+            .map(|(at, mark)| (at, at + mark.len()))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let blocks = key_blocks(&text, &marks, text.len(), &mut 0);
+        let from = text.find("\npassword").expect("label") + 1;
+        let to = text.find(value).expect("value") + value.len();
+        for seam in from..=to {
+            assert!(in_key_block(&blocks, seam), "{seam}: {blocks:?}");
+        }
+    }
 }

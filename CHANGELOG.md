@@ -13,6 +13,10 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The kill switch now counts as engaged when the kernel cannot check for the
   `STOP` file, for example after a permission or disk error. Only a file that
   is really missing, including on a first run, reads as not stopped.
+- When text is joined from parts, a secret block stays withheld in two more
+  cases: a password line that sits under another secret line, and blocks
+  under headers like `seed_phrase: |`, `recovery_phrase: |`, `code: |` or
+  `pw: |`.
 
 ## [0.1.9] - 2026-11-06
 
