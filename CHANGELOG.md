@@ -6,6 +6,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-11-06
+
 ### Changed
 
 - Licence: Apache-2.0 instead of PolyForm Noncommercial 1.0.0. The kernel is
