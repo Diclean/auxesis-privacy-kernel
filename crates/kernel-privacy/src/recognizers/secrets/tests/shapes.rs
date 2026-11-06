@@ -224,6 +224,18 @@ fn the_three_ssws_paths_agree_on_a_token() {
             "{line:?}"
         );
     }
+    // A token that ends a sentence keeps its full stop out of the dot test.
+    for line in [
+        format!("SSWS: {letters}."),
+        format!("SSWS token\n\n{letters}."),
+        "ssws: fakeoktavalue.".to_string(),
+    ] {
+        assert!(
+            hits(&line).iter().any(|hit| hit.starts_with(['F', 'f'])),
+            "{line:?}: {:?}",
+            hits(&line)
+        );
+    }
     // An 8–19-character token with no digit after `SSWS:`, in any case.
     for line in ["SSWS: abcdefgh", "ssws: abcdefgh", "Ssws: 'fakeoktavalue'"] {
         let value = line

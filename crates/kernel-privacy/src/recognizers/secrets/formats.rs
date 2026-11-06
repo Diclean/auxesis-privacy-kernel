@@ -334,10 +334,15 @@ fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
             keeps(Credential, text, start, value)
                 && (capitals || is_secret_shaped(found) || found.len() == OKTA_TOKEN_LEN)
         }
-        OktaToken => found.bytes().any(|b| b.is_ascii_digit()) || found.len() == OKTA_TOKEN_LEN,
+        OktaToken => {
+            // A sentence's full stop after the token is not part of it.
+            let found = found.strip_suffix('.').unwrap_or(found);
+            found.bytes().any(|b| b.is_ascii_digit()) || found.len() == OKTA_TOKEN_LEN
+        }
         ColonToken => {
             // The colon makes the value an assignment in any case; a host name
             // (`login.example.com`) holds a dot, which no Okta token does.
+            let found = found.strip_suffix('.').unwrap_or(found);
             keeps(OktaToken, text, start, value) || (!is_ssws_word(found) && !found.contains('.'))
         }
         NotPlaceholder => !is_placeholder(found),
