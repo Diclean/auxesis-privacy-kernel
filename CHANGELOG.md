@@ -25,6 +25,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   to six blank lines, or of 8 to 19 characters after `SSWS:` in any case (a
   value with no dot that is not a listed word). Nothing it masked before is
   left clear.
+- The secret recogniser also masks an `htpasswd` password on the line after a
+  `\` line continuation, one before a redirect with a blank (`2 >file`), and a
+  41-character Okta token with no digit before a full stop after the words that
+  name it. Nothing it masked before is left clear; lower-case prose such as
+  `ssws: implementation` stays masked.
 
 ## [0.1.5] - 2026-11-06
 

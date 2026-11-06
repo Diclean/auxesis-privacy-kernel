@@ -191,6 +191,10 @@ fn a_quoted_htpasswd_user_takes_a_plain_password_that_ends_the_command() {
         "htpasswd -b site.db \"alice smith\" correcthorse 2>&1",
         "htpasswd -b site.db \"alice smith\" correcthorse # rotate",
         "htpasswd -b site.db \"alice smith\" correcthorse \\\n  && reload",
+        "htpasswd -b site.db \"alice smith\" \\\n  correcthorse",
+        "htpasswd -nb \"alice smith\" \\\r\n\tcorrecthorse",
+        "htpasswd -b site.db \"alice smith\" correcthorse 2 >file",
+        "htpasswd -b site.db \"alice smith\" correcthorse 2 >>file",
     ] {
         assert!(
             hits(line).contains(&"correcthorse"),
@@ -198,13 +202,18 @@ fn a_quoted_htpasswd_user_takes_a_plain_password_that_ends_the_command() {
             hits(line)
         );
     }
-    // A word with more prose after it stays clear, as on main.
-    let line = "htpasswd -b site.db \"alice smith\" then restart";
-    assert!(
-        clear_of(line).ends_with(" then restart"),
-        "{:?}",
-        hits(line)
-    );
+    // A word with more prose after it stays clear, as on main, after a line
+    // continuation too.
+    for line in [
+        "htpasswd -b site.db \"alice smith\" then restart",
+        "htpasswd -b site.db \"alice smith\" \\\n  then restart",
+    ] {
+        assert!(
+            clear_of(line).ends_with("then restart"),
+            "{line:?}: {:?}",
+            hits(line)
+        );
+    }
 }
 
 #[test]
@@ -224,17 +233,19 @@ fn the_three_ssws_paths_agree_on_a_token() {
             "{line:?}"
         );
     }
-    // A token that ends a sentence keeps its full stop out of the dot test.
-    for line in [
-        format!("SSWS: {letters}."),
-        format!("SSWS token\n\n{letters}."),
-        "ssws: fakeoktavalue.".to_string(),
+    // A token that ends a sentence keeps its full stop out of the dot test; a
+    // 41-character one is read with its stop, as before the dot test.
+    let short = &letters[..41];
+    for (line, span) in [
+        (format!("SSWS: {letters}."), format!("{letters}.")),
+        (format!("SSWS token\n\n{letters}."), format!("{letters}.")),
+        (format!("SSWS token\n\n{short}."), format!("{short}.")),
+        (
+            "ssws: fakeoktavalue.".to_string(),
+            "fakeoktavalue.".to_string(),
+        ),
     ] {
-        assert!(
-            hits(&line).iter().any(|hit| hit.starts_with(['F', 'f'])),
-            "{line:?}: {:?}",
-            hits(&line)
-        );
+        assert_eq!(hits(&line), vec![span.as_str()], "{line:?}");
     }
     // An 8–19-character token with no digit after `SSWS:`, in any case.
     for line in ["SSWS: abcdefgh", "ssws: abcdefgh", "Ssws: 'fakeoktavalue'"] {
@@ -249,6 +260,7 @@ fn the_three_ssws_paths_agree_on_a_token() {
         "SSWS: required",
         "SSWS: credentials",
         "SSWS: login.example.com",
+        "SSWS: login.example.com.",
         "SSWS token\n\n\n\n\nThisIsALongIdentifierName",
     ] {
         assert!(hits(line).is_empty(), "{line:?}: {:?}", hits(line));
