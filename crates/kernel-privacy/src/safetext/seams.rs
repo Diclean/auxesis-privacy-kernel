@@ -286,7 +286,7 @@ fn key_lines(text: &str, marks: &[Mark], seam: usize, back: bool, glued: bool) -
     };
     let frame = |value: &str| value.starts_with("----") || value.ends_with("----");
     let long = |value: &str| base64(value) && (value.len() >= 16 || value.ends_with('='));
-    let (mut lines, mut at, mut body) = (Vec::new(), seam, false);
+    let (mut lines, mut at, mut body, mut fresh) = (Vec::new(), seam, false, true);
     loop {
         let (far, parts, clear) = line_at(at);
         let (value, first, marked) = (clear.trim(), at == seam, parts.len() > 1);
@@ -295,9 +295,9 @@ fn key_lines(text: &str, marks: &[Mark], seam: usize, back: bool, glued: bool) -
         let next = (!edge && !bounded).then(|| line_at(if back { far - 1 } else { far + 1 }).2);
         let next = next.as_deref().map(str::trim);
         // A short line ends the key: before a frame, after a body line, or
-        // as the first line on from the key's mark (its cut-off last line).
+        // as the first line with text on from the key's mark (its cut-off last line).
         let short = base64(value) && !long(value);
-        let cut_off = first && !back && !glued;
+        let cut_off = fresh && !back && !glued;
         if short && (body || cut_off) && next.is_some_and(long) {
             return None;
         }
@@ -310,6 +310,7 @@ fn key_lines(text: &str, marks: &[Mark], seam: usize, back: bool, glued: bool) -
             return None;
         }
         body |= long(value) || marked || (first && glued);
+        fresh &= value.is_empty();
         lines.extend(parts);
         if frame(value) || edge {
             break;
