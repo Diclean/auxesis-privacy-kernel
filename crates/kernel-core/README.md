@@ -29,5 +29,5 @@ println!("{:?} may send in {:?} mode", grant.path(), grant.mode());
 
 ## Licence
 
-PolyForm-Noncommercial-1.0.0. See the repository `LICENSE`, `NOTICE` and
-`COMMERCIAL.md`.
+Apache-2.0. Free to use, including commercially. See the repository `LICENSE`
+and `NOTICE`.

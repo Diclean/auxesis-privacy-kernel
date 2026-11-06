@@ -16,7 +16,7 @@ default-members = ["crates/kernel-privacy"]
 version = "0.1.9"
 edition = "2021"
 authors = ["The Auxesis kernel authors"]
-license = "PolyForm-Noncommercial-1.0.0"
+license = "Apache-2.0"
 # The SPDX expression above is the licence cargo-deny and crates.io read. The
 # `license-file` line below adds the verbatim text to every published
 # package: cargo copies it into the .crate, so the terms travel with the

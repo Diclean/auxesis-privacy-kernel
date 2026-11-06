@@ -35,5 +35,5 @@ are in the repository.
 
 ## Licence
 
-PolyForm-Noncommercial-1.0.0, the workspace licence. The model is a separate
-work under its own licence (above).
+Apache-2.0, the workspace licence. Free to use, including commercially. The
+model is a separate work under its own licence (above).

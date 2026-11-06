@@ -393,7 +393,5 @@ The project is early. There is no stable API yet, and only `main` gets fixes.
 
 ## License
 
-**PolyForm Noncommercial 1.0.0.** Free for noncommercial use. Any commercial
-use needs a paid licence from the copyright holder — see
-[COMMERCIAL.md](COMMERCIAL.md). The full text is in [LICENSE](LICENSE) and the
-notices in [NOTICE](NOTICE).
+**Apache-2.0.** Free to use, including commercially. The full text is in
+[LICENSE](LICENSE) and the notices in [NOTICE](NOTICE).
