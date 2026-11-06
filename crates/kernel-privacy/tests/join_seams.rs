@@ -306,7 +306,8 @@ fn a_base64_table_cut_at_a_line_break_joins() {
         let [whole, _, joined] = split(&mut gate, &[head, tail]);
         assert_eq!(joined, whole, "{name}");
         let text = iban.repeat(10);
-        let (head, tail) = text.split_at(text.len() / 2 + 6);
+        let at = text.len() / 2 + text[text.len() / 2..].find("FR76").expect("row") + 9;
+        let (head, tail) = text.split_at(at);
         let [whole, _, joined] = split(&mut gate, &[head, tail]);
         let shown = shown_pieces(&text, &whole, &joined);
         assert!(
@@ -449,4 +450,33 @@ fn a_join_hides_all_that_main_hid_and_all_the_whole_text_hides() {
     }
     assert!(main.next().is_none(), "a main join per case");
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A table's secret cells after a seam, far from its header, stay hidden.
+#[test]
+fn a_secret_column_cut_far_from_its_header_stays_hidden() {
+    let rows = "0123456789abcdef,fedcba9876543210\n".repeat(50);
+    let (head, tail) = (format!("id,password\n{rows}"), rows.clone());
+    let text = format!("{head}{tail}");
+    for (name, mut gate) in gates() {
+        let [whole, _, joined] = split(&mut gate, &[&head, &tail]);
+        assert!(!whole.contains("fedcba"), "{name} {whole}");
+        let shown = shown_pieces(&text, &whole, &joined);
+        assert!(shown.is_empty(), "{name} {joined} {shown:?}");
+    }
+}
+
+/// A key body wrapped at 32 columns, under a label or a key's name, cut at a
+/// line break: no line of it shows (main withheld it).
+#[test]
+fn a_key_wrapped_at_32_columns_cut_at_a_line_break_stays_hidden() {
+    let line = "U1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF";
+    let body = [line; 12].join("\n");
+    for text in [format!("My key:\n{body}\n"), format!("secret: {body}\n")] {
+        let at = text.match_indices('\n').nth(6).expect("break").0 + 1;
+        for (name, mut gate) in gates() {
+            let [_, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+            assert!(!joined.contains(line), "{name} {joined}");
+        }
+    }
 }
