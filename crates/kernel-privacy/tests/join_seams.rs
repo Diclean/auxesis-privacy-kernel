@@ -3,10 +3,18 @@
 //! is the concatenation of its parts, byte for byte.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use kernel_core::privacy::PrivacyMode::{Open, Private};
 use kernel_core::privacy::{admit, Context, Decision, Destination, PathId};
 use kernel_privacy::{Gate, SafeText};
+
+mod timing {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../test-support/timing.rs"
+    ));
+}
 
 const WITHHELD: &str = "[auxesis: withheld]";
 
@@ -636,22 +644,137 @@ fn a_key_word_inside_a_word_or_prose_after_a_closed_table_joins() {
 }
 
 /// A join stays linear: a megabyte of delimited lines, an e-mail on each, in
-/// 1 KiB parts joins within the bound.
+/// 1 KiB parts costs at most 20 times what a tenth of it costs.
 #[test]
 fn a_megabyte_in_kibibyte_parts_joins_fast() {
     let line = "Room 12, budget; notes | write to ann@example.com today\n";
-    let text = line.repeat(1024 * 1024 / line.len());
     for (name, mut gate) in gates() {
-        let issued: Vec<SafeText> = text
-            .as_bytes()
-            .chunks(1024)
-            .map(|part| std::str::from_utf8(part).expect("ascii"))
-            .map(|part| gate.text(part).expect("issued").0)
-            .collect();
-        let started = std::time::Instant::now();
-        let joined = SafeText::join(issued);
-        let took = started.elapsed();
+        let mut issue = |bytes: usize| -> Vec<SafeText> {
+            let text = line.repeat(bytes / line.len());
+            let parts = text.as_bytes().chunks(1024);
+            let parts = parts.map(|part| std::str::from_utf8(part).expect("ascii"));
+            parts
+                .map(|part| gate.text(part).expect("issued").0)
+                .collect()
+        };
+        let (small, large) = (issue(100 * 1024), issue(1024 * 1024));
+        let joined = SafeText::join(large.clone());
         assert_ne!(joined.as_str(), WITHHELD, "{name}");
-        assert!(took.as_millis() < 1000, "{name} took {took:?}");
+        let (s, l) = timing::best_pair(|| join_time(&small), || join_time(&large));
+        assert!(
+            l <= s * 20 + Duration::from_millis(50),
+            "{name}: {s:?}, {l:?}"
+        );
+    }
+}
+
+/// The time of one join of `parts`, a copy of them made first.
+fn join_time(parts: &[SafeText]) -> Duration {
+    let parts = parts.to_vec();
+    let started = std::time::Instant::now();
+    let _ = SafeText::join(parts);
+    started.elapsed()
+}
+
+/// Rows of a secret table that grow one cell each to `bytes`
+/// (`"password",c1`, `"password",c1,c2`, …), a quote keeping each one open.
+fn growing_rows(bytes: usize) -> String {
+    let (mut text, mut row) = (String::new(), String::from("\"password\""));
+    while text.len() < bytes {
+        row.push_str(&format!(",c{}", row.len()));
+        text.push_str(&row);
+        text.push('\n');
+    }
+    text
+}
+
+/// A secret table of rows that each have a new width, cut in two: the join of
+/// a megabyte costs at most 20 times what a tenth of it costs.
+#[test]
+fn rows_of_ever_growing_width_join_in_linear_time() {
+    for (name, mut gate) in gates() {
+        let mut issue = |bytes: usize| -> Vec<SafeText> {
+            let text = growing_rows(bytes);
+            let at = text[..text.len() / 2].rfind('\n').expect("row") + 1;
+            let parts = [&text[..at], &text[at..]];
+            parts
+                .map(|part| gate.text(part).expect("issued").0)
+                .to_vec()
+        };
+        let (small, large) = (issue(100 * 1024), issue(1024 * 1024));
+        let (s, l) = timing::best_pair(|| join_time(&small), || join_time(&large));
+        assert!(
+            l <= s * 20 + Duration::from_millis(50),
+            "{name}: {s:?}, {l:?}"
+        );
+    }
+}
+
+/// A block of lines under a label the gate reads as a key's (`myapikey:`,
+/// `psk:`, `mot de passe:`), long or short lines, in three parts: no line the
+/// whole text hides shows. A label that only holds a key word (`monkey`) is
+/// never withheld, and joins as the concatenation where the gate hid nothing.
+#[test]
+fn a_block_under_any_key_label_the_gate_reads_stays_hidden_in_three_parts() {
+    const LABELS: [&str; 10] = [
+        "myapikey",
+        "dbapikey",
+        "psk",
+        "apikey",
+        "pass",
+        "pwd",
+        "mot de passe",
+        "monkey",
+        "tokenizer",
+        "keystore",
+    ];
+    // Upper hex with no IBAN country code in it (no B, D or E).
+    let hex = |n: u128| {
+        let hex = format!(
+            "{:032X}",
+            (n + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15_F39C_C060_5CED_C835)
+        );
+        hex.replace('B', "A").replace('D', "C").replace('E', "F")
+    };
+    let mut failures = Vec::new();
+    for len in [32, 12] {
+        let lines: Vec<String> = (0..100).map(|n| format!("  {}", &hex(n)[..len])).collect();
+        let first = lines[..50].join("\n") + "\n";
+        let second = lines[50..].join("\n") + "\n";
+        for label in LABELS {
+            let head = format!("{label}:\n");
+            let control = LABELS[7..].contains(&label);
+            for (name, mut gate) in gates() {
+                let [whole, concat, joined] = split(&mut gate, &[&head, &first, &second]);
+                let shown = lines
+                    .iter()
+                    .map(|line| line.trim())
+                    .filter(|line| !whole.contains(line) && joined.contains(line))
+                    .count();
+                // Where the gate hid nothing; a marker's stand-in may hide more.
+                let plain = whole == concat && !concat.contains(" removed]");
+                let changed = control && (joined == WITHHELD || plain && joined != concat);
+                if shown > 0 || changed {
+                    failures.push(format!("{name} {label} {len}: shows {shown} lines"));
+                }
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A quoted password cell over three lines, cut inside its second line: the
+/// whole text hides the record, so no piece of it shows.
+#[test]
+fn a_quoted_password_cell_over_lines_cut_inside_stays_hidden() {
+    let text = "id,password\n1,2,\"hunter2 fake\nsecond line\nmore\",3\n";
+    let at = text.find("second li").expect("cell") + "second li".len();
+    for (name, mut gate) in gates() {
+        let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+        let shown = shown_pieces(text, &whole, &joined);
+        assert!(
+            shown.is_empty(),
+            "{name}\n  whole  {whole}\n  joined {joined}"
+        );
     }
 }

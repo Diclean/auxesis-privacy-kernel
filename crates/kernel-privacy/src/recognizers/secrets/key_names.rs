@@ -265,6 +265,14 @@ pub(super) fn key_before(text: &str, sep: usize) -> Option<KeyClass> {
     class
 }
 
+/// Whether a label line ends with a separator after a key the gate reads as a
+/// secret's (`myapikey:`, `psk =`, `mot de passe :`), as [`key_before`] reads it.
+pub(crate) fn names_a_key(label: &str) -> bool {
+    let label = label.trim_end();
+    let sep = label.char_indices().next_back().map(|(at, _)| at);
+    sep.is_some_and(|at| separator_len(label, at).is_some() && key_before(label, at).is_some())
+}
+
 /// The most closing marks read between a key and its separator (`**password**:`).
 const MAX_KEY_MARKS: usize = 3;
 
