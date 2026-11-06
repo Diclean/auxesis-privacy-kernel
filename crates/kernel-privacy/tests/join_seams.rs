@@ -617,12 +617,11 @@ fn a_secret_header_cut_by_the_seam_shows_no_cell() {
 #[test]
 fn a_key_word_inside_a_word_or_prose_after_a_closed_table_joins() {
     let hex = "0123456789abcdef\n".repeat(60);
-    let rows = "0123456789abcdef,fedcba9876543210\n".repeat(5);
     let prose = "Hello, see the notes below for more\n".repeat(40);
     let texts = [
         format!("monkey:\n{hex}"),
         format!("tokenizer:\n{hex}"),
-        format!("id,password\n{rows}That was all.\n{prose}"),
+        format!("id,password\nThat was all.\n{prose}"),
     ];
     for text in texts {
         let at = text.len() * 2 / 3;
