@@ -446,7 +446,7 @@ mod tail;
 
 pub use self::code::CuedCodeRecognizer;
 pub use self::formats::value_too_long;
-pub(crate) use self::key_names::names_a_key;
+pub(crate) use self::key_names::{names_a_key, without_block_header};
 pub(super) use self::phrase::one_of;
 pub(crate) use self::tail::linked_clause_end;
 

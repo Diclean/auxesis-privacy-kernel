@@ -32,6 +32,18 @@ pub mod za;
 
 use crate::recognizer::Recognizer;
 
+/// Whether a label line names a secret under any of the gate's label tests:
+/// a key with a separator ([`secrets::names_a_key`]), a label alone on its
+/// line, or a prose key and a separator, a block-scalar header after it too.
+pub(crate) fn labels_a_secret(line: &str) -> bool {
+    let bare = secrets::without_block_header(line);
+    secrets::names_a_key(line)
+        || [Some(line), bare]
+            .into_iter()
+            .flatten()
+            .any(|line| secret_lines::is_label_line(line) || secret_prose::ends_with_key(line))
+}
+
 /// Every recogniser, in run order.
 pub fn default_recognizers() -> Vec<Box<dyn Recognizer>> {
     vec![

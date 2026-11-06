@@ -266,11 +266,24 @@ pub(super) fn key_before(text: &str, sep: usize) -> Option<KeyClass> {
 }
 
 /// Whether a label line ends with a separator after a key the gate reads as a
-/// secret's (`myapikey:`, `psk =`, `mot de passe :`), as [`key_before`] reads it.
+/// secret's (`myapikey:`, `psk =`, `mot de passe :`), as [`key_before`] reads it,
+/// a YAML block-scalar header after it too (`password: |-`, `apikey: >2`).
 pub(crate) fn names_a_key(label: &str) -> bool {
     let label = label.trim_end();
-    let sep = label.char_indices().next_back().map(|(at, _)| at);
-    sep.is_some_and(|at| separator_len(label, at).is_some() && key_before(label, at).is_some())
+    let names = |label: &str| {
+        let sep = label.char_indices().next_back().map(|(at, _)| at);
+        sep.is_some_and(|at| separator_len(label, at).is_some() && key_before(label, at).is_some())
+    };
+    names(label) || without_block_header(label).is_some_and(names)
+}
+
+/// A label line without the block-scalar header that ends it (`password: >`),
+/// trailing blanks taken out; `None` when no header ends it.
+pub(crate) fn without_block_header(label: &str) -> Option<&str> {
+    let label = label.trim_end();
+    let at = label.rfind([' ', '\t', ':', '=', '：'])?;
+    let at = at + label[at..].chars().next().map_or(0, char::len_utf8);
+    is_block_header(&label[at..]).then(|| label[..at].trim_end())
 }
 
 /// The most closing marks read between a key and its separator (`**password**:`).

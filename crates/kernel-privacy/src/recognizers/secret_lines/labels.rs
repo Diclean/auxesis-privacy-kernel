@@ -14,12 +14,23 @@ const MAX_LINE_WORDS: usize = 16;
 /// A label alone on its line (a bullet or a number before it allowed), then
 /// the line that holds its value.
 static LABEL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(concat!(
-        r"(?im)^[ \t]*(?:(?:[-*•‣◦·]|[0-9]{1,3}[.)])[ \t]+)?(passphrase|password|pin|api[ _-]?key|secret|mot de passe|",
-        r"phrase secr[èe]\x{300}?te)[ \t]*:?[ \t]*\r?\n([^\r\n]*)"
-    ))
-    .expect("label lines compile")
+    Regex::new(&format!(r"(?im){LABEL}\r?\n([^\r\n]*)")).expect("label lines compile")
 });
+
+/// A label alone on its line: a bullet or a number, a secret's name, a colon.
+const LABEL: &str = concat!(
+    r"^[ \t]*(?:(?:[-*•‣◦·]|[0-9]{1,3}[.)])[ \t]+)?(passphrase|password|pin|api[ _-]?key|secret|",
+    r"mot de passe|phrase secr[èe]\x{300}?te)[ \t]*:?[ \t]*"
+);
+
+/// [`LABEL`] as a whole line.
+static LABEL_LINE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"(?i){LABEL}\r?$")).expect("a label line compiles"));
+
+/// Whether `line` is a label [`labels`] reads the next line under.
+pub(crate) fn is_label_line(line: &str) -> bool {
+    line.len() <= 64 && LABEL_LINE_RE.is_match(line)
+}
 
 /// A passphrase key, then its words on the same line: in brackets or quotes, or
 /// to the line end (a colon optional) when they read as no sentence.

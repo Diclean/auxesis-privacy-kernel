@@ -20,6 +20,7 @@ mod scan;
 mod value;
 mod wifi;
 
+pub(crate) use keys::ends_with_key;
 pub(crate) use scan::prose_scan;
 
 #[cfg(test)]
