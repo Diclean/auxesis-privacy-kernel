@@ -51,15 +51,6 @@ pub(crate) fn heads_key_block(line: &str) -> bool {
         if lex::secret_key(&line[key.0..key.1]))
 }
 
-/// Whether `line` is an entry whose key holds a key, whatever its value
-/// (`seed_phrase: abc`, `pin: 1`): the ownership pass keys the deeper lines
-/// under it as its value's block (`layout.rs` `own()`), a superset of
-/// [`heads_key_block`]. One line, its key read at most 64 characters in.
-pub(crate) fn keys_a_block(line: &str) -> bool {
-    matches!(lex::shape(line, 0).1, Shape::Entry(_, _, key)
-        if lex::secret_key(&line[key.0..key.1]))
-}
-
 #[derive(Clone, Copy, PartialEq)]
 enum Kind {
     Empty,

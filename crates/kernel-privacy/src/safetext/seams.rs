@@ -16,8 +16,8 @@ use super::tokens::session_token_len;
 use crate::anonymize::{kind_of_token, PLACEHOLDER_OPEN};
 use crate::public_terms::{fold, PublicTerms};
 use crate::recognizer::span_is_well_formed;
+use crate::recognizers::labels_a_secret;
 use crate::recognizers::secrets::value_too_long;
-use crate::recognizers::{keys_a_block, labels_a_secret};
 use crate::span::{EntityKind, Span};
 
 /// A byte range of a text.
@@ -217,16 +217,14 @@ fn key_break(text: &str, marks: &[Mark], at: usize, framed: &dyn Fn() -> bool) -
 /// or of base64 or marks at any depth, however far. Each runs from the label
 /// line (past its first byte: a seam on it cuts the label or its header) to
 /// the end of its last line that is not blank. A label line inside a block
-/// opens a block of its own, never only extends the open one. A line is under
-/// the label by the gate's own rule (`secret_link/layout.rs` `own()`): unless
-/// its indent is a prefix of the label's, so a tab against spaces stays in
-/// the block. One pass; `work` counts the lines read.
+/// opens a block of its own, never only extends the open one. One pass;
+/// `work` counts the lines read.
 fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Marks {
     let (bytes, mut blocks, mut at) = (text.as_bytes(), Vec::new(), 0);
     // The open block: its label's depth, its start, the end of its last line,
     // and whether a line is under the label yet.
-    let mut open: Option<(&str, usize, usize, bool)> = None;
-    let mut close = |open: Option<(&str, usize, usize, bool)>| {
+    let mut open: Option<(usize, usize, usize, bool)> = None;
+    let mut close = |open: Option<(usize, usize, usize, bool)>| {
         blocks.extend(
             open.filter(|b| b.3 && b.1 < b.2)
                 .map(|(_, start, stop, _)| (start, stop)),
@@ -242,18 +240,13 @@ fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Mark
             .map_or(text.len(), |n| at + n);
         let end = next - usize::from(text[..next].ends_with('\r'));
         let line = &text[at..end];
-        let indent = &line[..line.len() - line.trim_start_matches([' ', '\t']).len()];
+        let depth = line.len() - line.trim_start_matches([' ', '\t']).len();
         let blank = line.trim().is_empty();
-        let (mut deep, mut held) = (indent, false);
+        let (mut deep, mut held) = (depth, false);
         if let Some((outer, start, _, _)) = open.filter(|_| !blank) {
-            if !outer.starts_with(indent) || block_line(text, marks, (at, end)) {
+            if depth > outer || block_line(text, marks, (at, end)) {
                 open = Some((outer, start, end, true));
-                // The blanks both indents start with: a line under either is under it.
-                let same = outer
-                    .bytes()
-                    .zip(indent.bytes())
-                    .take_while(|(a, b)| a == b);
-                (deep, held) = (&outer[..same.count()], true);
+                (deep, held) = (outer.min(depth), true);
             } else {
                 close(open.take());
             }
@@ -264,8 +257,8 @@ fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Mark
         let keyed = held && key_mark_line(text, marks, (at, end));
         if !blank && (keyed || label_line(text, marks, (at, end))) {
             // A label line always opens its own block: an open one ends with
-            // it (as it read it), and the new one reads on at the blanks both
-            // indents start with, so a block line it held stays in one. A seam
+            // it (as it read it), and the new one reads on at the shallower
+            // depth of the two, so a block line it held stays in one. A seam
             // on the label line past its first byte cuts the label or its
             // header: the part with the block does not read it whole.
             close(open.take());
@@ -283,9 +276,7 @@ fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Mark
 /// db one`, so a part shows only `dbapikey: ⟦…⟧`). Other marks are read as
 /// they stand, so a value before the label (`Contact ⟦…⟧ for the password:
 /// ⟦…⟧`, `Authorization: Bearer ⟦…⟧ password: ⟦…⟧`) still opens the block.
-/// An entry whose key holds a key, whatever its value (`seed_phrase: abc`),
-/// is one too: the gate owns the lines under it as its value's key block
-/// ([`keys_a_block`]). Three label reads at most, so a line stays linear.
+/// Three label reads at most, so a line stays linear.
 ///
 /// Since #114 only a long comment on the header no longer trips TooLong: the
 /// gate measures a commented header's block from the header on. A block over
@@ -299,7 +290,7 @@ fn label_line(text: &str, marks: &[Mark], (start, end): Mark) -> bool {
     once(&text[start..end])
         .chain(first.map(before))
         .chain(last.filter(|_| last != first).map(before))
-        .any(|label| labels_a_secret(label) || keys_a_block(label))
+        .any(labels_a_secret)
 }
 
 /// Whether `seam` is in one of the key `blocks` (its ends included): the
@@ -309,13 +300,18 @@ fn in_key_block(blocks: &[Mark], seam: usize) -> bool {
     blocks.get(at).is_some_and(|block| block.0 <= seam)
 }
 
-/// Whether `text[start..end]` holds a key mark, whatever text is around it:
-/// a part read alone may take a label line whole, or a label and what
-/// follows it, as the value of the label above it. Every such line in a block
-/// opens its own, which only ever hides more (the open block ends with it).
+/// Whether `text[start..end]` holds a key mark and only marks and blanks.
 fn key_mark_line(text: &str, marks: &[Mark], (start, end): Mark) -> bool {
-    marks_in(marks, (start, end))
-        .any(|(from, to)| from < to && kind(&text[from..to]) == Some(EntityKind::Secret))
+    let (mut at, mut key) = (start, false);
+    for (from, to) in marks_in(marks, (start, end)) {
+        let from = from.clamp(at, end);
+        if !text[at..from].trim().is_empty() {
+            return false;
+        }
+        key |= from < to && kind(&text[from..to]) == Some(EntityKind::Secret);
+        at = to.clamp(from, end);
+    }
+    key
 }
 
 /// Whether `text[start..end]` is a line of a key block: base64 once its marks
@@ -837,39 +833,6 @@ mod tests {
     fn a_label_line_under_an_open_block_opens_its_own() {
         for label in ["password", "[secret removed]"] {
             label_line_under_an_open_block(label);
-        }
-    }
-
-    /// A key mark with clear text after it (`[secret removed]tail`, a label
-    /// line a part took whole with what follows it) opens its own block too.
-    #[test]
-    fn a_key_mark_with_a_tail_under_an_open_block_opens_its_own() {
-        label_line_under_an_open_block("[secret removed]tail");
-    }
-
-    /// A tab line under a space-indented label is under it, as the gate's
-    /// ownership pass reads it, and so is a line past it: every seam from the
-    /// label's second byte to the end is in the block.
-    #[test]
-    fn a_tab_line_under_a_space_indented_label_stays_in_its_block() {
-        let text = "    seed_phrase: |\n\t\tHunter2!\n      zzzz-wwww-yyyy\n";
-        let blocks = key_blocks(text, &[], text.len(), &mut 0);
-        for seam in 1..text.len() {
-            assert!(in_key_block(&blocks, seam), "{seam}: {blocks:?}");
-        }
-    }
-
-    /// An entry whose key holds a key, a value after it, heads the block of
-    /// deeper lines under it.
-    #[test]
-    fn a_key_entry_with_a_value_heads_a_block() {
-        for label in ["seed_phrase: abc", "pin: 1"] {
-            let text = format!("{label}\n{}aaaa-bbbb\nThat was all.\n", " ".repeat(100));
-            let blocks = key_blocks(&text, &[], text.len(), &mut 0);
-            let (from, to) = (label.len() + 1, text.find("\nThat").expect("end"));
-            for seam in from..=to {
-                assert!(in_key_block(&blocks, seam), "{label} {seam}: {blocks:?}");
-            }
         }
     }
 
