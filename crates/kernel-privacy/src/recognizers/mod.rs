@@ -34,13 +34,10 @@ use crate::recognizer::Recognizer;
 
 /// Whether a label line names a secret under any of the gate's label tests:
 /// a key with a separator ([`secrets::names_a_key`]), a label alone on its
-/// line, or a prose key and a separator, a block-scalar header after it too,
-/// and every block header the link scanner hides a block under
-/// ([`secret_link::heads_key_block`]: `seed_phrase: |`, `code: |`, `pw: |`).
+/// line, or a prose key and a separator, a block-scalar header after it too.
 pub(crate) fn labels_a_secret(line: &str) -> bool {
     let bare = secrets::without_block_header(line);
     secrets::names_a_key(line)
-        || secret_link::heads_key_block(line)
         || [Some(line), bare]
             .into_iter()
             .flatten()
