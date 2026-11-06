@@ -278,9 +278,25 @@ pub(crate) fn names_a_key(label: &str) -> bool {
 }
 
 /// A label line without the block-scalar header that ends it (`password: >`),
-/// trailing blanks taken out; `None` when no header ends it.
+/// trailing blanks taken out, a YAML comment after the header too
+/// (`password: | # db`: from the first `#` after a blank, as YAML reads it);
+/// `None` when no header ends it.
 pub(crate) fn without_block_header(label: &str) -> Option<&str> {
     let label = label.trim_end();
+    header_cut(label).or_else(|| without_comment(label).and_then(header_cut))
+}
+
+/// `text` before its YAML comment (the first `#` after a blank), trailing
+/// blanks taken out; `None` with no comment.
+pub(super) fn without_comment(text: &str) -> Option<&str> {
+    let (at, _) = text
+        .match_indices('#')
+        .find(|&(at, _)| text[..at].ends_with([' ', '\t']))?;
+    Some(text[..at].trim_end())
+}
+
+/// `label` without the block-scalar header that ends it, or `None`.
+fn header_cut(label: &str) -> Option<&str> {
     let at = label.rfind([' ', '\t', ':', '=', '：'])?;
     let at = at + label[at..].chars().next().map_or(0, char::len_utf8);
     is_block_header(&label[at..]).then(|| label[..at].trim_end())
@@ -342,6 +358,12 @@ pub(super) fn separator_len(text: &str, at: usize) -> Option<usize> {
     } else {
         None
     }
+}
+
+/// Whether a value is a block-scalar header with a YAML comment after it
+/// (`| # db`), as the gate and the join both read it.
+pub(super) fn is_commented_block_header(value: &str) -> bool {
+    without_comment(value).is_some_and(is_block_header)
 }
 
 /// Whether a value is a YAML block-scalar header: `|` or `>`, then `-`, `+` or digits.

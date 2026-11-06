@@ -804,7 +804,14 @@ fn shown_lines(lines: &[String], whole: &str, joined: &str) -> Vec<String> {
 /// under `monkey: |` or `tokenizer: >` joins as the concatenation.
 #[test]
 fn a_block_scalar_under_a_key_label_stays_hidden_in_three_parts() {
-    let labels = ["dbapikey: |", "password: >", "password: |-", "apikey: >2"];
+    let labels = [
+        "dbapikey: |",
+        "password: >",
+        "password: |-",
+        "apikey: >2",
+        "dbapikey: | # the db one",
+        "myapikey: >-\t# rotated",
+    ];
     let controls = ["monkey: |", "tokenizer: >"];
     let lines: Vec<String> = (0..100).map(|n| format!("  {}", hex(n, 12))).collect();
     let first = lines[..50].join("\n") + "\n";
@@ -910,5 +917,71 @@ fn a_quoted_cell_holds_its_table_only_to_the_prose_after_it() {
         let [_, concat, joined] = split(&mut gate, &[&text[..prose], &text[prose..]]);
         assert_ne!(joined, WITHHELD, "{name}");
         assert_eq!(joined, concat, "{name}");
+    }
+}
+
+/// A quoted password cell whose lines hold blank lines and prose, cut in it,
+/// on its blank line or in its prose: no piece the whole text hides shows, in
+/// both gates. A cell may hold blank lines, so the table holds to the line
+/// that closes it (JOIN-SEAM-6 fix 1). LF and CRLF.
+#[test]
+fn a_quoted_cell_with_blank_lines_stays_hidden_wherever_it_is_cut() {
+    let one = "id,password,note\n1,\"hunter2 fake\nsecond line\n\nprose here\nmore\",3";
+    let two = "id,password,note\n1,\"hunter2 fake\nsecond line\n\n\nprose here\nmore\",3";
+    let open = "id,password,note\n1,\"hunter2 fake\nsecond line\n\nprose here\nmore";
+    let after = |text: &str, cut: &str| text.find(cut).expect("cut") + cut.len();
+    let mut cases: Vec<(String, usize)> = Vec::new();
+    for text in [one.to_string(), one.replace('\n', "\r\n")] {
+        cases.push((text.clone(), after(&text, "second li")));
+        cases.push((text.clone(), after(&text, "prose he")));
+        let blank = text.find("line\n\n").or(text.find("line\r\n\r\n"));
+        let line = blank.expect("blank") + "line".len();
+        let blank = line + text[line..].find('\n').expect("break") + 1;
+        let close = blank + text[blank..].find('\n').expect("break");
+        for at in [blank, close, close + 1] {
+            if !cases.contains(&(text.clone(), at)) {
+                cases.push((text.clone(), at));
+            }
+        }
+    }
+    for text in [two, open] {
+        cases.push((text.to_string(), after(text, "second li")));
+        cases.push((text.to_string(), after(text, "prose he")));
+    }
+    let mut failures = Vec::new();
+    for (text, at) in &cases {
+        for (name, mut gate) in gates() {
+            let [whole, _, joined] = split(&mut gate, &[&text[..*at], &text[*at..]]);
+            let shown = shown_pieces(text, &whole, &joined);
+            if !shown.is_empty() {
+                failures.push(format!(
+                    "{name} {text:?} at {at}: shows {shown:?}\n  whole  {whole:?}\n  joined {joined:?}"
+                ));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A quoted password cell that never closes, then prose, cut in the prose: the
+/// join reads the prose as the whole text does. The hold ends at the prose only
+/// because the table pass ends a table at a row with no delimiter; if it kept
+/// the table, the whole would hide the prose and this test fails.
+#[test]
+fn prose_after_a_broken_quoted_row_joins_as_the_whole_reads_it() {
+    let text = format!(
+        "id,password,note\n1,\"hunter2 fake\nsecond line\n{}",
+        "The quarterly review covers budgets and hiring.\n".repeat(4)
+    );
+    let at = text.rfind("budgets").expect("prose");
+    for (name, mut gate) in gates() {
+        let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+        assert!(whole.contains("The quarterly review"), "{name} {whole:?}");
+        assert!(!whole.contains("hunter2"), "{name} {whole:?}");
+        assert_eq!(
+            clear_words(&joined),
+            clear_words(&whole),
+            "{name}\n  whole  {whole:?}\n  joined {joined:?}"
+        );
     }
 }

@@ -97,6 +97,22 @@ pub fn all_recognizers() -> Vec<Box<dyn Recognizer>> {
 mod tests {
     use super::*;
 
+    /// A YAML comment after a block-scalar header keeps the label a key's.
+    #[test]
+    fn a_block_header_with_a_comment_still_labels_a_secret() {
+        for label in [
+            "password: | # the db one",
+            "dbapikey: >-\t# rotated",
+            "myapikey: |2 #",
+        ] {
+            assert!(secrets::names_a_key(label), "{label}");
+            assert!(labels_a_secret(label), "{label}");
+        }
+        for label in ["monkey: | # x", "tokenizer: > # y", "password: |x # z"] {
+            assert!(!secrets::names_a_key(label), "{label}");
+        }
+    }
+
     #[test]
     fn default_set_mounts_every_rule() {
         let default: Vec<&'static str> = default_recognizers()
