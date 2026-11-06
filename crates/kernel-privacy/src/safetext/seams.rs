@@ -769,4 +769,27 @@ mod tests {
         assert!(work <= text.lines().count() + 1, "{work} lines read");
         assert!(seams.iter().all(|&seam| in_key_block(&blocks, seam)));
     }
+
+    /// A label line with another mark before the key's (`Pay [iban removed]
+    /// for the password: [secret removed]`, or a bearer token's key mark
+    /// first): its block opens, and a seam on a block line is in it.
+    #[test]
+    fn a_label_line_with_another_mark_before_the_key_opens_its_block() {
+        for label in [
+            "Pay [iban removed] for the password: [secret removed]",
+            "Authorization: Bearer [secret removed] password: [secret removed]",
+        ] {
+            let text = format!("{label}\n  aaaa-bbbb\n  cccc-dddd\nThat was all.\n");
+            let marks: Vec<_> = ["[iban removed]", "[secret removed]"]
+                .iter()
+                .flat_map(|mark| text.match_indices(mark))
+                .map(|(at, mark)| (at, at + mark.len()))
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect();
+            let seam = text.find("cccc").expect("seam");
+            let blocks = key_blocks(&text, &marks, text.len(), &mut 0);
+            assert!(in_key_block(&blocks, seam), "{label}: {blocks:?}");
+        }
+    }
 }
