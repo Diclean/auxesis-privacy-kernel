@@ -2,6 +2,8 @@
 //! hidden wherever the whole text hides it, and a join that finds nothing new
 //! is the concatenation of its parts, byte for byte.
 
+use std::collections::HashMap;
+
 use kernel_core::privacy::PrivacyMode::{Open, Private};
 use kernel_core::privacy::{admit, Context, Decision, Destination, PathId};
 use kernel_privacy::{Gate, SafeText};
@@ -305,6 +307,9 @@ fn a_base64_table_cut_at_a_line_break_joins() {
         let (head, tail) = table.split_at(table.len() / 2);
         let [whole, _, joined] = split(&mut gate, &[head, tail]);
         assert_eq!(joined, whole, "{name}");
+        let ruled = format!("----\n{head}");
+        let [whole, _, joined] = split(&mut gate, &[&ruled, tail]);
+        assert_eq!(joined, whole, "{name} under a rule");
         let text = iban.repeat(10);
         let at = text.len() / 2 + text[text.len() / 2..].find("FR76").expect("row") + 9;
         let (head, tail) = text.split_at(at);
@@ -347,79 +352,96 @@ fn corpus() -> Vec<Vec<String>> {
         let at = key.rfind("QUJD").expect("last line") - 1;
         corpus.push(vec![key[..at].to_string(), key[at..].to_string()]);
     }
+    // Tables cut in half: hex lines, a rule above them, a secret column.
+    let (hex, rows) = ("0123456789abcdef\n".repeat(50), "0123456789abcdef,fedcba9876543210\n".repeat(50));
+    for (head, tail) in [(hex.clone(), hex.clone()), (format!("----\n{hex}"), hex)] {
+        corpus.push(vec![head, tail]);
+    }
+    corpus.push(vec![format!("id,password\n{rows}"), rows]);
     corpus
 }
 
-/// Main's join (9376e38) of each corpus case, Private then Open, a line
-/// each, its tokens shortened to `⟦⟧`.
-const MAIN_JOINS: &str = "the password: [secret removed]
-password: [secret removed]
-password: [secret removed]
-password: ⟦⟧[value removed] [secret removed]
-Authorization: Bearer [secret removed]
-my card is [card removed]
-my card is ⟦⟧[id removed]
-[value removed] ⟦⟧⟦⟧ ok
-[value removed] ⟦⟧⟦⟧ ok
-call [value removed]
-Le patient a le ⟦⟧ [health removed].
-Le patient a un ⟦⟧ [health removed].
-Le patient a la ⟦⟧[value removed]
-Le patient a le ⟦⟧ [health removed].
-Send it to ⟦⟧[address removed] ⟦⟧ today.
-Écrire au ⟦⟧[value removed] ⟦⟧.
-See ⟦⟧[value removed] now.
-See www.example.org/page?id=42&ref=mail now.
-mail ⟦⟧[value removed] now.
-My key is [value removed]⟦⟧[value removed]
-Passport [value removed]⟦⟧
-Company number [id removed]
-Adószám: ⟦⟧
-VAT reg no: [value removed] ⟦⟧
-password: ⟦⟧ [secret removed]
-password: ⟦⟧  [secret removed]
-Send it to ⟦⟧ today at noon.
-Meeting With Jean Dupont At ⟦⟧
-Meet at ⟦⟧ Thanks Jean.
-Write to ⟦⟧ Lyon today.
-Write to ⟦⟧ Lille.
-Ship to ⟦⟧ [address removed]
-My key: ⟦⟧ [secret removed] [secret removed]
-My key: ⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧ [secret removed] (That was all.)
-the password: [secret removed]
-password: [secret removed]
-password: [secret removed]
-password: [secret removed][value removed] [secret removed]
-Authorization: Bearer [secret removed]
-my card is [card removed]
-my card is 4000 0012 3456-7899-1234
-[value removed] [iban removed][id removed] ok
-[value removed] [iban removed][value removed] [value removed] ok
-call +33 6 12 34 56 78
-Le patient a le [health removed] [health removed].
-Le patient a un [health removed] [health removed].
-Le patient a la [health removed][value removed]
-Le patient a le [health removed] [health removed].
-Send it to [address removed][address removed] [address removed] today.
-Écrire au [address removed][value removed] [address removed].
-See https://example.com/private/page now.
-See www.example.org/page?id=42&ref=mail now.
-mail alice@example.com.fake.com now.
-My key is [secret removed].
-Passport [value removed][id removed]
-Company number [id removed]
-Adószám: [id removed]
-VAT reg no: [id removed]
-password: [secret removed] [secret removed]
-password: [secret removed]  [secret removed]
-Send it to [address removed] today at noon.
-Meeting With Jean Dupont At [address removed]
-Meet at [address removed] Thanks Jean.
-Write to [address removed] Lyon today.
-Write to [address removed] Lille.
-Ship to [address removed] [address removed]
-My key: [secret removed] [secret removed] [secret removed]
-My key: [secret removed] [secret removed] (That was all.)";
+/// A corpus case's name in [`MAIN_JOINS`]: the mode, the seam and the text's start.
+fn case(name: &str, parts: &[&str]) -> String {
+    let start: String = parts.concat().chars().take(32).collect();
+    format!("{name} {} {}", parts[0].len(), start.replace('\n', "⏎"))
+}
+
+/// Main's join (9376e38) of each corpus case, by its [`case`] name, tokens as `⟦⟧`.
+const MAIN_JOINS: &str = "Private 16 the password: hunter2 => the password: [secret removed]
+Private 4 password: hunter2 ok => password: [secret removed]
+Private 4 password: Fake-Pass-42 => password: [secret removed]
+Private 22 password: Fake-Pass-42Bonjour to => password: ⟦⟧[value removed] [secret removed]
+Private 6 Authorization: Bearer FakeToken1 => Authorization: Bearer [secret removed]
+Private 20 my card is 4000 0012 3456 7899 => my card is [card removed]
+Private 27 my card is 4000 0012 3456-7899-1 => my card is ⟦⟧[id removed]
+Private 21 IBAN FR76 3000 6000 0112 3456 78 => [value removed] ⟦⟧⟦⟧ ok
+Private 18 IBAN GB82 WEST 1234 5698 7654 32 => [value removed] ⟦⟧⟦⟧ ok
+Private 13 call +33 6 12 34 56 78 => call [value removed]
+Private 23 Le patient a le cancer du sein. => Le patient a le ⟦⟧ [health removed].
+Private 28 Le patient a un cancer du colon. => Le patient a un ⟦⟧ [health removed].
+Private 29 Le patient a la maladie de Crohn => Le patient a la ⟦⟧[value removed]
+Private 33 Le patient a le diabète de type  => Le patient a le ⟦⟧ [health removed].
+Private 37 Send it to 10 Downing Street, Lo => Send it to ⟦⟧[address removed] ⟦⟧ today.
+Private 25 Écrire au 12 rue de la Paix, 750 => Écrire au ⟦⟧[value removed] ⟦⟧.
+Private 27 See https://example.com/private/ => See ⟦⟧[value removed] now.
+Private 25 See www.example.org/page?id=42&r => See www.example.org/page?id=42&ref=mail now.
+Private 24 mail alice@example.com.fake.com  => mail ⟦⟧[value removed] now.
+Private 11 My key is sk-proj-Fake0123456789 => My key is [value removed]⟦⟧[value removed]
+Private 19 Passport P<GBRDOE<JOHN<<<<<<<<<< => Passport [value removed]⟦⟧
+Private 15 Company number 12345678 => Company number [id removed]
+Private 11 Adószám: 12345678-2-42 => Adószám: ⟦⟧
+Private 15 VAT reg no: GB 123 4567 89 => VAT reg no: [value removed] ⟦⟧
+Private 17 password: hunter2⏎Thanks a lot,  => password: ⟦⟧ [secret removed]
+Private 18 password: hunter2 ⏎see you at no => password: ⟦⟧  [secret removed]
+Private 28 Send it to 10 Downing Street tod => Send it to ⟦⟧ today at noon.
+Private 27 Meeting With Jean Dupont At 10 D => Meeting With Jean Dupont At ⟦⟧
+Private 25 Meet at 10 Downing Street Thanks => Meet at ⟦⟧ Thanks Jean.
+Private 26 Write to 12 rue de la Paix Lyon  => Write to ⟦⟧ Lyon today.
+Private 26 Write to 12 rue de la Paix Lille => Write to ⟦⟧ Lille.
+Private 21 Ship to 5 High Street Uber Orang => Ship to ⟦⟧ [address removed]
+Private 230 My key:⏎-----BEGIN PRIVATE KEY-- => My key: ⟦⟧ [secret removed] [secret removed]
+Private 787 My key:⏎MIIEvQIBADANRkFLRSBLRVkg => My key: ⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧ [secret removed] (That was all.)
+Private 850 0123456789abcdef⏎0123456789abcde => ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef 
+Private 855 ----⏎0123456789abcdef⏎0123456789 => ---- ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef 
+Private 1712 id,password⏎0123456789abcdef,fed => id,password ⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧ ⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba9876543210 
+Open 16 the password: hunter2 => the password: [secret removed]
+Open 4 password: hunter2 ok => password: [secret removed]
+Open 4 password: Fake-Pass-42 => password: [secret removed]
+Open 22 password: Fake-Pass-42Bonjour to => password: [secret removed][value removed] [secret removed]
+Open 6 Authorization: Bearer FakeToken1 => Authorization: Bearer [secret removed]
+Open 20 my card is 4000 0012 3456 7899 => my card is [card removed]
+Open 27 my card is 4000 0012 3456-7899-1 => my card is 4000 0012 3456-7899-1234
+Open 21 IBAN FR76 3000 6000 0112 3456 78 => [value removed] [iban removed][id removed] ok
+Open 18 IBAN GB82 WEST 1234 5698 7654 32 => [value removed] [iban removed][value removed] [value removed] ok
+Open 13 call +33 6 12 34 56 78 => call +33 6 12 34 56 78
+Open 23 Le patient a le cancer du sein. => Le patient a le [health removed] [health removed].
+Open 28 Le patient a un cancer du colon. => Le patient a un [health removed] [health removed].
+Open 29 Le patient a la maladie de Crohn => Le patient a la [health removed][value removed]
+Open 33 Le patient a le diabète de type  => Le patient a le [health removed] [health removed].
+Open 37 Send it to 10 Downing Street, Lo => Send it to [address removed][address removed] [address removed] today.
+Open 25 Écrire au 12 rue de la Paix, 750 => Écrire au [address removed][value removed] [address removed].
+Open 27 See https://example.com/private/ => See https://example.com/private/page now.
+Open 25 See www.example.org/page?id=42&r => See www.example.org/page?id=42&ref=mail now.
+Open 24 mail alice@example.com.fake.com  => mail alice@example.com.fake.com now.
+Open 11 My key is sk-proj-Fake0123456789 => My key is [secret removed].
+Open 19 Passport P<GBRDOE<JOHN<<<<<<<<<< => Passport [value removed][id removed]
+Open 15 Company number 12345678 => Company number [id removed]
+Open 11 Adószám: 12345678-2-42 => Adószám: [id removed]
+Open 15 VAT reg no: GB 123 4567 89 => VAT reg no: [id removed]
+Open 17 password: hunter2⏎Thanks a lot,  => password: [secret removed] [secret removed]
+Open 18 password: hunter2 ⏎see you at no => password: [secret removed]  [secret removed]
+Open 28 Send it to 10 Downing Street tod => Send it to [address removed] today at noon.
+Open 27 Meeting With Jean Dupont At 10 D => Meeting With Jean Dupont At [address removed]
+Open 25 Meet at 10 Downing Street Thanks => Meet at [address removed] Thanks Jean.
+Open 26 Write to 12 rue de la Paix Lyon  => Write to [address removed] Lyon today.
+Open 26 Write to 12 rue de la Paix Lille => Write to [address removed] Lille.
+Open 21 Ship to 5 High Street Uber Orang => Ship to [address removed] [address removed]
+Open 230 My key:⏎-----BEGIN PRIVATE KEY-- => My key: [secret removed] [secret removed] [secret removed]
+Open 787 My key:⏎MIIEvQIBADANRkFLRSBLRVkg => My key: [secret removed] [secret removed] (That was all.)
+Open 850 0123456789abcdef⏎0123456789abcde => [auxesis: withheld]
+Open 855 ----⏎0123456789abcdef⏎0123456789 => [auxesis: withheld]
+Open 1712 id,password⏎0123456789abcdef,fed => [auxesis: withheld]";
 
 /// The words `joined` shows past those `main` shows, counted.
 fn past(main: &str, joined: &str) -> Vec<String> {
@@ -434,12 +456,23 @@ fn past(main: &str, joined: &str) -> Vec<String> {
 
 #[test]
 fn a_join_hides_all_that_main_hid_and_all_the_whole_text_hides() {
-    let (mut main, mut failures) = (MAIN_JOINS.lines(), Vec::new());
+    let main: HashMap<&str, &str> = MAIN_JOINS
+        .lines()
+        .filter_map(|line| line.split_once(" => "))
+        .collect();
+    let (mut seen, mut failures) = (Vec::new(), Vec::new());
     for (name, mut gate) in gates() {
         for parts in corpus() {
             let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
             let [whole, _, joined] = split(&mut gate, &parts);
-            let past = past(main.next().expect("a main join per case"), &joined);
+            let case = case(name, &parts);
+            // Where main withheld, the join need only hide what the whole text hides.
+            let past = match main.get(case.as_str()) {
+                Some(&WITHHELD) => Vec::new(),
+                Some(main) => past(main, &joined),
+                None => vec![format!("no main join for {case}")],
+            };
+            seen.push(case);
             let shown = shown_pieces(&parts.concat(), &whole, &joined);
             if !past.is_empty() || !shown.is_empty() {
                 failures.push(format!(
@@ -448,7 +481,9 @@ fn a_join_hides_all_that_main_hid_and_all_the_whole_text_hides() {
             }
         }
     }
-    assert!(main.next().is_none(), "a main join per case");
+    seen.sort_unstable();
+    seen.dedup();
+    assert_eq!((seen.len(), main.len()), (main.len(), main.len()), "a main join per case");
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
@@ -467,13 +502,14 @@ fn a_secret_column_cut_far_from_its_header_stays_hidden() {
 }
 
 /// A key body wrapped at 32 columns, under a label or a key's name, cut at a
-/// line break: no line of it shows (main withheld it).
+/// line break: no line of it shows. Main withheld it once the body runs past
+/// the widest window (80 lines); a shorter one it read whole, as the gate does.
 #[test]
 fn a_key_wrapped_at_32_columns_cut_at_a_line_break_stays_hidden() {
     let line = "U1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF";
-    let body = [line; 12].join("\n");
+    let body = [line; 80].join("\n");
     for text in [format!("My key:\n{body}\n"), format!("secret: {body}\n")] {
-        let at = text.match_indices('\n').nth(6).expect("break").0 + 1;
+        let at = text.match_indices('\n').nth(40).expect("break").0 + 1;
         for (name, mut gate) in gates() {
             let [_, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
             assert!(!joined.contains(line), "{name} {joined}");
