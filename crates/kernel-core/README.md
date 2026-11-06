@@ -12,7 +12,7 @@ cannot run without a policy decision.
 
 ```toml
 [dependencies]
-auxesis-kernel-core = "0.1.6"
+auxesis-kernel-core = "0.1.7"
 ```
 
 The package is `auxesis-kernel-core`; the library name stays `kernel_core`.
