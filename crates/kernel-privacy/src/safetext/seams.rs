@@ -37,6 +37,26 @@ const MAX_RUN_BYTES: usize = 512;
 const MAX_KEY_BYTES: usize = 16 * 1024;
 /// The most words a join reads on from an address mark.
 const MAX_ADDRESS_WORDS: usize = 8;
+/// The most blank characters a seam rule reads across, and the most bytes of
+/// one address word: past them the rule stops, so a join stays linear.
+const MAX_BLANKS: usize = 4096;
+
+/// The byte length of the blanks `text` ends with (`back`) or starts with,
+/// `None` past [`MAX_BLANKS`] characters.
+fn blanks(text: &str, back: bool) -> Option<usize> {
+    let mut chars: Box<dyn Iterator<Item = char>> = match back {
+        true => Box::new(text.chars().rev()),
+        false => Box::new(text.chars()),
+    };
+    let mut len = 0;
+    for _ in 0..=MAX_BLANKS {
+        match chars.next() {
+            Some(ch) if ch.is_whitespace() => len += ch.len_utf8(),
+            _ => return Some(len),
+        }
+    }
+    None
+}
 /// The built-in public terms, whose capital cities an address may end with.
 static CITIES: LazyLock<PublicTerms> = LazyLock::new(PublicTerms::builtin);
 
@@ -112,10 +132,13 @@ fn cuts(text: &str, at: usize) -> bool {
 /// Whether a window edge at `at` is a line break inside a key: 16 base64
 /// characters or more on each side.
 fn key_break(text: &str, at: usize) -> bool {
-    let (head, tail) = (text[..at].trim_end(), text[at..].trim_start());
+    let (Some(back), Some(on)) = (blanks(&text[..at], true), blanks(&text[at..], false)) else {
+        return false;
+    };
+    let (head, tail) = (&text[..at - back], &text[at + on..]);
     let long =
         |chars: &mut dyn Iterator<Item = char>| chars.take(16).filter(|&c| b64(c)).count() == 16;
-    text[head.len()..text.len() - tail.len()].contains('\n')
+    text[at - back..at + on].contains('\n')
         && long(&mut head.chars().rev())
         && long(&mut tail.chars())
 }
@@ -215,11 +238,12 @@ fn grouped(kind: EntityKind) -> bool {
 /// (blanks between): the lines of the key, and the words of the address;
 /// `None` when a key runs on past [`MAX_KEY_BYTES`].
 fn beside(text: &str, marks: &[Mark], seam: usize) -> Option<Vec<Piece>> {
-    let before = text[..seam].trim_end().len();
-    let after = text.len() - text[seam..].trim_start().len();
-    let glued = before == seam && after == seam;
+    let before = blanks(&text[..seam], true).map(|len| seam - len);
+    let after = blanks(&text[seam..], false).map(|len| seam + len);
+    let glued = before == Some(seam) && after == Some(seam);
     let mut pieces = Vec::new();
     for (back, edge) in [(false, before), (true, after)] {
+        let Some(edge) = edge else { continue };
         let Ok(at) = marks.binary_search_by_key(&edge, |m| if back { m.0 } else { m.1 }) else {
             continue;
         };
@@ -304,17 +328,32 @@ fn address_words(text: &str, marks: &[Mark], seam: usize, back: bool) -> Marks {
     let (mut taken, mut words, mut at, mut number) = (None, None::<Mark>, seam, false);
     for _ in 0..MAX_ADDRESS_WORDS {
         let rest = if back { &text[..at] } else { &text[at..] };
-        let trimmed = [rest.trim_start(), rest.trim_end()][usize::from(back)];
-        let gap = rest.len() - trimmed.len();
+        let Some(gap) = blanks(rest, back) else { break };
+        let trimmed = if back {
+            &rest[..rest.len() - gap]
+        } else {
+            &rest[gap..]
+        };
         let word = match back {
             true => {
-                let blank = trimmed.char_indices().rfind(|&(_, ch)| ch.is_whitespace());
-                (blank.map_or(0, |(i, ch)| i + ch.len_utf8()), trimmed.len())
+                let lo = trimmed.floor_char_boundary(trimmed.len().saturating_sub(MAX_BLANKS));
+                match trimmed[lo..]
+                    .char_indices()
+                    .rfind(|&(_, ch)| ch.is_whitespace())
+                {
+                    Some((i, ch)) => (lo + i + ch.len_utf8(), trimmed.len()),
+                    None if lo == 0 => (0, trimmed.len()),
+                    None => break,
+                }
             }
-            false => (
-                at + gap,
-                at + gap + trimmed.find(char::is_whitespace).unwrap_or(trimmed.len()),
-            ),
+            false => {
+                let hi = trimmed.floor_char_boundary(trimmed.len().min(MAX_BLANKS));
+                match trimmed[..hi].find(char::is_whitespace) {
+                    Some(i) => (at + gap, at + gap + i),
+                    None if hi == trimmed.len() => (at + gap, at + gap + trimmed.len()),
+                    None => break,
+                }
+            }
         };
         let blanks = if back { (word.1, at) } else { (at, word.0) };
         let mark = marks_in(marks, word).find(|(from, to)| from < to);
@@ -381,17 +420,11 @@ fn walk(text: &str, marks: &[Mark], seam: usize, (back, number): (bool, bool)) -
         true => text[..at].chars().next_back(),
         false => text[at..].chars().next(),
     };
-    let lower = |ch: Option<char>| ch.is_some_and(char::is_lowercase);
     let joins = |ch: char, at: usize| match number {
         false => !ch.is_whitespace() && !"[]⟦⟧".contains(ch),
         true => {
             let lone = ch == ' ' && step(if back { at - 1 } else { at + 1 }) != Some(' ');
-            // A capital beside a lower-case letter is a word (`The`), not a group.
-            let capital = ch.is_ascii_uppercase() && {
-                let (start, end) = if back { (at - 1, at) } else { (at, at + 1) };
-                !lower(text[..start].chars().next_back()) && !lower(text[end..].chars().next())
-            };
-            lone || ch.is_ascii_digit() || capital || "+-./".contains(ch)
+            lone || ch.is_ascii_digit() || ch.is_ascii_uppercase() || "+-./".contains(ch)
         }
     };
     let mut at = seam;

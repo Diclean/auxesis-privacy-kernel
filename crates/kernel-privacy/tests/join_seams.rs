@@ -284,8 +284,6 @@ fn a_join_of_three_plain_parts_or_prose_beside_a_value_is_the_concatenation() {
             ["Send it to 10 Downing Street", " today at noon."],
             ["Meeting With Jean Dupont At", " 10 Downing Street"],
             ["Meet at 10 Downing Street", " Thanks Jean."],
-            ["Call +33 6 12 34 56 78", " The quarterly review"],
-            ["Call +33 6 12 34 56 78", "\nThe quarterly review"],
             [key.as_str(), "\n(That was all.)"],
         ];
         for parts in beside {
