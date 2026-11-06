@@ -363,7 +363,16 @@ pub(super) fn separator_len(text: &str, at: usize) -> Option<usize> {
 /// Whether a value is a block-scalar header with a YAML comment after it
 /// (`| # db`), as the gate and the join both read it.
 pub(super) fn is_commented_block_header(value: &str) -> bool {
-    without_comment(value).is_some_and(is_block_header)
+    // The same reading as `without_comment(value).is_some_and(is_block_header)`,
+    // bounded: a header is at most 4 bytes, so its blank is among the first 5
+    // and only the blanks after it are read, never the rest of a long line
+    // (called once per value, a whole-line scan would be quadratic).
+    let bytes = value.as_bytes();
+    let Some(at) = bytes.iter().take(5).position(|b| matches!(b, b' ' | b'\t')) else {
+        return false;
+    };
+    let after = value[at..].trim_start_matches([' ', '\t']);
+    is_block_header(&value[..at]) && after.starts_with('#')
 }
 
 /// Whether a value is a YAML block-scalar header: `|` or `>`, then `-`, `+` or digits.
@@ -372,4 +381,39 @@ pub(super) fn is_block_header(value: &str) -> bool {
     value.len() <= 4
         && matches!(chars.next(), Some('|' | '>'))
         && chars.all(|ch| matches!(ch, '-' | '+' | '0'..='9'))
+}
+
+#[cfg(test)]
+mod commented_header_tests {
+    use super::*;
+
+    /// The bounded reading agrees with the comment-cut reading it replaces.
+    #[test]
+    fn a_commented_header_reads_as_the_comment_cut_does() {
+        for value in [
+            "| # db",
+            ">- # x",
+            "|2+\t# y",
+            "> #",
+            "|#x",
+            "| x # y",
+            "| ",
+            "|-x # y",
+            "#",
+            "",
+            "\"x\" # y",
+            ">12345 # y",
+            "|  \t # y",
+        ] {
+            let old = without_comment(value).is_some_and(is_block_header);
+            assert_eq!(is_commented_block_header(value), old, "{value:?}");
+        }
+    }
+
+    /// A long line with no header is rejected without reading past its head.
+    #[test]
+    fn a_long_line_is_not_a_commented_header() {
+        let line = "(\"apikey\":\"x\",) ".repeat(10_000) + "# y";
+        assert!(!is_commented_block_header(&line));
+    }
 }
