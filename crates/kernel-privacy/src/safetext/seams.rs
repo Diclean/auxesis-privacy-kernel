@@ -242,16 +242,20 @@ fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Mark
         let line = &text[at..end];
         let depth = line.len() - line.trim_start_matches([' ', '\t']).len();
         let blank = line.trim().is_empty();
-        let mut deep = depth;
+        let (mut deep, mut held) = (depth, false);
         if let Some((outer, start, _, _)) = open.filter(|_| !blank) {
             if depth > outer || block_line(text, marks, (at, end)) {
                 open = Some((outer, start, end, true));
-                deep = outer.min(depth);
+                (deep, held) = (outer.min(depth), true);
             } else {
                 close(open.take());
             }
         }
-        if !blank && label_line(text, marks, (at, end)) {
+        // A part read alone may take a label line whole as the value of the
+        // label above it (`password` under `… the password: hunter2`): in a
+        // block, a line of a key mark alone may be a label line too.
+        let keyed = held && key_mark_line(text, marks, (at, end));
+        if !blank && (keyed || label_line(text, marks, (at, end))) {
             // A label line always opens its own block: an open one ends with
             // it (as it read it), and the new one reads on at the shallower
             // depth of the two, so a block line it held stays in one. A seam
@@ -294,6 +298,20 @@ fn label_line(text: &str, marks: &[Mark], (start, end): Mark) -> bool {
 fn in_key_block(blocks: &[Mark], seam: usize) -> bool {
     let at = blocks.partition_point(|block| block.1 < seam);
     blocks.get(at).is_some_and(|block| block.0 <= seam)
+}
+
+/// Whether `text[start..end]` holds a key mark and only marks and blanks.
+fn key_mark_line(text: &str, marks: &[Mark], (start, end): Mark) -> bool {
+    let (mut at, mut key) = (start, false);
+    for (from, to) in marks_in(marks, (start, end)) {
+        let from = from.clamp(at, end);
+        if !text[at..from].trim().is_empty() {
+            return false;
+        }
+        key |= from < to && kind(&text[from..to]) == Some(EntityKind::Secret);
+        at = to.clamp(from, end);
+    }
+    key
 }
 
 /// Whether `text[start..end]` is a line of a key block: base64 once its marks
@@ -808,14 +826,21 @@ mod tests {
     }
 
     /// A label line under an open block (`password` under a deeper label
-    /// line) opens its own block: the shallower line under it is in one, at
-    /// every byte, and so is the label line itself.
+    /// line, or that line as a part alone hid it, a key mark) opens its own
+    /// block: the shallower line under it is in one, at every byte, and so is
+    /// the label line itself.
     #[test]
     fn a_label_line_under_an_open_block_opens_its_own() {
+        for label in ["password", "[secret removed]"] {
+            label_line_under_an_open_block(label);
+        }
+    }
+
+    fn label_line_under_an_open_block(label: &str) {
         let first = "Contact [email removed] for the password: [secret removed]";
         let value = "zzzz-wwww-yyyy-xxxx";
         let text = format!(
-            "{}{first}\npassword\n{}{value}\n",
+            "{}{first}\n{label}\n{}{value}\n",
             " ".repeat(100),
             " ".repeat(60)
         );
@@ -827,7 +852,7 @@ mod tests {
             .into_iter()
             .collect();
         let blocks = key_blocks(&text, &marks, text.len(), &mut 0);
-        let from = text.find("\npassword").expect("label") + 1;
+        let from = text.find(&format!("\n{label}")).expect("label") + 1;
         let to = text.find(value).expect("value") + value.len();
         for seam in from..=to {
             assert!(in_key_block(&blocks, seam), "{seam}: {blocks:?}");
