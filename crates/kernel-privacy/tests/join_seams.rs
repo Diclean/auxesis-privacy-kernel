@@ -536,3 +536,28 @@ fn a_secret_table_cut_right_under_its_header_stays_hidden() {
         }
     }
 }
+
+/// A padded table (`, ` cells) cut far below its header, past 16 KiB: the
+/// rows after the seam stay hidden, as the cells hidden before it say.
+#[test]
+fn a_padded_secret_table_cut_far_below_its_header_stays_hidden() {
+    for delim in [", ", " ; ", "\t", " | "] {
+        let row = |n: usize| format!("{n}{delim}fedcba9876543210\n");
+        let head = format!(
+            "id{delim}password\n{}",
+            (0..900).map(row).collect::<String>()
+        );
+        let tail: String = (900..1000).map(row).collect();
+        let text = format!("{head}{tail}");
+        for (name, mut gate) in gates() {
+            let [whole, _, joined] = split(&mut gate, &[&head, &tail]);
+            assert!(!whole.contains("fedcba"), "{name} {delim:?} whole");
+            let shown = shown_pieces(&text, &whole, &joined);
+            assert!(
+                shown.is_empty(),
+                "{name} {delim:?} shown={}",
+                joined.matches("fedcba").count()
+            );
+        }
+    }
+}

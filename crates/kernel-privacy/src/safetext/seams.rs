@@ -218,7 +218,11 @@ fn in_secret_table(text: &str, marks: &[Mark], seam: usize) -> bool {
     let from = text[lo..seam].rfind('\n').map_or(lo, |i| lo + i);
     let to = text[seam..hi].find('\n').map_or(hi, |i| seam + i);
     let cell = |(start, end): Mark| {
-        let beside = text[..start].ends_with(CELLS) || text[end..].starts_with(CELLS);
+        // A padded or quoted cell (`, "…" ,`) is still beside its delimiter.
+        let pad = |ch: char| ch == ' ' || ch == '"' || ch == '\'';
+        let before = text[..start].trim_end_matches(pad);
+        let after = text[end..].trim_start_matches(pad);
+        let beside = before.ends_with(CELLS) || after.starts_with(CELLS);
         beside && kind(&text[start..end]) == Some(EntityKind::Secret)
     };
     if !text[from..to].contains(CELLS) {
