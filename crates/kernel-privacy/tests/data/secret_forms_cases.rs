@@ -16,6 +16,7 @@ const B64: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345678
 const B58: &str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const B32: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const DIGITS: &str = "0123456789";
+const LETTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const CRYPT: &str = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const AZURE: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_~.-";
 
@@ -552,6 +553,30 @@ pub fn positives() -> Vec<Case> {
         c("kv02-s4", "Ssws:\u{a0}{}", &format!("00{}", k(ALNUM, 40, 1125))),
         c("kv02-s4", "htpasswd -b site.db \"alice smith\" \"{}\"", "my pass word"),
         c("kv02-s4", "htpasswd -b site.db 'alice smith' {}", "S3cretPass"),
+        // KV02-SECRETS-5 (follow-up of #101): a plain password that ends the command
+        // after a quoted user, and an Okta token with no digit (42 characters),
+        // after four or more line breaks, or of 8 to 19 characters after `SSWS:`.
+        c("kv02-s5", "htpasswd -b site.db \"alice smith\" {}", "correcthorse"),
+        c("kv02-s5", "htpasswd -bB site.db 'alice smith' {} && nginx -s reload", "batterystaple"),
+        c("kv02-s5", "htpasswd -nb \"alice smith\" {}", "correcthorse"),
+        c("kv02-s5", "SSWS: {}", &fake(LETTERS, 42, 1201)),
+        c("kv02-s5", "ssws: {}", &fake(LETTERS, 42, 1202).to_ascii_lowercase()),
+        c("kv02-s5", "SSWS token\n\n{}", &fake(LETTERS, 42, 1203)),
+        c("kv02-s5", "SSWS token {}", &fake(LETTERS, 42, 1204)),
+        c("kv02-s5", "ssws {}", &fake(LETTERS, 42, 1205).to_ascii_lowercase()),
+        c("kv02-s5", "SSWS token\n\n\n\n{}", &format!("00{}", k(ALNUM, 40, 1206))),
+        c("kv02-s5", "ssws header:\n\n\n\n\n\n  {}", &format!("00{}", k(ALNUM, 40, 1207))),
+        c("kv02-s5", "SSWS: {}", "00Fake9Okta"),
+        c("kv02-s5", "SSWS: '{}'", "FakeOktaValue"),
+        // KV02-SECRETS-5 round 2 (seals of #104): a redirect with an fd, a comment
+        // and a line continuation after the password; `SSWS:` in any case.
+        c("kv02-s6", "htpasswd -b site.db \"alice smith\" {} 2>/dev/null", "correcthorse"),
+        c("kv02-s6", "htpasswd -b site.db \"alice smith\" {} 2>&1", "correcthorse"),
+        c("kv02-s6", "htpasswd -b site.db \"alice smith\" {} # rotate", "correcthorse"),
+        c("kv02-s6", "htpasswd -b site.db \"alice smith\" {} \\\n  && reload", "correcthorse"),
+        c("kv02-s6", "ssws: {}", "fakeoktavalue"),
+        c("kv02-s6", "Ssws: {}", "fakeoktavalue"),
+        c("kv02-s6", "SSWS token\n\n\n\n\n\n\n{}", &format!("00{}", k(ALNUM, 40, 1301))),
     ]
 }
 
@@ -689,6 +714,12 @@ pub fn negatives() -> Vec<String> {
         "Our ssws implementation\nchanged",
         "SSWS token\n\nThisIsALongIdentifierName",
         "htpasswd -iB -r 5000 users.db kim reads stdin",
+        // KV02-SECRETS-5: listed words after `SSWS:`, and a long identifier after
+        // many blank lines.
+        "SSWS: required",
+        "SSWS: credentials",
+        "SSWS: login.example.com",
+        "SSWS token\n\n\n\n\nThisIsALongIdentifierName",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()
 }

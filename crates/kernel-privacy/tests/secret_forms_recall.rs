@@ -13,6 +13,8 @@
 //! file and any flags, and keeps `SSWS` before one ordinary word clear.
 //! KV02-SECRETS-4 (`kv02-s4`) adds an `SSWS` token after a blank line, in lower
 //! case or after a no-break space, and htpasswd quoting and long rounds.
+//! KV02-SECRETS-5 (`kv02-s5`) adds a plain htpasswd password after a quoted
+//! user and `SSWS` tokens with no digit, after more blank lines or after `SSWS:`.
 
 use std::collections::BTreeMap;
 

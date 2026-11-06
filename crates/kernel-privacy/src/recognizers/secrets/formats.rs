@@ -232,11 +232,14 @@ enum Keep {
     /// As [`WithFile`](Keep::WithFile), with the quoted-user rule of
     /// [`NoFileQuoting`](Keep::NoFileQuoting).
     WithFileQuoting,
+    /// A value after `SSWS:` in any case: an [`OktaToken`](Keep::OktaToken), or a
+    /// value with no dot that is not a listed word.
+    ColonToken,
 }
 
 use Keep::{
-    CaseFreeCredential, Credential, NoFile, NoFileQuoting, NotPlaceholder, OktaToken, WithFile,
-    WithFileQuoting,
+    CaseFreeCredential, ColonToken, Credential, NoFile, NoFileQuoting, NotPlaceholder, OktaToken,
+    WithFile, WithFileQuoting,
 };
 
 /// The value shapes whose value must also pass its [`Keep`].
@@ -253,6 +256,10 @@ const CHECKED_SHAPES: &[(&str, usize, Keep)] = &[
     (r#"(?i:\bSSWS)[ \t\u{A0}\u{2009}\u{202F}]+["']?([A-Za-z0-9._~+/=:\-]+)"#, 8, CaseFreeCredential),
     (r#"(?i:\bSSWS)(?:[ \t\u{A0}\u{2009}\u{202F}]+(?i:authentication|authorization|credentials?|headers?|prefix|scheme|tokens?|auth)\b)+[ \t\u{A0}\u{2009}\u{202F}]*[:=]?(?:[ \t\u{A0}\u{2009}\u{202F}]*\r?\n){0,3}[ \t\u{A0}\u{2009}\u{202F}]*["']?([A-Za-z0-9._~+/=\-]+)"#, 20, OktaToken),
     (r#"(?i:\bSSWS)[ \t\u{A0}\u{2009}\u{202F}]*:(?:[ \t\u{A0}\u{2009}\u{202F}]*\r?\n){0,3}[ \t\u{A0}\u{2009}\u{202F}]*["']?([A-Za-z0-9._~+/=\-]+)"#, 20, OktaToken),
+    // KV02-SECRETS-5, beside the two above: up to seven line breaks, and an `SSWS:`
+    // value of 8 characters or more, the bare rule's minimum.
+    (r#"(?i:\bSSWS)(?:[ \t\u{A0}\u{2009}\u{202F}]+(?i:authentication|authorization|credentials?|headers?|prefix|scheme|tokens?|auth)\b)+[ \t\u{A0}\u{2009}\u{202F}]*[:=]?(?:[ \t\u{A0}\u{2009}\u{202F}]*\r?\n){0,7}[ \t\u{A0}\u{2009}\u{202F}]*["']?([A-Za-z0-9._~+/=\-]+)"#, 20, OktaToken),
+    (r#"(?i:\bSSWS)[ \t\u{A0}\u{2009}\u{202F}]*:(?:[ \t\u{A0}\u{2009}\u{202F}]*\r?\n){0,7}[ \t\u{A0}\u{2009}\u{202F}]*["']?([A-Za-z0-9._~+/=\-]+)"#, 8, ColonToken),
     // `htpasswd -nb user password`.
     (r"\bhtpasswd(?:[ \t]+-[a-zA-Z]+(?:[ \t]+[0-9]{1,2})?)+[ \t]+[^\s\-]\S*[ \t]+(\S+)", 4, NoFile),
     // `htpasswd -nb user password` and `htpasswd -b file user password`: flags
@@ -324,9 +331,20 @@ fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
         CaseFreeCredential => {
             let blank = |ch: char| ch.is_whitespace() || ch == '"' || ch == '\'';
             let capitals = head.trim_end_matches(blank).ends_with("SSWS");
-            keeps(Credential, text, start, value) && (capitals || is_secret_shaped(found))
+            keeps(Credential, text, start, value)
+                && (capitals || is_secret_shaped(found) || found.len() == OKTA_TOKEN_LEN)
         }
-        OktaToken => found.bytes().any(|b| b.is_ascii_digit()),
+        OktaToken => {
+            // A sentence's full stop after the token is not part of it.
+            let found = found.strip_suffix('.').unwrap_or(found);
+            found.bytes().any(|b| b.is_ascii_digit()) || found.len() == OKTA_TOKEN_LEN
+        }
+        ColonToken => {
+            // The colon makes the value an assignment in any case; a host name
+            // (`login.example.com`) holds a dot, which no Okta token does.
+            let found = found.strip_suffix('.').unwrap_or(found);
+            keeps(OktaToken, text, start, value) || (!is_ssws_word(found) && !found.contains('.'))
+        }
         NotPlaceholder => !is_placeholder(found),
         NoFile => {
             let flags = htpasswd_flags(head);
@@ -336,16 +354,37 @@ fn keeps(keep: Keep, text: &str, start: usize, value: Match) -> bool {
             let flags = htpasswd_flags(head);
             !flags.contains(['n', 'i']) && flags.contains(['b', 'B'])
         }
-        NoFileQuoting => keeps(NoFile, text, start, value) && fits_user(head, found),
-        WithFileQuoting => keeps(WithFile, text, start, value) && fits_user(head, found),
+        NoFileQuoting => {
+            keeps(NoFile, text, start, value) && fits_user(head, found, rest(text, value))
+        }
+        WithFileQuoting => {
+            keeps(WithFile, text, start, value) && fits_user(head, found, rest(text, value))
+        }
     }
 }
 
+/// The length of an Okta API token: one of 42 characters is a token even with no
+/// digit in it.
+const OKTA_TOKEN_LEN: usize = 42;
+
+/// The rest of the line after `value`.
+fn rest<'t>(text: &'t str, value: Match) -> &'t str {
+    text[value.end()..].split('\n').next().unwrap_or_default()
+}
+
 /// Whether an `htpasswd` password fits its user: a quoted user (`"alice smith"`)
-/// takes only a quoted or secret-shaped password, so `"alice smith" then` is prose.
-fn fits_user(head: &str, found: &str) -> bool {
+/// takes a quoted or secret-shaped password, or the last word of the command (the
+/// line ends, or a shell operator, a redirect, a `#` comment or a `\` follows),
+/// so `"alice smith" then restart` is prose.
+fn fits_user(head: &str, found: &str, rest: &str) -> bool {
     let quote = ['"', '\''];
-    !head.trim_end().ends_with(quote) || found.starts_with(quote) || is_secret_shaped(found)
+    let after = rest.trim_start();
+    let redirect = after.as_bytes().get(1).is_some_and(|b| b"<>".contains(b))
+        && after.starts_with(|ch: char| ch.is_ascii_digit());
+    let last = after.is_empty()
+        || redirect
+        || after.starts_with(['&', '|', ';', '>', '<', ')', '`', '#', '\\']);
+    !head.trim_end().ends_with(quote) || found.starts_with(quote) || is_secret_shaped(found) || last
 }
 
 /// Whether a token follows a header value that ends at `end`: the next word on

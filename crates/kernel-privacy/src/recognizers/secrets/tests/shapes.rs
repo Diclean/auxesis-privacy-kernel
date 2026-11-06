@@ -179,3 +179,78 @@ fn a_quoted_htpasswd_user_takes_only_a_quoted_or_secret_shaped_password() {
         assert!(hits(&line).contains(&password), "{line}: {:?}", hits(&line));
     }
 }
+
+#[test]
+fn a_quoted_htpasswd_user_takes_a_plain_password_that_ends_the_command() {
+    for line in [
+        "htpasswd -b site.db \"alice smith\" correcthorse",
+        "htpasswd -b site.db \"alice smith\" correcthorse\r\nnext",
+        "htpasswd -bB site.db 'alice smith' correcthorse && nginx -s reload",
+        "htpasswd -b site.db \"alice smith\" correcthorse > /dev/null",
+        "htpasswd -b site.db \"alice smith\" correcthorse 2>/dev/null",
+        "htpasswd -b site.db \"alice smith\" correcthorse 2>&1",
+        "htpasswd -b site.db \"alice smith\" correcthorse # rotate",
+        "htpasswd -b site.db \"alice smith\" correcthorse \\\n  && reload",
+    ] {
+        assert!(
+            hits(line).contains(&"correcthorse"),
+            "{line:?}: {:?}",
+            hits(line)
+        );
+    }
+    // A word with more prose after it stays clear, as on main.
+    let line = "htpasswd -b site.db \"alice smith\" then restart";
+    assert!(
+        clear_of(line).ends_with(" then restart"),
+        "{:?}",
+        hits(line)
+    );
+}
+
+#[test]
+fn the_three_ssws_paths_agree_on_a_token() {
+    let letters = "FakeOktaTokenLettersOnlyNoDigitsAbcdEfGhIj";
+    assert_eq!(letters.len(), 42);
+    for frame in [
+        "SSWS: {}",
+        "ssws: {}",
+        "SSWS token\n\n{}",
+        "ssws header:\n\n\n\n{}",
+        "ssws {}",
+    ] {
+        let line = frame.replace("{}", &letters.to_ascii_lowercase());
+        assert!(
+            hits(&line).contains(&letters.to_ascii_lowercase().as_str()),
+            "{line:?}"
+        );
+    }
+    // A token that ends a sentence keeps its full stop out of the dot test.
+    for line in [
+        format!("SSWS: {letters}."),
+        format!("SSWS token\n\n{letters}."),
+        "ssws: fakeoktavalue.".to_string(),
+    ] {
+        assert!(
+            hits(&line).iter().any(|hit| hit.starts_with(['F', 'f'])),
+            "{line:?}: {:?}",
+            hits(&line)
+        );
+    }
+    // An 8–19-character token with no digit after `SSWS:`, in any case.
+    for line in ["SSWS: abcdefgh", "ssws: abcdefgh", "Ssws: 'fakeoktavalue'"] {
+        let value = line
+            .rsplit(' ')
+            .next()
+            .unwrap_or_default()
+            .trim_matches('\'');
+        assert!(hits(line).contains(&value), "{line:?}: {:?}", hits(line));
+    }
+    for line in [
+        "SSWS: required",
+        "SSWS: credentials",
+        "SSWS: login.example.com",
+        "SSWS token\n\n\n\n\nThisIsALongIdentifierName",
+    ] {
+        assert!(hits(line).is_empty(), "{line:?}: {:?}", hits(line));
+    }
+}
