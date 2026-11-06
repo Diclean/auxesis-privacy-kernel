@@ -25,7 +25,8 @@ pub fn stop_path(home: &Path) -> PathBuf {
 /// True when the switch is engaged.
 ///
 /// Uses `symlink_metadata` so a dangling symlink at the marker path still
-/// counts as engaged (fail safe).
+/// counts as engaged (fail safe). Any error other than "not found" while
+/// checking the marker also counts as engaged.
 pub fn is_stopped(home: &Path) -> bool {
     // Read the marker through the verified home handle when
     // this process has one (fail-safe on any error: a home we cannot verify
@@ -35,7 +36,13 @@ pub fn is_stopped(home: &Path) -> bool {
             .exists_no_follow(Path::new(STOP_FILE))
             .unwrap_or(true);
     }
-    std::fs::symlink_metadata(stop_path(home)).is_ok()
+    // Fail closed: only a marker that is really absent (NotFound, which
+    // includes a missing home on first run) reads as running. Any other
+    // error (EACCES, EIO, ENOTDIR, ...) means we cannot tell, so stopped.
+    match std::fs::symlink_metadata(stop_path(home)) {
+        Ok(_) => true,
+        Err(err) => err.kind() != std::io::ErrorKind::NotFound,
+    }
 }
 
 /// Engage the kill switch, creating the home directory when needed.
@@ -133,6 +140,46 @@ mod tests {
         // Releasing removes the link itself, never the target.
         assert!(release(&home).unwrap());
         assert!(!is_stopped(&home));
+    }
+
+    #[test]
+    fn an_unreadable_marker_path_reads_as_stopped() {
+        // ENOTDIR: the home is a regular file, so `<home>/STOP` cannot be
+        // checked. No verified home is registered, so this is the path
+        // fallback; it must fail closed. Root gets ENOTDIR too.
+        let dir = tempdir().unwrap();
+        let home = dir.path().join("home");
+        std::fs::write(&home, b"not a directory").unwrap();
+
+        assert!(
+            is_stopped(&home),
+            "fail safe: an unreadable marker means engaged"
+        );
+    }
+
+    #[test]
+    fn a_missing_home_reads_as_not_stopped() {
+        // First run: neither the home nor its parent exists yet.
+        let dir = tempdir().unwrap();
+        assert!(!is_stopped(&dir.path().join("absent/home")));
+    }
+
+    #[test]
+    fn the_verified_handle_path_is_unchanged() {
+        let dir = tempdir().unwrap();
+        let home = dir.path().join("home");
+        crate::paths::ensure_home(&home).unwrap();
+        assert!(crate::paths::verified_home_for(&home).is_ok());
+
+        assert!(!is_stopped(&home));
+        std::fs::write(stop_path(&home), b"x").unwrap();
+        assert!(is_stopped(&home));
+        std::fs::remove_file(stop_path(&home)).unwrap();
+        assert!(!is_stopped(&home));
+
+        // A registered home that can no longer be verified reads as stopped.
+        std::fs::remove_dir(&home).unwrap();
+        assert!(is_stopped(&home));
     }
 
     #[test]

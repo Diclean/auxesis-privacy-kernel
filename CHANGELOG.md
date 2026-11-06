@@ -6,6 +6,12 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The kill switch now counts as engaged when the kernel cannot check for the
+  `STOP` file, for example after a permission or disk error. Only a file that
+  is really missing, including on a first run, reads as not stopped.
+
 ## [0.1.9] - 2026-11-06
 
 ### Changed
