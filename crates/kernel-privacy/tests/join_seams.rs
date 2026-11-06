@@ -1198,12 +1198,23 @@ fn a_block_under_any_header_the_gate_hides_stays_hidden_when_cut_inside() {
 /// space-indented label (its indent is no prefix of the label's), so the join
 /// reads it in the block too. Cut at every byte, both gates: the whole hides
 /// both lines (not vacuous), and the join withholds them or shows no run of
-/// four characters of either.
+/// four characters of either. The second value has a blank in it, so a cut
+/// there leaves no clear text glued to the part's mark.
 #[test]
 fn a_block_of_tab_and_space_lines_stays_hidden_at_every_cut() {
-    let (tabbed, value) = ("Hunter2!", "zzzz-wwww-yyyy-x4xx-aaaa-bbbb-cccc-dddd");
-    let text = format!("    seed_phrase: |\n\t\t{tabbed}\n      {value}\n");
+    let tabbed = "Hunter2!";
     let mut failures = Vec::new();
+    for value in [
+        "zzzz-wwww-yyyy-x4xx-aaaa-bbbb-cccc-dddd",
+        "zzzz-wwww-yyyy-x4xx aaaa-bbbb-cccc-dddd",
+    ] {
+        let text = format!("    seed_phrase: |\n\t\t{tabbed}\n      {value}\n");
+        tab_block_cuts(&text, (tabbed, value), &mut failures);
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+fn tab_block_cuts(text: &str, (tabbed, value): (&str, &str), failures: &mut Vec<String>) {
     for (name, mut gate) in gates() {
         for at in (1..text.len()).filter(|&at| text.is_char_boundary(at)) {
             let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
@@ -1215,7 +1226,6 @@ fn a_block_of_tab_and_space_lines_stays_hidden_at_every_cut() {
             }
         }
     }
-    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 /// A block under an entry whose key holds a key, whatever its value
