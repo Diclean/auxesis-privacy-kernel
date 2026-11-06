@@ -16,7 +16,8 @@ use super::tokens::session_token_len;
 use crate::anonymize::{kind_of_token, PLACEHOLDER_OPEN};
 use crate::public_terms::{fold, PublicTerms};
 use crate::recognizer::span_is_well_formed;
-use crate::recognizers::secrets::{names_a_key, value_too_long};
+use crate::recognizers::labels_a_secret;
+use crate::recognizers::secrets::value_too_long;
 use crate::span::{EntityKind, Span};
 
 /// A byte range of a text.
@@ -101,6 +102,7 @@ pub(super) fn mend(
     let last = seams.iter().copied().max().unwrap_or(0);
     let tables = crate::recognizers::secret_table_lines(text, last, marks);
     let cells = secret_cells(text, marks);
+    let blocks = key_blocks(text, marks, last, &mut 0);
     for &seam in seams {
         let framed = LazyCell::new(|| framed(text, seam));
         let read = [1, 4, 16]
@@ -118,7 +120,7 @@ pub(super) fn mend(
                 read(text, marks, at, (policy, scan), &mut pieces)
             })
             .find(|read| *read != Some(false));
-        if in_secret_table(text, (&tables, &cells), seam) || in_key_block(text, marks, seam) {
+        if in_secret_table(text, (&tables, &cells), seam) || in_key_block(&blocks, seam) {
             return (WITHHELD.to_string(), vec![(0, WITHHELD.len())]);
         }
         let (run, more) = (run(text, marks, seam), beside(text, marks, seam));
@@ -204,48 +206,78 @@ fn key_break(text: &str, marks: &[Mark], at: usize, framed: &dyn Fn() -> bool) -
         }
         end = start - 1;
     };
-    let named = words(label).iter().any(|word| key_word(word)) || names_a_key(label);
+    let named = words(label).iter().any(|word| key_word(word)) || labels_a_secret(label);
     wide || named || marks_in(marks, (from, to)).any(secret) || framed()
 }
 
-/// Whether `seam` is in a block under a label the gate reads as a key's
-/// (`myapikey:`, `psk:`, `mot de passe:`): the line it cuts or starts is a
-/// line of base64 or of marks, and so is each line above it, blank lines too,
-/// up to the label, within 16 KiB. The whole text hides the block, lines of
-/// any length, and a part read alone does not see the label.
-fn in_key_block(text: &str, marks: &[Mark], seam: usize) -> bool {
-    let lo = text.floor_char_boundary(seam.saturating_sub(MAX_KEY_BYTES));
-    let hi = text.floor_char_boundary(text.len().min(seam + MAX_KEY_BYTES));
-    let start = text[lo..seam].rfind('\n').map_or(lo, |i| lo + i + 1);
-    let end = text[seam..hi].find('\n').map_or(hi, |i| seam + i);
-    if !block_line(text, marks, (start, end)) {
-        return false;
-    }
-    let mut end = start;
-    while end > lo {
-        end -= 1;
-        let start = text[lo..end].rfind('\n').map_or(lo, |i| lo + i + 1);
-        let line = &text[start..end];
-        if !(line.trim().is_empty() || block_line(text, marks, (start, end))) {
-            return marks_in(marks, (start, end)).all(|(from, to)| from == to) && names_a_key(line);
+/// The key blocks of `text` to the line holding `last`: under a label line
+/// the gate reads as a secret's (`myapikey:`, `pin:`, `password: |`), with no
+/// mark on it, the lines that are blank, indented deeper than the label (the
+/// block the gate hides) or of base64 or marks at any depth, however far. Each
+/// runs from the label's line end to the end of its last line that is not
+/// blank. One pass; `work` counts the lines read.
+fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Marks {
+    let (bytes, mut blocks, mut at) = (text.as_bytes(), Vec::new(), 0);
+    // The open block: its label's depth, its start, the end of its last line.
+    let mut open: Option<(usize, usize, usize)> = None;
+    let mut close = |open: Option<(usize, usize, usize)>| {
+        blocks.extend(
+            open.filter(|b| b.1 < b.2)
+                .map(|(_, start, stop)| (start, stop)),
+        );
+    };
+    while at <= last.min(text.len()) {
+        *work += 1;
+        let next = bytes[at..]
+            .iter()
+            .position(|&b| b == b'\n')
+            .map_or(text.len(), |n| at + n);
+        let end = next - usize::from(text[..next].ends_with('\r'));
+        let line = &text[at..end];
+        let depth = line.len() - line.trim_start_matches([' ', '\t']).len();
+        let blank = line.trim().is_empty();
+        if let Some((deep, start, _)) = open.filter(|_| !blank) {
+            if depth > deep || block_line(text, marks, (at, end)) {
+                open = Some((deep, start, end));
+            } else {
+                close(open.take());
+            }
         }
-        end = start;
+        let clean = || marks_in(marks, (at, end)).all(|(from, to)| from == to);
+        if open.is_none() && !blank && clean() && labels_a_secret(line) {
+            open = Some((depth, end, end));
+        }
+        at = next + 1;
     }
-    false
+    close(open);
+    blocks
+}
+
+/// Whether `seam` is in one of the key `blocks` (its ends included): the
+/// whole text hides the block, and a part read alone does not see the label.
+fn in_key_block(blocks: &[Mark], seam: usize) -> bool {
+    let at = blocks.partition_point(|block| block.1 < seam);
+    blocks.get(at).is_some_and(|block| block.0 <= seam)
 }
 
 /// Whether `text[start..end]` is a line of a key block: base64 once its marks
-/// are taken out, or only marks and blanks.
+/// are taken out, or only marks and blanks. No allocation.
 fn block_line(text: &str, marks: &[Mark], (start, end): Mark) -> bool {
-    let (mut clear, mut at, mut marked) = (String::new(), start, false);
+    let (mut at, mut marked, mut seen, mut gap) = (start, false, false, false);
     for (from, to) in marks_in(marks, (start, end)) {
         let from = from.clamp(at, end);
-        clear.push_str(&text[at..from]);
+        for ch in text[at..from].chars() {
+            match ch.is_whitespace() {
+                true => gap |= seen,
+                // A blank inside the value, or a character out of base64.
+                false if gap || !b64(ch) => return false,
+                false => seen = true,
+            }
+        }
         marked |= from < to;
         at = to.clamp(from, end);
     }
-    let value = clear.trim();
-    base64(value) || (value.is_empty() && marked)
+    seen || marked
 }
 
 /// The cell delimiters of a table.
@@ -677,7 +709,7 @@ fn rewrite(text: &str, marks: &[Mark], mut pieces: Vec<Piece>) -> (String, Marks
 #[cfg(test)]
 mod tests {
     use super::super::detector::{without_names, StandardDetector};
-    use super::{mend, rewrite, GrantPolicy};
+    use super::{in_key_block, key_blocks, mend, rewrite, GrantPolicy};
 
     /// Open shows a digest, judged on the text too: a hex run after a key
     /// marker is 30 characters there, though the key's stand-in (`…42`) makes
@@ -699,5 +731,20 @@ mod tests {
         let (out, marks) = rewrite("abcdefghij", &[(9, 10)], pieces);
         assert_eq!(out, "[a][b]ij");
         assert_eq!(marks, vec![(0, 3), (3, 6), (7, 8)]);
+    }
+
+    /// A 1 MiB block under `password:` joined in 16-byte parts: the key
+    /// blocks are read once, a line each, and every seam is in the block.
+    #[test]
+    fn a_megabyte_block_in_16_byte_parts_is_read_once() {
+        let text = format!(
+            "password:\n{}",
+            "  QUJDREVGR0g_x-1 ok\n".repeat((1 << 20) / 21 + 1)
+        );
+        let seams: Vec<usize> = (16..text.len()).step_by(16).collect();
+        let mut work = 0;
+        let blocks = key_blocks(&text, &[], text.len(), &mut work);
+        assert!(work <= text.lines().count() + 1, "{work} lines read");
+        assert!(seams.iter().all(|&seam| in_key_block(&blocks, seam)));
     }
 }

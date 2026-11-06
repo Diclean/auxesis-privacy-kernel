@@ -14,6 +14,7 @@ mod rows;
 mod scan;
 mod table;
 
+pub(crate) use labels::is_label_line;
 pub(crate) use scan::lines_scan;
 pub(crate) use table::{export_scan, secret_table_lines};
 

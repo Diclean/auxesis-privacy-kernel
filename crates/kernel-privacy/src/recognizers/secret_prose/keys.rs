@@ -32,6 +32,22 @@ pub(super) static KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
     .expect("prose key list compiles")
 });
 
+/// The bytes of a line's end read for a [`KEY_RE`] key that ends it.
+const KEY_TAIL: usize = 64;
+
+/// Whether `line` ends with a [`KEY_RE`] key and a separator (`api key:`,
+/// `mots de passe =`).
+pub(crate) fn ends_with_key(line: &str) -> bool {
+    let line = line.trim_end();
+    let Some(head) = line.strip_suffix([':', '=', '：']) else {
+        return false;
+    };
+    let head = head.trim_end();
+    let from = head.floor_char_boundary(head.len().saturating_sub(KEY_TAIL));
+    let last = KEY_RE.find_iter(&head[from..]).last();
+    last.is_some_and(|key| key.end() == head.len() - from)
+}
+
 /// Extra keys, scanned on their own so they never shadow a
 /// [`KEY_RE`] key: recovery and backup codes, a named app's secret
 /// (`AWS secret`), and a Wi-Fi key or `clé` up to 40 bytes after `Wi-Fi` on its

@@ -167,5 +167,18 @@ fn declared_kind_and_name() {
     assert_eq!(recognizer.name(), "secrets");
 }
 
+/// A block-scalar header with a YAML comment (`password: | # db`) takes its
+/// block, from the header on; the line after the block stays clear.
+#[test]
+fn a_commented_block_header_takes_its_block() {
+    for head in ["password: | # the db one", "token: >-\t# rotated"] {
+        let text = format!("{head}\n  Fk3jQ9xZ2mAA\n  P7vB4nX8cVQ2\nnext: 1\n");
+        let clear = clear_of(&text);
+        assert!(!clear.contains("Fk3jQ9xZ2mAA"), "{clear:?}");
+        assert!(!clear.contains("P7vB4nX8cVQ2"), "{clear:?}");
+        assert!(clear.contains("next: 1"), "{clear:?}");
+    }
+}
+
 mod prose;
 mod shapes;

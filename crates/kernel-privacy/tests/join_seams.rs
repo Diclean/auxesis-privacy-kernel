@@ -3,6 +3,7 @@
 //! is the concatenation of its parts, byte for byte.
 
 use std::collections::HashMap;
+use std::iter::once;
 use std::time::Duration;
 
 use kernel_core::privacy::PrivacyMode::{Open, Private};
@@ -775,6 +776,212 @@ fn a_quoted_password_cell_over_lines_cut_inside_stays_hidden() {
         assert!(
             shown.is_empty(),
             "{name}\n  whole  {whole}\n  joined {joined}"
+        );
+    }
+}
+
+/// Upper hex with no IBAN country code in it (no B, D or E), `len` long.
+fn hex(n: u128, len: usize) -> String {
+    let hex = format!(
+        "{:032X}",
+        (n + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15_F39C_C060_5CED_C835)
+    );
+    hex.replace('B', "A").replace('D', "C").replace('E', "F")[..len].to_string()
+}
+
+/// The lines of `lines` (trimmed) that `whole` hides and `joined` shows.
+fn shown_lines(lines: &[String], whole: &str, joined: &str) -> Vec<String> {
+    let lines = lines
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty());
+    let shown = lines.filter(|line| !whole.contains(line) && joined.contains(line));
+    shown.map(String::from).collect()
+}
+
+/// A YAML block scalar (`dbapikey: |`, `password: >`, `password: |-`,
+/// `apikey: >2`) in three parts: no line the whole text hides shows. A block
+/// under `monkey: |` or `tokenizer: >` joins as the concatenation.
+#[test]
+fn a_block_scalar_under_a_key_label_stays_hidden_in_three_parts() {
+    let labels = [
+        "dbapikey: |",
+        "password: >",
+        "password: |-",
+        "apikey: >2",
+        "dbapikey: | # the db one",
+        "myapikey: >-\t# rotated",
+    ];
+    let controls = ["monkey: |", "tokenizer: >"];
+    let lines: Vec<String> = (0..100).map(|n| format!("  {}", hex(n, 12))).collect();
+    let first = lines[..50].join("\n") + "\n";
+    let second = lines[50..].join("\n") + "\n";
+    let mut failures = Vec::new();
+    for label in labels.into_iter().chain(controls) {
+        let head = format!("{label}\n");
+        for (name, mut gate) in gates() {
+            let [whole, concat, joined] = split(&mut gate, &[&head, &first, &second]);
+            let shown = shown_lines(&lines, &whole, &joined);
+            let control = controls.contains(&label);
+            let changed = control && whole == concat && joined != concat;
+            if !shown.is_empty() || changed {
+                failures.push(format!("{name} {label}: shows {} lines", shown.len()));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A short block under a label the gate's other tests read (`pin:`,
+/// `api key:`, `phrase secrète:`), cut at each line: no line the whole hides
+/// shows.
+#[test]
+fn a_short_block_under_a_label_line_stays_hidden() {
+    // Letters only: no IBAN or card reads across the lines.
+    let letters = |n| -> String {
+        let hex = hex(n, 12);
+        hex.chars()
+            .map(|c| (b'g' + c.to_digit(16).unwrap_or(0) as u8) as char)
+            .collect()
+    };
+    let lines: Vec<String> = (0..6).map(|n| format!("    {}", letters(n))).collect();
+    let block = lines.join("\n") + "\n";
+    let mut failures = Vec::new();
+    for label in ["pin:", "api key:", "phrase secrète:"] {
+        let text = format!("Notes for the team.\n{label}\n{block}That was all.\n");
+        let from = text.find(&block).expect("block");
+        let seams = block.match_indices('\n').map(|(at, _)| from + at + 1);
+        for at in once(from).chain(seams) {
+            for (name, mut gate) in gates() {
+                let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+                let shown = shown_lines(&lines, &whole, &joined);
+                if !shown.is_empty() {
+                    failures.push(format!("{name} {label} at {at}: shows {shown:?}"));
+                }
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A block under `password:` whose lines are not all base64: base64url
+/// (`_`, `-`), a line with a space, an indented `#` comment, a blank line.
+/// A seam on each of them, far below the label: no line the whole hides shows.
+#[test]
+fn a_block_of_any_indented_lines_under_a_key_label_stays_hidden() {
+    let mut lines: Vec<String> = (0..40).map(|n| format!("  {}", hex(n, 24))).collect();
+    lines.extend([
+        format!("  {}_{}-{}", hex(50, 8), hex(51, 8), hex(52, 8)),
+        format!("  {} {}", hex(53, 10), hex(54, 10)),
+        format!("  # {}", hex(55, 12)),
+        String::new(),
+        format!("  {}", hex(56, 24)),
+        format!("  {}", hex(57, 24)),
+    ]);
+    let text = format!("password:\n{}\nThat was all.\n", lines.join("\n"));
+    let mut failures = Vec::new();
+    for line in &lines[40..44] {
+        let from = match line.is_empty() {
+            true => text.find("\n\n").expect("blank") + 1,
+            false => text.find(&format!("{line}\n")).expect("line"),
+        };
+        // Within the line, and on the blank line itself.
+        for at in [from + line.len() / 2, from + line.len()] {
+            for (name, mut gate) in gates() {
+                let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+                let shown = shown_lines(&lines, &whole, &joined);
+                if !shown.is_empty() {
+                    failures.push(format!("{name} at {at}: shows {shown:?}"));
+                }
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A quoted password cell over three lines, then prose: cut in the cell, no
+/// piece of it shows; cut in the prose, the join is the concatenation.
+#[test]
+fn a_quoted_cell_holds_its_table_only_to_the_prose_after_it() {
+    let cell = "id,password\n1,2,\"hunter2 fake\nsecond line\nmore\",3\n";
+    let text = format!(
+        "{cell}{}",
+        "The quarterly review covers budgets and hiring.\n".repeat(50)
+    );
+    let at = text.find("second li").expect("cell") + "second li".len();
+    let prose = cell.len() + 25 * 48 + 10;
+    for (name, mut gate) in gates() {
+        let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+        let shown = shown_pieces(&text, &whole, &joined);
+        assert!(shown.is_empty(), "{name} shows {shown:?}");
+        let [_, concat, joined] = split(&mut gate, &[&text[..prose], &text[prose..]]);
+        assert_ne!(joined, WITHHELD, "{name}");
+        assert_eq!(joined, concat, "{name}");
+    }
+}
+
+/// A quoted password cell whose lines hold blank lines and prose, cut in it,
+/// on its blank line or in its prose: no piece the whole text hides shows, in
+/// both gates. A cell may hold blank lines, so the table holds to the line
+/// that closes it (JOIN-SEAM-6 fix 1). LF and CRLF.
+#[test]
+fn a_quoted_cell_with_blank_lines_stays_hidden_wherever_it_is_cut() {
+    let one = "id,password,note\n1,\"hunter2 fake\nsecond line\n\nprose here\nmore\",3";
+    let two = "id,password,note\n1,\"hunter2 fake\nsecond line\n\n\nprose here\nmore\",3";
+    let open = "id,password,note\n1,\"hunter2 fake\nsecond line\n\nprose here\nmore";
+    let after = |text: &str, cut: &str| text.find(cut).expect("cut") + cut.len();
+    let mut cases: Vec<(String, usize)> = Vec::new();
+    for text in [one.to_string(), one.replace('\n', "\r\n")] {
+        cases.push((text.clone(), after(&text, "second li")));
+        cases.push((text.clone(), after(&text, "prose he")));
+        let blank = text.find("line\n\n").or(text.find("line\r\n\r\n"));
+        let line = blank.expect("blank") + "line".len();
+        let blank = line + text[line..].find('\n').expect("break") + 1;
+        let close = blank + text[blank..].find('\n').expect("break");
+        for at in [blank, close, close + 1] {
+            if !cases.contains(&(text.clone(), at)) {
+                cases.push((text.clone(), at));
+            }
+        }
+    }
+    for text in [two, open] {
+        cases.push((text.to_string(), after(text, "second li")));
+        cases.push((text.to_string(), after(text, "prose he")));
+    }
+    let mut failures = Vec::new();
+    for (text, at) in &cases {
+        for (name, mut gate) in gates() {
+            let [whole, _, joined] = split(&mut gate, &[&text[..*at], &text[*at..]]);
+            let shown = shown_pieces(text, &whole, &joined);
+            if !shown.is_empty() {
+                failures.push(format!(
+                    "{name} {text:?} at {at}: shows {shown:?}\n  whole  {whole:?}\n  joined {joined:?}"
+                ));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A quoted password cell that never closes, then prose, cut in the prose: the
+/// join reads the prose as the whole text does. The hold ends at the prose only
+/// because the table pass ends a table at a row with no delimiter; if it kept
+/// the table, the whole would hide the prose and this test fails.
+#[test]
+fn prose_after_a_broken_quoted_row_joins_as_the_whole_reads_it() {
+    let text = format!(
+        "id,password,note\n1,\"hunter2 fake\nsecond line\n{}",
+        "The quarterly review covers budgets and hiring.\n".repeat(4)
+    );
+    let at = text.rfind("budgets").expect("prose");
+    for (name, mut gate) in gates() {
+        let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+        assert!(whole.contains("The quarterly review"), "{name} {whole:?}");
+        assert!(!whole.contains("hunter2"), "{name} {whole:?}");
+        assert_eq!(
+            clear_words(&joined),
+            clear_words(&whole),
+            "{name}\n  whole  {whole:?}\n  joined {joined:?}"
         );
     }
 }

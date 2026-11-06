@@ -58,7 +58,9 @@ pub(super) fn table_lines(
     if !text.bytes().any(|b| DELIMS.contains(&b)) {
         return lines;
     }
-    let (bytes, mut unsure) = (text.as_bytes(), false);
+    let (bytes, mut unsure, mut closes) = (text.as_bytes(), false, false);
+    // The line a lookahead from a mark stopped on, and whether it is odd.
+    let mut ahead = (0, false);
     while at <= last.min(text.len()) {
         let next = memchr_nl(bytes, at);
         let end = next - usize::from(text[..next].ends_with('\r'));
@@ -68,6 +70,16 @@ pub(super) fn table_lines(
         let mark = kept
             .get(kept.partition_point(|k| k.1 <= at))
             .is_some_and(|k| k.0 <= end);
+        // With no odd line anywhere ahead no later line closes a quote the
+        // mark hid, so the record ends on the mark's line, as the whole
+        // text's record scan ends it: the hold ends at prose (no quote, no
+        // delimiter). While an odd line lies ahead it holds to it, as main.
+        // Safe only while [`tables`] ends a table at a row with no delimiter
+        // (`broken` there): if it kept one, prose would be a row to hide.
+        let prose = !mark && !line.contains('"') && !line.bytes().any(|b| DELIMS.contains(&b));
+        if unsure && !closes && prose {
+            unsure = false;
+        }
         let plain = !quoted && !unsure && !mark && !line.contains('"');
         let ends = plain && !line.trim().is_empty() && open.len() < MAX_SHAPES;
         if ends && !open.iter().inspect(|_| *work += 1).any(fits) {
@@ -77,7 +89,10 @@ pub(super) fn table_lines(
         // opened a record over lines: the table holds to a line with an odd
         // number of quotes, which may close it.
         if mark && !open.is_empty() && !open.iter().inspect(|_| *work += 1).any(fits) {
-            unsure = true;
+            if ahead.0 <= next {
+                ahead = odd_ahead(bytes, next + 1);
+            }
+            (unsure, closes) = (true, ahead.1);
         } else if odd(bytes, at, end) {
             unsure = false;
         }
@@ -144,6 +159,22 @@ fn record_end(text: &str, at: usize, records: bool) -> usize {
     } else {
         end
     }
+}
+
+/// The start of the first line from `from` with an odd number of quotes
+/// (`true`), or the text end (`false`). Blank lines do not stop it: a quoted
+/// cell may hold them, and the odd line after them may close it. Each byte is
+/// read once over a pass: the caller asks again only past the line found, and
+/// never once none is found.
+fn odd_ahead(bytes: &[u8], mut from: usize) -> (usize, bool) {
+    while from < bytes.len() {
+        let next = memchr_nl(bytes, from);
+        if odd(bytes, from, next) {
+            return (from, true);
+        }
+        from = next + 1;
+    }
+    (bytes.len(), false)
 }
 
 /// The next line break at or after `from`, or the text end.

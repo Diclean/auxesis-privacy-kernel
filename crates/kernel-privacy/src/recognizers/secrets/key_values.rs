@@ -6,9 +6,9 @@ use std::sync::LazyLock;
 use regex::Regex;
 
 use super::key_names::{
-    is_blank, is_block_header, is_key_byte, key_before, name_class, separator_len, skip_blanks,
-    KeyClass, SecretValue, MAX_BLOCK_BYTES, MAX_QUOTED_BYTES, MAX_TERMINATOR_WORD, MAX_VALUE_BYTES,
-    MIN_PASSWORD_LENGTH,
+    is_blank, is_block_header, is_commented_block_header, is_key_byte, key_before, name_class,
+    separator_len, skip_blanks, KeyClass, SecretValue, MAX_BLOCK_BYTES, MAX_QUOTED_BYTES,
+    MAX_TERMINATOR_WORD, MAX_VALUE_BYTES, MIN_PASSWORD_LENGTH,
 };
 use super::key_view::break_at;
 
@@ -95,6 +95,19 @@ fn rest_value(
     if rest.is_empty() || is_block_header(rest) {
         let block = block_value(text, breaks, sep, breaks.break_from(after))?;
         return Some((block, block.end));
+    }
+    // A header with a comment (`password: | # db`) takes its block too, from
+    // the header on, so it hides all the inline reading hid and the block.
+    if is_commented_block_header(rest) {
+        if let Some(block) = block_value(text, breaks, sep, breaks.break_from(after)) {
+            let long = block.end - start > MAX_BLOCK_BYTES;
+            let value = SecretValue {
+                start,
+                end: block.end,
+                long,
+            };
+            return Some((value, block.end));
+        }
     }
     if let Some(end) = quoted_end(text, start) {
         let value = SecretValue {

@@ -266,11 +266,40 @@ pub(super) fn key_before(text: &str, sep: usize) -> Option<KeyClass> {
 }
 
 /// Whether a label line ends with a separator after a key the gate reads as a
-/// secret's (`myapikey:`, `psk =`, `mot de passe :`), as [`key_before`] reads it.
+/// secret's (`myapikey:`, `psk =`, `mot de passe :`), as [`key_before`] reads it,
+/// a YAML block-scalar header after it too (`password: |-`, `apikey: >2`).
 pub(crate) fn names_a_key(label: &str) -> bool {
     let label = label.trim_end();
-    let sep = label.char_indices().next_back().map(|(at, _)| at);
-    sep.is_some_and(|at| separator_len(label, at).is_some() && key_before(label, at).is_some())
+    let names = |label: &str| {
+        let sep = label.char_indices().next_back().map(|(at, _)| at);
+        sep.is_some_and(|at| separator_len(label, at).is_some() && key_before(label, at).is_some())
+    };
+    names(label) || without_block_header(label).is_some_and(names)
+}
+
+/// A label line without the block-scalar header that ends it (`password: >`),
+/// trailing blanks taken out, a YAML comment after the header too
+/// (`password: | # db`: from the first `#` after a blank, as YAML reads it);
+/// `None` when no header ends it.
+pub(crate) fn without_block_header(label: &str) -> Option<&str> {
+    let label = label.trim_end();
+    header_cut(label).or_else(|| without_comment(label).and_then(header_cut))
+}
+
+/// `text` before its YAML comment (the first `#` after a blank), trailing
+/// blanks taken out; `None` with no comment.
+pub(super) fn without_comment(text: &str) -> Option<&str> {
+    let (at, _) = text
+        .match_indices('#')
+        .find(|&(at, _)| text[..at].ends_with([' ', '\t']))?;
+    Some(text[..at].trim_end())
+}
+
+/// `label` without the block-scalar header that ends it, or `None`.
+fn header_cut(label: &str) -> Option<&str> {
+    let at = label.rfind([' ', '\t', ':', '=', '：'])?;
+    let at = at + label[at..].chars().next().map_or(0, char::len_utf8);
+    is_block_header(&label[at..]).then(|| label[..at].trim_end())
 }
 
 /// The most closing marks read between a key and its separator (`**password**:`).
@@ -331,10 +360,60 @@ pub(super) fn separator_len(text: &str, at: usize) -> Option<usize> {
     }
 }
 
+/// Whether a value is a block-scalar header with a YAML comment after it
+/// (`| # db`), as the gate and the join both read it.
+pub(super) fn is_commented_block_header(value: &str) -> bool {
+    // The same reading as `without_comment(value).is_some_and(is_block_header)`,
+    // bounded: a header is at most 4 bytes, so its blank is among the first 5
+    // and only the blanks after it are read, never the rest of a long line
+    // (called once per value, a whole-line scan would be quadratic).
+    let bytes = value.as_bytes();
+    let Some(at) = bytes.iter().take(5).position(|b| matches!(b, b' ' | b'\t')) else {
+        return false;
+    };
+    let after = value[at..].trim_start_matches([' ', '\t']);
+    is_block_header(&value[..at]) && after.starts_with('#')
+}
+
 /// Whether a value is a YAML block-scalar header: `|` or `>`, then `-`, `+` or digits.
 pub(super) fn is_block_header(value: &str) -> bool {
     let mut chars = value.chars();
     value.len() <= 4
         && matches!(chars.next(), Some('|' | '>'))
         && chars.all(|ch| matches!(ch, '-' | '+' | '0'..='9'))
+}
+
+#[cfg(test)]
+mod commented_header_tests {
+    use super::*;
+
+    /// The bounded reading agrees with the comment-cut reading it replaces.
+    #[test]
+    fn a_commented_header_reads_as_the_comment_cut_does() {
+        for value in [
+            "| # db",
+            ">- # x",
+            "|2+\t# y",
+            "> #",
+            "|#x",
+            "| x # y",
+            "| ",
+            "|-x # y",
+            "#",
+            "",
+            "\"x\" # y",
+            ">12345 # y",
+            "|  \t # y",
+        ] {
+            let old = without_comment(value).is_some_and(is_block_header);
+            assert_eq!(is_commented_block_header(value), old, "{value:?}");
+        }
+    }
+
+    /// A long line with no header is rejected without reading past its head.
+    #[test]
+    fn a_long_line_is_not_a_commented_header() {
+        let line = "(\"apikey\":\"x\",) ".repeat(10_000) + "# y";
+        assert!(!is_commented_block_header(&line));
+    }
 }
