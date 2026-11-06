@@ -286,12 +286,12 @@ pub(crate) fn without_block_header(label: &str) -> Option<&str> {
     header_cut(label).or_else(|| without_comment(label).and_then(header_cut))
 }
 
-/// `text` before its YAML comment (the first `#` after a blank), trailing
-/// blanks taken out; `None` with no comment.
+/// `text` before its YAML comment (the first `#` after a blank, any white
+/// space: NBSP and CR too), trailing blanks taken out; `None` with no comment.
 pub(super) fn without_comment(text: &str) -> Option<&str> {
     let (at, _) = text
         .match_indices('#')
-        .find(|&(at, _)| text[..at].ends_with([' ', '\t']))?;
+        .find(|&(at, _)| text[..at].ends_with(char::is_whitespace))?;
     Some(text[..at].trim_end())
 }
 
@@ -366,12 +366,13 @@ pub(super) fn is_commented_block_header(value: &str) -> bool {
     // The same reading as `without_comment(value).is_some_and(is_block_header)`,
     // bounded: a header is at most 4 bytes, so its blank is among the first 5
     // and only the blanks after it are read, never the rest of a long line
-    // (called once per value, a whole-line scan would be quadratic).
-    let bytes = value.as_bytes();
-    let Some(at) = bytes.iter().take(5).position(|b| matches!(b, b' ' | b'\t')) else {
+    // (called once per value, a whole-line scan would be quadratic). Its blanks
+    // are any white space, as the join reads them: NBSP and CR too.
+    let mut chars = value.char_indices().take_while(|&(at, _)| at < 5);
+    let Some((at, _)) = chars.find(|&(_, ch)| ch.is_whitespace()) else {
         return false;
     };
-    let after = value[at..].trim_start_matches([' ', '\t']);
+    let after = value[at..].trim_start();
     is_block_header(&value[..at]) && after.starts_with('#')
 }
 
@@ -404,6 +405,15 @@ mod commented_header_tests {
             "\"x\" # y",
             ">12345 # y",
             "|  \t # y",
+            "|\u{a0}# y",
+            "| \u{a0}# y",
+            "|\u{a0} # y",
+            ">-\u{a0}\t# y",
+            "|\r# y",
+            "|2\r\n# y",
+            "|\u{3000}#",
+            "\u{a0}# y",
+            "|\u{a0}x # y",
         ] {
             let old = without_comment(value).is_some_and(is_block_header);
             assert_eq!(is_commented_block_header(value), old, "{value:?}");

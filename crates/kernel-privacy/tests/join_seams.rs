@@ -985,3 +985,77 @@ fn prose_after_a_broken_quoted_row_joins_as_the_whole_reads_it() {
         );
     }
 }
+
+/// A commented block-scalar header (`dbapikey: | # the db one`,
+/// `myapikey: >-\t# rotated`) over a short block, cut anywhere: the gate hides
+/// the header on the label line, and no piece of a block line the whole text
+/// hides shows in the join.
+#[test]
+fn a_short_block_under_a_commented_header_stays_hidden_at_every_cut() {
+    let block = "  Fk3jQ9xZ2mAA\n  P7vB4nX8cVQ2\n";
+    let mut failures = Vec::new();
+    let labels = [
+        "dbapikey: | # the db one",
+        "myapikey: >-\t# rotated",
+        "password: |\u{a0}# the db one",
+        "dbapikey: >-\u{a0}\t# rotated",
+    ];
+    for label in labels {
+        let text = format!("{label}\n{block}");
+        for at in (1..text.len()).filter(|&at| text.is_char_boundary(at)) {
+            for (name, mut gate) in gates() {
+                let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+                if whole.contains("Fk3jQ9xZ2mAA") || whole.contains("P7vB4nX8cVQ2") {
+                    failures.push(format!("{name} {label:?}: whole shows {whole:?}"));
+                }
+                let shown = shown_pieces(block, &whole, &joined);
+                if !shown.is_empty() {
+                    failures.push(format!(
+                        "{name} {label:?} at {at}: {joined:?} shows {shown:?}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Many values on one line, then a long run of trailing blanks: the gate
+/// trims the run once per line, so ten times the values costs at most 20
+/// times as much.
+#[test]
+fn many_values_before_a_long_trailing_blank_run_issue_in_linear_time() {
+    let text = |values: usize| "password=Fk3jQ9xZ2mAA ".repeat(values) + &" ".repeat(values * 64);
+    for (name, gate) in gates() {
+        let (small, large) = (text(400), text(4000));
+        let gate = std::cell::RefCell::new(gate);
+        let issue = |text: &str| {
+            let started = std::time::Instant::now();
+            let issued = gate.borrow_mut().text(text).expect("issued").0;
+            assert!(!issued.as_str().contains("Fk3jQ9xZ2mAA"), "{name}");
+            started.elapsed()
+        };
+        let (s, l) = timing::best_pair(|| issue(&small), || issue(&large));
+        assert!(
+            l <= s * 20 + Duration::from_millis(50),
+            "{name}: {s:?}, {l:?}"
+        );
+    }
+}
+
+/// A long comment after a block-scalar header (`password: | # …` of 9 KiB)
+/// over a short block: the header bytes do not make the block too long, so
+/// the gate issues the text and hides the block.
+#[test]
+fn a_long_comment_on_a_block_header_does_not_make_its_block_too_long() {
+    let text = format!(
+        "password: | # {}\n  Fk3jQ9xZ2mAA\n  P7vB4nX8cVQ2\nThat was all.\n",
+        "note ".repeat(1800)
+    );
+    for (name, mut gate) in gates() {
+        let issued = gate.text(&text).map(|issued| issued.0.as_str().to_string());
+        let issued = issued.unwrap_or_else(|_| panic!("{name}: refused"));
+        assert!(!issued.contains("Fk3jQ9xZ2mAA"), "{name}");
+        assert!(!issued.contains("P7vB4nX8cVQ2"), "{name}");
+    }
+}

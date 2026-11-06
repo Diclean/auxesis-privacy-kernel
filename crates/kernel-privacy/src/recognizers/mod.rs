@@ -104,6 +104,7 @@ mod tests {
             "password: | # the db one",
             "dbapikey: >-\t# rotated",
             "myapikey: |2 #",
+            "password: |\u{a0}# the db one",
         ] {
             assert!(secrets::names_a_key(label), "{label}");
             assert!(labels_a_secret(label), "{label}");

@@ -1,6 +1,7 @@
 //! Key-value and block secrets: separators, quoted values, k8s pairs, XML
 //! elements and command-line flags.
 
+use std::cell::Cell;
 use std::sync::LazyLock;
 
 use regex::Regex;
@@ -20,6 +21,10 @@ pub(super) struct Breaks {
     /// Byte offsets of every line break: LF, CR, U+2028 and U+85.
     all: Vec<usize>,
     len: usize,
+    /// The last line trimmed: its LF (or the text end), and the end of its
+    /// content before trailing blanks and CR. Each line is trimmed once, not
+    /// once per value on it.
+    trimmed: Cell<Option<(usize, usize)>>,
 }
 
 impl Breaks {
@@ -45,6 +50,20 @@ impl Breaks {
             newlines,
             all,
             len: text.len(),
+            trimmed: Cell::new(None),
+        }
+    }
+
+    /// The end of the content of the line that ends at `line_stop`, its
+    /// trailing blanks and CR taken out.
+    fn content_end(&self, text: &str, line_stop: usize) -> usize {
+        match self.trimmed.get() {
+            Some((stop, end)) if stop == line_stop => end,
+            _ => {
+                let end = text[..line_stop].trim_end_matches(is_trailing_blank).len();
+                self.trimmed.set(Some((line_stop, end)));
+                end
+            }
         }
     }
 
@@ -91,7 +110,7 @@ fn rest_value(
     // Only LF ends a value's line: a lone CR or U+2028 stays inside the value.
     let line_stop = breaks.newline_from(after);
     let start = skip_blanks(bytes, after);
-    let rest = text[start..line_stop].trim_end_matches(is_trailing_blank);
+    let rest = &text[start..breaks.content_end(text, line_stop).max(start)];
     if rest.is_empty() || is_block_header(rest) {
         let block = block_value(text, breaks, sep, breaks.break_from(after))?;
         return Some((block, block.end));
@@ -100,11 +119,11 @@ fn rest_value(
     // the header on, so it hides all the inline reading hid and the block.
     if is_commented_block_header(rest) {
         if let Some(block) = block_value(text, breaks, sep, breaks.break_from(after)) {
-            let long = block.end - start > MAX_BLOCK_BYTES;
+            // Long as its block is: the header and comment bytes do not count.
             let value = SecretValue {
                 start,
                 end: block.end,
-                long,
+                long: block.long,
             };
             return Some((value, block.end));
         }
