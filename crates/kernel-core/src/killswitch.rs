@@ -136,6 +136,46 @@ mod tests {
     }
 
     #[test]
+    fn an_unreadable_marker_path_reads_as_stopped() {
+        // ENOTDIR: the home is a regular file, so `<home>/STOP` cannot be
+        // checked. No verified home is registered, so this is the path
+        // fallback; it must fail closed. Root gets ENOTDIR too.
+        let dir = tempdir().unwrap();
+        let home = dir.path().join("home");
+        std::fs::write(&home, b"not a directory").unwrap();
+
+        assert!(
+            is_stopped(&home),
+            "fail safe: an unreadable marker means engaged"
+        );
+    }
+
+    #[test]
+    fn a_missing_home_reads_as_not_stopped() {
+        // First run: neither the home nor its parent exists yet.
+        let dir = tempdir().unwrap();
+        assert!(!is_stopped(&dir.path().join("absent/home")));
+    }
+
+    #[test]
+    fn the_verified_handle_path_is_unchanged() {
+        let dir = tempdir().unwrap();
+        let home = dir.path().join("home");
+        crate::paths::ensure_home(&home).unwrap();
+        assert!(crate::paths::verified_home_for(&home).is_ok());
+
+        assert!(!is_stopped(&home));
+        std::fs::write(stop_path(&home), b"x").unwrap();
+        assert!(is_stopped(&home));
+        std::fs::remove_file(stop_path(&home)).unwrap();
+        assert!(!is_stopped(&home));
+
+        // A registered home that can no longer be verified reads as stopped.
+        std::fs::remove_dir(&home).unwrap();
+        assert!(is_stopped(&home));
+    }
+
+    #[test]
     fn engage_creates_the_home_directory() {
         let dir = tempdir().unwrap();
         let home = dir.path().join("nested/home");
