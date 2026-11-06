@@ -16,7 +16,7 @@ use super::tokens::session_token_len;
 use crate::anonymize::{kind_of_token, PLACEHOLDER_OPEN};
 use crate::public_terms::{fold, PublicTerms};
 use crate::recognizer::span_is_well_formed;
-use crate::recognizers::secrets::value_too_long;
+use crate::recognizers::secrets::{names_a_key, value_too_long};
 use crate::span::{EntityKind, Span};
 
 /// A byte range of a text.
@@ -118,7 +118,7 @@ pub(super) fn mend(
                 read(text, marks, at, (policy, scan), &mut pieces)
             })
             .find(|read| *read != Some(false));
-        if in_secret_table(text, (&tables, &cells), seam) {
+        if in_secret_table(text, (&tables, &cells), seam) || in_key_block(text, marks, seam) {
             return (WITHHELD.to_string(), vec![(0, WITHHELD.len())]);
         }
         let (run, more) = (run(text, marks, seam), beside(text, marks, seam));
@@ -204,8 +204,48 @@ fn key_break(text: &str, marks: &[Mark], at: usize, framed: &dyn Fn() -> bool) -
         }
         end = start - 1;
     };
-    let named = words(label).iter().any(|word| key_word(word));
+    let named = words(label).iter().any(|word| key_word(word)) || names_a_key(label);
     wide || named || marks_in(marks, (from, to)).any(secret) || framed()
+}
+
+/// Whether `seam` is in a block under a label the gate reads as a key's
+/// (`myapikey:`, `psk:`, `mot de passe:`): the line it cuts or starts is a
+/// line of base64 or of marks, and so is each line above it, blank lines too,
+/// up to the label, within 16 KiB. The whole text hides the block, lines of
+/// any length, and a part read alone does not see the label.
+fn in_key_block(text: &str, marks: &[Mark], seam: usize) -> bool {
+    let lo = text.floor_char_boundary(seam.saturating_sub(MAX_KEY_BYTES));
+    let hi = text.floor_char_boundary(text.len().min(seam + MAX_KEY_BYTES));
+    let start = text[lo..seam].rfind('\n').map_or(lo, |i| lo + i + 1);
+    let end = text[seam..hi].find('\n').map_or(hi, |i| seam + i);
+    if !block_line(text, marks, (start, end)) {
+        return false;
+    }
+    let mut end = start;
+    while end > lo {
+        end -= 1;
+        let start = text[lo..end].rfind('\n').map_or(lo, |i| lo + i + 1);
+        let line = &text[start..end];
+        if !(line.trim().is_empty() || block_line(text, marks, (start, end))) {
+            return marks_in(marks, (start, end)).all(|(from, to)| from == to) && names_a_key(line);
+        }
+        end = start;
+    }
+    false
+}
+
+/// Whether `text[start..end]` is a line of a key block: base64 once its marks
+/// are taken out, or only marks and blanks.
+fn block_line(text: &str, marks: &[Mark], (start, end): Mark) -> bool {
+    let (mut clear, mut at, mut marked) = (String::new(), start, false);
+    for (from, to) in marks_in(marks, (start, end)) {
+        let from = from.clamp(at, end);
+        clear.push_str(&text[at..from]);
+        marked |= from < to;
+        at = to.clamp(from, end);
+    }
+    let value = clear.trim();
+    base64(value) || (value.is_empty() && marked)
 }
 
 /// The cell delimiters of a table.

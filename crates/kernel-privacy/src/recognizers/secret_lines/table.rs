@@ -4,6 +4,10 @@ use super::header::{cells, header, header_of, secret_header, Names, Table, DELIM
 use super::rows::{heading, names, prose, row_cells, verdict, whole};
 use super::scan::trimmed;
 
+/// The most shapes of open tables [`secret_table_lines`] keeps: past them a
+/// table no longer ends, so the pass stays linear.
+const MAX_SHAPES: usize = 16;
+
 /// Rows of one table read under its header by the capped passes.
 const MAX_ROWS: usize = 10_000;
 
@@ -40,24 +44,42 @@ pub(crate) fn secret_table_lines(
     last: usize,
     kept: &[(usize, usize)],
 ) -> Vec<(usize, usize)> {
+    table_lines(text, last, kept, &mut 0)
+}
+
+/// [`secret_table_lines`], counting in `work` each open shape read.
+pub(super) fn table_lines(
+    text: &str,
+    last: usize,
+    kept: &[(usize, usize)],
+    work: &mut usize,
+) -> Vec<(usize, usize)> {
     let (mut lines, mut open, mut quoted, mut at) = (Vec::new(), Vec::<Table>::new(), false, 0);
     if !text.bytes().any(|b| DELIMS.contains(&b)) {
         return lines;
     }
-    let bytes = text.as_bytes();
+    let (bytes, mut unsure) = (text.as_bytes(), false);
     while at <= last.min(text.len()) {
         let next = memchr_nl(bytes, at);
         let end = next - usize::from(text[..next].ends_with('\r'));
         let line = &text[at..end];
         let fits = |open: &Table| row_cells(text, at, end, open).len() == open.count;
-        // Past 16 shapes a table no longer ends, so the pass stays linear.
+        // Past [`MAX_SHAPES`] a table no longer ends, so no more are kept.
         let mark = kept
             .get(kept.partition_point(|k| k.1 <= at))
             .is_some_and(|k| k.0 <= end);
-        let plain = !quoted && !mark && !line.contains('"');
-        let ends = plain && !line.trim().is_empty() && open.len() < 16;
-        if ends && !open.iter().any(fits) {
+        let plain = !quoted && !unsure && !mark && !line.contains('"');
+        let ends = plain && !line.trim().is_empty() && open.len() < MAX_SHAPES;
+        if ends && !open.iter().inspect(|_| *work += 1).any(fits) {
             open.clear();
+        }
+        // A mark on a line that fits no open shape may hide the quote that
+        // opened a record over lines: the table holds to a line with an odd
+        // number of quotes, which may close it.
+        if mark && !open.is_empty() && !open.iter().inspect(|_| *work += 1).any(fits) {
+            unsure = true;
+        } else if odd(bytes, at, end) {
+            unsure = false;
         }
         let mut heads = Vec::new();
         if line.bytes().any(|b| DELIMS.contains(&b)) {
@@ -71,7 +93,7 @@ pub(crate) fn secret_table_lines(
         for head in heads {
             let same =
                 |t: &Table| (t.delim, t.count, t.loose) == (head.delim, head.count, head.loose);
-            if !open.iter().any(same) {
+            if open.len() < MAX_SHAPES && !open.iter().inspect(|_| *work += 1).any(same) {
                 open.push(head);
             }
         }

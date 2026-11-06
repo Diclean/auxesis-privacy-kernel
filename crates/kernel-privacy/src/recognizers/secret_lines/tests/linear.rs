@@ -55,3 +55,22 @@ fn every_path_scales_linearly() {
         );
     }
 }
+
+/// The secret-table pass of a join over rows that each have a new width
+/// (`"password",c1`, `"password",c1,c2`, … to 1 MB, a quote keeping
+/// each open) reads a few open shapes a
+/// line, never all those seen before.
+#[test]
+fn rows_of_ever_growing_width_read_few_shapes_a_line() {
+    let (mut text, mut row) = (String::new(), String::from("\"password\""));
+    while text.len() < 1024 * 1024 {
+        row.push_str(&format!(",c{}", row.len()));
+        text.push_str(&row);
+        text.push('\n');
+    }
+    let mut work = 0;
+    let lines = super::super::table::table_lines(&text, text.len(), &[], &mut work);
+    assert_eq!(lines, vec![(0, text.len())]);
+    let rows = text.lines().count();
+    assert!(work <= 256 * rows, "{work} shapes read over {rows} rows");
+}
