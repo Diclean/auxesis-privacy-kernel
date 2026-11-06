@@ -1059,3 +1059,49 @@ fn a_long_comment_on_a_block_header_does_not_make_its_block_too_long() {
         assert!(!issued.contains("P7vB4nX8cVQ2"), "{name}");
     }
 }
+
+/// A commented block header after another value on its label line (an
+/// e-mail, or a bearer token, before `password: | # x`) over a block of plain
+/// lines a part alone never hides, cut at every byte of the label line and
+/// the block: the whole hides the block, and no block line shows in the join.
+#[test]
+fn a_block_under_a_label_line_with_another_value_first_stays_hidden_at_every_cut() {
+    let lines = ["  aaaa-bbbb".to_string(), "  cccc-dddd".to_string()];
+    let block = lines.join("\n") + "\n";
+    let mut failures = Vec::new();
+    for label in [
+        "Contact bob@example.com for the password: | # x",
+        "Authorization: Bearer abcdefghijklmnop password: | # x",
+    ] {
+        let text = format!("Notes.\n{label}\n{block}That was all.\n");
+        let from = text.find(label).expect("label");
+        let to = from + label.len() + 1 + block.len();
+        for at in (from..=to).filter(|&at| text.is_char_boundary(at)) {
+            for (name, mut gate) in gates() {
+                let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+                if lines.iter().any(|line| whole.contains(line.trim())) {
+                    failures.push(format!("{name} {label:?}: whole shows {whole:?}"));
+                }
+                let shown = shown_lines(&lines, &whole, &joined);
+                if !shown.is_empty() {
+                    failures.push(format!("{name} {label:?} at {at}: shows {shown:?}"));
+                }
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A commented header whose comment ends at a lone CR, a value on the line
+/// past it (`password: |\u{a0}# x\r TAIL\rFAKESECRET`), issued whole: the
+/// value never shows (a regression guard).
+#[test]
+fn a_value_past_a_lone_cr_after_a_commented_header_stays_hidden_whole() {
+    let text = "password: |\u{a0}# x\r TAIL\rFAKESECRET\n";
+    for (name, mut gate) in gates() {
+        if let Ok(issued) = gate.text(text) {
+            let issued = issued.0.as_str().to_string();
+            assert!(!issued.contains("FAKESECRET"), "{name}: {issued:?}");
+        }
+    }
+}
