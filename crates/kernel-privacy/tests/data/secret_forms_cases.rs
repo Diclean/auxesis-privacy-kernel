@@ -568,6 +568,15 @@ pub fn positives() -> Vec<Case> {
         c("kv02-s5", "ssws header:\n\n\n\n\n\n  {}", &format!("00{}", k(ALNUM, 40, 1207))),
         c("kv02-s5", "SSWS: {}", "00Fake9Okta"),
         c("kv02-s5", "SSWS: '{}'", "FakeOktaValue"),
+        // KV02-SECRETS-5 round 2 (seals of #104): a redirect with an fd, a comment
+        // and a line continuation after the password; `SSWS:` in any case.
+        c("kv02-s6", "htpasswd -b site.db \"alice smith\" {} 2>/dev/null", "correcthorse"),
+        c("kv02-s6", "htpasswd -b site.db \"alice smith\" {} 2>&1", "correcthorse"),
+        c("kv02-s6", "htpasswd -b site.db \"alice smith\" {} # rotate", "correcthorse"),
+        c("kv02-s6", "htpasswd -b site.db \"alice smith\" {} \\\n  && reload", "correcthorse"),
+        c("kv02-s6", "ssws: {}", "fakeoktavalue"),
+        c("kv02-s6", "Ssws: {}", "fakeoktavalue"),
+        c("kv02-s6", "SSWS token\n\n\n\n\n\n\n{}", &format!("00{}", k(ALNUM, 40, 1301))),
     ]
 }
 
@@ -709,6 +718,7 @@ pub fn negatives() -> Vec<String> {
         // many blank lines.
         "SSWS: required",
         "SSWS: credentials",
+        "SSWS: login.example.com",
         "SSWS token\n\n\n\n\nThisIsALongIdentifierName",
     ];
     lines.iter().map(|line| (*line).to_string()).collect()

@@ -187,6 +187,10 @@ fn a_quoted_htpasswd_user_takes_a_plain_password_that_ends_the_command() {
         "htpasswd -b site.db \"alice smith\" correcthorse\r\nnext",
         "htpasswd -bB site.db 'alice smith' correcthorse && nginx -s reload",
         "htpasswd -b site.db \"alice smith\" correcthorse > /dev/null",
+        "htpasswd -b site.db \"alice smith\" correcthorse 2>/dev/null",
+        "htpasswd -b site.db \"alice smith\" correcthorse 2>&1",
+        "htpasswd -b site.db \"alice smith\" correcthorse # rotate",
+        "htpasswd -b site.db \"alice smith\" correcthorse \\\n  && reload",
     ] {
         assert!(
             hits(line).contains(&"correcthorse"),
@@ -220,9 +224,19 @@ fn the_three_ssws_paths_agree_on_a_token() {
             "{line:?}"
         );
     }
+    // An 8–19-character token with no digit after `SSWS:`, in any case.
+    for line in ["SSWS: abcdefgh", "ssws: abcdefgh", "Ssws: 'fakeoktavalue'"] {
+        let value = line
+            .rsplit(' ')
+            .next()
+            .unwrap_or_default()
+            .trim_matches('\'');
+        assert!(hits(line).contains(&value), "{line:?}: {:?}", hits(line));
+    }
     for line in [
         "SSWS: required",
         "SSWS: credentials",
+        "SSWS: login.example.com",
         "SSWS token\n\n\n\n\nThisIsALongIdentifierName",
     ] {
         assert!(hits(line).is_empty(), "{line:?}: {:?}", hits(line));
