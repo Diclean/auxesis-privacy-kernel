@@ -260,19 +260,26 @@ fn key_blocks(text: &str, marks: &[Mark], last: usize, work: &mut usize) -> Mark
 }
 
 /// Whether `text[start..end]` is a label line the gate reads as a secret's:
-/// with no mark on it, or read up to its first mark when that mark is a key's
-/// (the gate hides a block-scalar header with a comment on the label line,
-/// `dbapikey: | # the db one`, so a part shows only `dbapikey: ⟦…⟧`).
+/// read whole, or up to its first or its last key mark (the gate hides a
+/// block-scalar header with a comment on the label line, `dbapikey: | # the
+/// db one`, so a part shows only `dbapikey: ⟦…⟧`). Other marks are read as
+/// they stand, so a value before the label (`Contact ⟦…⟧ for the password:
+/// ⟦…⟧`, `Authorization: Bearer ⟦…⟧ password: ⟦…⟧`) still opens the block.
+/// Three label reads at most, so a line stays linear.
+///
+/// Accepted since #114: a commented header takes its block from the header
+/// on, so a very long block under one is tokenised where it was refused with
+/// TooLong. That is the owner rule: private means tokenise, never block.
 fn label_line(text: &str, marks: &[Mark], (start, end): Mark) -> bool {
-    let first = marks_in(marks, (start, end)).find(|(from, to)| from < to);
-    let label = match first {
-        None => &text[start..end],
-        Some((from, to)) if kind(&text[from..to]) == Some(EntityKind::Secret) => {
-            &text[start..from.max(start)]
-        }
-        Some(_) => return false,
-    };
-    labels_a_secret(label)
+    let key = |&(from, to): &Mark| from < to && kind(&text[from..to]) == Some(EntityKind::Secret);
+    let mut keys = marks_in(marks, (start, end)).filter(key);
+    let first = keys.next();
+    let last = keys.last().or(first);
+    let before = |(from, _): Mark| &text[start..from.max(start)];
+    once(&text[start..end])
+        .chain(first.map(before))
+        .chain(last.filter(|_| last != first).map(before))
+        .any(labels_a_secret)
 }
 
 /// Whether `seam` is in one of the key `blocks` (its ends included): the
