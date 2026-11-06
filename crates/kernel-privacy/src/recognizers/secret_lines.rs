@@ -15,7 +15,7 @@ mod scan;
 mod table;
 
 pub(crate) use scan::lines_scan;
-pub(crate) use table::{export_scan, secret_table_header};
+pub(crate) use table::{export_scan, secret_table_lines};
 
 #[cfg(test)]
 mod tests;

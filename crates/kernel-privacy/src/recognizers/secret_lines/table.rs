@@ -1,6 +1,6 @@
 //! The table scan: header lines, capped rows and quote-aware records.
 
-use super::header::{header, secret_header, Names, Table};
+use super::header::{cells, header, header_of, secret_header, Names, Table, DELIMS};
 use super::rows::{heading, names, prose, row_cells, verdict, whole};
 use super::scan::trimmed;
 
@@ -28,12 +28,62 @@ pub(super) fn columns(text: &str, spans: &mut Vec<(usize, usize)>) -> Vec<(usize
     headers
 }
 
-/// Whether `text[start..end]` is a header line naming a secret column under
-/// any of the lists, the line a table's secret cells are read under.
-pub(crate) fn secret_table_header(text: &str, start: usize, end: usize) -> bool {
-    [Names::Main, Names::Wide, Names::Export]
-        .into_iter()
-        .any(|names| header(text, start, end, names).is_some())
+/// The stretches of `text`, up to the line holding `last`, that lie in a table
+/// under a header naming a secret column under any list, each from its header
+/// line on. A table ends at a line with text, outside quotes and with no
+/// quote and none of the sorted `kept` ranges (a stand-in may hide a line
+/// break), that fits none of the open tables' shapes: blank and quoted lines
+/// keep it, so it ends no sooner than the scans end it. One pass, one
+/// [`cells`] pass per delimiter for a header line.
+pub(crate) fn secret_table_lines(
+    text: &str,
+    last: usize,
+    kept: &[(usize, usize)],
+) -> Vec<(usize, usize)> {
+    let (mut lines, mut open, mut quoted, mut at) = (Vec::new(), Vec::<Table>::new(), false, 0);
+    if !text.bytes().any(|b| DELIMS.contains(&b)) {
+        return lines;
+    }
+    let bytes = text.as_bytes();
+    while at <= last.min(text.len()) {
+        let next = memchr_nl(bytes, at);
+        let end = next - usize::from(text[..next].ends_with('\r'));
+        let line = &text[at..end];
+        let fits = |open: &Table| row_cells(text, at, end, open).len() == open.count;
+        // Past 16 shapes a table no longer ends, so the pass stays linear.
+        let mark = kept
+            .get(kept.partition_point(|k| k.1 <= at))
+            .is_some_and(|k| k.0 <= end);
+        let plain = !quoted && !mark && !line.contains('"');
+        let ends = plain && !line.trim().is_empty() && open.len() < 16;
+        if ends && !open.iter().any(fits) {
+            open.clear();
+        }
+        let mut heads = Vec::new();
+        if line.bytes().any(|b| DELIMS.contains(&b)) {
+            for (delim, row) in DELIMS.map(|delim| (delim, cells(text, at, end, delim))) {
+                for names in [Names::Main, Names::Wide, Names::Export] {
+                    heads.extend(header_of(text, (at, end), names, delim, &row));
+                }
+            }
+        }
+        quoted = heads.is_empty() && !open.is_empty() && quoted != odd(bytes, at, end);
+        for head in heads {
+            let same =
+                |t: &Table| (t.delim, t.count, t.loose) == (head.delim, head.count, head.loose);
+            if !open.iter().any(same) {
+                open.push(head);
+            }
+        }
+        if !open.is_empty() {
+            match lines.last_mut() {
+                Some(stretch) if stretch.1 + 1 >= at => stretch.1 = next,
+                _ => lines.push((at, next)),
+            }
+        }
+        at = next + 1;
+    }
+    lines
 }
 
 /// The secret cells of every table the export list names (a bare `pass`, the

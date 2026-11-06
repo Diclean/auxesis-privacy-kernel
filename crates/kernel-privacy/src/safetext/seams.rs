@@ -98,6 +98,9 @@ pub(super) fn mend(
     scan: &dyn Detector,
 ) -> (String, Marks) {
     let mut pieces = Vec::new();
+    let last = seams.iter().copied().max().unwrap_or(0);
+    let tables = crate::recognizers::secret_table_lines(text, last, marks);
+    let cells = secret_cells(text, marks);
     for &seam in seams {
         let framed = LazyCell::new(|| framed(text, seam));
         let read = [1, 4, 16]
@@ -115,7 +118,7 @@ pub(super) fn mend(
                 read(text, marks, at, (policy, scan), &mut pieces)
             })
             .find(|read| *read != Some(false));
-        if in_secret_table(text, marks, seam) {
+        if in_secret_table(text, (&tables, &cells), seam) {
             return (WITHHELD.to_string(), vec![(0, WITHHELD.len())]);
         }
         let (run, more) = (run(text, marks, seam), beside(text, marks, seam));
@@ -195,46 +198,81 @@ fn key_break(text: &str, marks: &[Mark], at: usize, framed: &dyn Fn() -> bool) -
     let label = loop {
         let start = text[lo..end].rfind('\n').map_or(lo, |i| lo + i + 1);
         let line = text[start..end].trim();
-        if start == lo || !(base64(line) && line.len() >= 16) {
-            break line.to_lowercase();
+        // The block rule reads a key's block across blank lines too.
+        if start == lo || !(line.is_empty() || base64(line) && line.len() >= 16) {
+            break line;
         }
         end = start - 1;
     };
-    let named = KEY_WORDS
-        .split_whitespace()
-        .any(|word| label.contains(word));
+    let named = words(label).iter().any(|word| key_word(word));
     wide || named || marks_in(marks, (from, to)).any(secret) || framed()
 }
 
-/// Whether `seam` is in a row of a table whose secret column a gate hid
-/// before it: a cell delimiter on its line, and a key mark beside one within
-/// 16 KiB back, or a header line naming a secret column there (a table cut
-/// right under its header has no hidden cell yet). The rows on are out of the
-/// reach of the table's header.
-fn in_secret_table(text: &str, marks: &[Mark], seam: usize) -> bool {
-    const CELLS: [char; 4] = [',', '\t', ';', '|'];
-    let lo = text.floor_char_boundary(seam.saturating_sub(MAX_KEY_BYTES));
-    let hi = text.floor_char_boundary(text.len().min(seam + MAX_KEY_BYTES));
-    let from = text[lo..seam].rfind('\n').map_or(lo, |i| lo + i);
-    let to = text[seam..hi].find('\n').map_or(hi, |i| seam + i);
-    let cell = |(start, end): Mark| {
-        // A padded or quoted cell (`, "…" ,`) is still beside its delimiter.
-        let pad = |ch: char| ch == ' ' || ch == '"' || ch == '\'';
+/// The cell delimiters of a table.
+const CELLS: [char; 4] = [',', '\t', ';', '|'];
+
+/// The key marks beside a cell delimiter (a padded or quoted cell, `, "…" ,`,
+/// too), read once for every seam.
+fn secret_cells(text: &str, marks: &[Mark]) -> Marks {
+    let pad = |ch: char| ch == ' ' || ch == '"' || ch == '\'';
+    let cell = |&&(start, end): &&Mark| {
         let before = text[..start].trim_end_matches(pad);
         let after = text[end..].trim_start_matches(pad);
         let beside = before.ends_with(CELLS) || after.starts_with(CELLS);
         beside && kind(&text[start..end]) == Some(EntityKind::Secret)
     };
-    if !text[from..to].contains(CELLS) {
-        return false;
+    marks.iter().filter(cell).copied().collect()
+}
+
+/// Whether `seam` is in a table whose secret column a gate hid before it: on
+/// a line of a table under a header naming a secret column (`tables`, however
+/// far back the header; the header line itself, which a seam may cut), or on a
+/// line with a cell delimiter and a key mark beside one (`cells`) within
+/// 16 KiB back. A table that a line closed reaches no further.
+fn in_secret_table(text: &str, (tables, cells): (&[Mark], &[Mark]), seam: usize) -> bool {
+    let table = tables.partition_point(|t| t.1 < seam);
+    if tables.get(table).is_some_and(|t| t.0 <= seam) {
+        return true;
     }
-    let mut start = lo;
-    let header = text[lo..seam].split('\n').any(|line| {
-        let (at, end) = (start, start + line.len());
-        start = end + 1;
-        line.contains(CELLS) && crate::recognizers::secret_table_header(text, at, end)
-    });
-    header || marks_in(marks, (lo, seam)).any(cell)
+    let lo = text.floor_char_boundary(seam.saturating_sub(MAX_KEY_BYTES));
+    let hi = text.floor_char_boundary(text.len().min(seam + MAX_KEY_BYTES));
+    let from = text[lo..seam].rfind('\n').map_or(lo, |i| lo + i);
+    let to = text[seam..hi].find('\n').map_or(hi, |i| seam + i);
+    let last = cells.partition_point(|c| c.0 < seam).checked_sub(1);
+    let cell = last.is_some_and(|at| cells[at].1 > lo);
+    cell && text[from..to].contains(CELLS)
+}
+
+/// The words of a label: runs of letters and digits, split before a capital
+/// after a small letter or digit (`privateKey`), lower-cased.
+fn words(label: &str) -> Vec<String> {
+    let (mut words, mut word, mut small) = (Vec::new(), String::new(), false);
+    for ch in label.chars() {
+        if !ch.is_alphanumeric() || (ch.is_uppercase() && small) {
+            words.extend((!word.is_empty()).then(|| std::mem::take(&mut word)));
+        }
+        if ch.is_alphanumeric() {
+            word.extend(ch.to_lowercase());
+        }
+        small = ch.is_lowercase() || ch.is_ascii_digit();
+    }
+    words.extend((!word.is_empty()).then_some(word));
+    words
+}
+
+/// Whether a label word names a key: a key word, its plural, or a compound
+/// ending with one (`accesstoken`, a `key` only after a key name's head, as
+/// `apikey`), never a word that merely holds one (`monkey`, `tokenizer`).
+fn key_word(word: &str) -> bool {
+    const HEADS: &str = "api access private encryption master app account subscription \
+        preshared secret ssh signing priv gpg pgp rsa host deploy";
+    KEY_WORDS.split_whitespace().any(|key| {
+        let head = word.strip_suffix('s').unwrap_or(word).strip_suffix(key);
+        let head = head.or_else(|| word.strip_suffix(key));
+        head.is_some_and(|head| {
+            head.is_empty() || key != "key" || HEADS.split_whitespace().any(|h| h == head)
+        })
+    })
 }
 
 /// Whether `ch` is a base64 character, and `value` a line of them.

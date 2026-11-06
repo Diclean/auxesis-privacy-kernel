@@ -629,8 +629,9 @@ fn a_key_word_inside_a_word_or_prose_after_a_closed_table_joins() {
         let at = text[..at].rfind('\n').expect("break") + 1;
         for (name, mut gate) in gates() {
             let [whole, concat, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
-            assert_ne!(joined, WITHHELD, "{name} {}", &text[..12]);
-            assert!(whole == concat && joined == concat, "{name} {}", &text[..12]);
+            let start = &text[..12];
+            assert_ne!(joined, WITHHELD, "{name} {start}");
+            assert!(whole == concat && joined == concat, "{name} {start}");
         }
     }
 }
@@ -645,7 +646,8 @@ fn a_megabyte_in_kibibyte_parts_joins_fast() {
         let issued: Vec<SafeText> = text
             .as_bytes()
             .chunks(1024)
-            .map(|part| gate.text(std::str::from_utf8(part).expect("ascii")).expect("issued").0)
+            .map(|part| std::str::from_utf8(part).expect("ascii"))
+            .map(|part| gate.text(part).expect("issued").0)
             .collect();
         let started = std::time::Instant::now();
         let joined = SafeText::join(issued);
