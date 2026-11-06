@@ -208,7 +208,9 @@ fn key_break(text: &str, marks: &[Mark], at: usize, framed: &dyn Fn() -> bool) -
 
 /// Whether `seam` is in a row of a table whose secret column a gate hid
 /// before it: a cell delimiter on its line, and a key mark beside one within
-/// 16 KiB back. The rows on are out of the reach of the table's header.
+/// 16 KiB back, or a header line naming a secret column there (a table cut
+/// right under its header has no hidden cell yet). The rows on are out of the
+/// reach of the table's header.
 fn in_secret_table(text: &str, marks: &[Mark], seam: usize) -> bool {
     const CELLS: [char; 4] = [',', '\t', ';', '|'];
     let lo = text.floor_char_boundary(seam.saturating_sub(MAX_KEY_BYTES));
@@ -219,7 +221,16 @@ fn in_secret_table(text: &str, marks: &[Mark], seam: usize) -> bool {
         let beside = text[..start].ends_with(CELLS) || text[end..].starts_with(CELLS);
         beside && kind(&text[start..end]) == Some(EntityKind::Secret)
     };
-    text[from..to].contains(CELLS) && marks_in(marks, (lo, seam)).any(cell)
+    if !text[from..to].contains(CELLS) {
+        return false;
+    }
+    let mut start = lo;
+    let header = text[lo..seam].split('\n').any(|line| {
+        let (at, end) = (start, start + line.len());
+        start = end + 1;
+        line.contains(CELLS) && crate::recognizers::secret_table_header(text, at, end)
+    });
+    header || marks_in(marks, (lo, seam)).any(cell)
 }
 
 /// Whether `ch` is a base64 character, and `value` a line of them.

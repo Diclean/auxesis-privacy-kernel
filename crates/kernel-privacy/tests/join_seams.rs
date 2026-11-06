@@ -519,3 +519,20 @@ fn a_key_wrapped_at_32_columns_cut_at_a_line_break_stays_hidden() {
         }
     }
 }
+
+/// A table cut right under its header: no cell is hidden before the seam, and
+/// the rows after it stay hidden, whatever the delimiter.
+#[test]
+fn a_secret_table_cut_right_under_its_header_stays_hidden() {
+    for delim in [",", ";", "\t", "|"] {
+        let rows = format!("0123456789abcdef{delim}fedcba9876543210\n").repeat(50);
+        let head = format!("id{delim}password\n");
+        let text = format!("{head}{rows}");
+        for (name, mut gate) in gates() {
+            let [whole, _, joined] = split(&mut gate, &[&head, &rows]);
+            assert!(!whole.contains("fedcba"), "{name} {delim:?} {whole}");
+            let shown = shown_pieces(&text, &whole, &joined);
+            assert!(shown.is_empty(), "{name} {delim:?} {joined} {shown:?}");
+        }
+    }
+}
