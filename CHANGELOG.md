@@ -6,6 +6,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-06
+
 ### Changed
 
 - A join withholds a seam on any line of a table under a header naming a
@@ -15,6 +17,12 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   well under a second.
 - A key's label above its block is read across blank lines, and names a key
   only by a whole word (`monkey` and `tokenizer` name none).
+- A join withholds a seam in a block of key lines under any label the gate
+  reads as a key's (`myapikey:`, `psk:`, `pass:`, `mot de passe:`), short
+  lines and gate markers inside the block included. The secret-table pass holds
+  a table past a quoted cell that runs over lines, to a line with an odd number
+  of quotes. It keeps at most 16 table shapes, so rows of ever-growing width
+  are read in linear time.
 
 ## [0.1.6] - 2026-11-06
 
