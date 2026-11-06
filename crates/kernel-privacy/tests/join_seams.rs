@@ -42,9 +42,9 @@ See www.example.org/page?id=42&ref=mail now.|?id|www.example.org/page?id=42&ref=
 mail alice@example.com.fake.com now.|.fake|alice@example.com.fake.com
 My key is sk-proj-Fake0123456789abcdefghij.|sk-|sk-proj-Fake0123456789abcdefghij
 Passport P<GBRDOE<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<|<JOHN|P<GBRDOE<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<
-Company number 12345678|1
-Adószám: 12345678-2-42|1
-VAT reg no: GB 123 4567 89|1";
+Company number 12345678|1|12345678
+Adószám: 12345678-2-42|1|12345678-2-42
+VAT reg no: GB 123 4567 89|1|GB 123 4567 89";
 
 /// Thirty plain parts, none of them a value.
 const PLAIN: &str = "Hello|world|Bonjour tout le monde|Merci beaucoup|The quarterly review|\
@@ -73,22 +73,35 @@ fn split(gate: &mut Gate, parts: &[&str]) -> [String; 3] {
     [whole, concat, text(SafeText::join(issued))]
 }
 
-/// The six-character runs of `value` that `whole` hides and `joined` shows.
+/// The shortest run of a value's characters `leaks` and `hides` look for.
+const RUN: usize = 4;
+
+/// The runs of [`RUN`] characters of `value` that `whole` hides and `joined`
+/// shows. A value under six characters proves nothing: it panics.
 fn leaks(whole: &str, joined: &str, value: &str) -> Vec<String> {
     let chars: Vec<char> = value.chars().collect();
-    let runs = chars.windows(6).map(String::from_iter);
+    assert!(chars.len() >= 6, "{value:?} is too short to test");
+    let runs = chars.windows(RUN).map(String::from_iter);
     runs.filter(|run| !whole.contains(run) && joined.contains(run))
         .collect()
 }
 
 /// Whether `joined` hides `value` as the whole does: it is withheld, or no
-/// six-character run of `value` shows in it, hidden by the whole or not.
+/// run of [`RUN`] characters or more of `value` shows in it, hidden by the
+/// whole or not. A value under six characters proves nothing: it panics.
 fn hides(joined: &str, value: &str) -> bool {
     let chars: Vec<char> = value.chars().collect();
+    assert!(chars.len() >= 6, "{value:?} is too short to test");
     joined == WITHHELD
         || !chars
-            .windows(6)
+            .windows(RUN)
             .any(|run| joined.contains(&String::from_iter(run)))
+}
+
+/// Whether the whole text was issued and hides `value`: a refused whole hides
+/// everything, so it proves nothing about the join.
+fn whole_hides(whole: &str, value: &str) -> bool {
+    whole != WITHHELD && hides(whole, value)
 }
 
 #[test]
@@ -488,9 +501,10 @@ fn a_join_hides_all_that_main_hid_and_all_the_whole_text_hides() {
             let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
             let [whole, _, joined] = split(&mut gate, &parts);
             let case = case(name, &parts);
-            // Where main withheld, the join need only hide what the whole text hides.
+            // Where main withheld, the join withholds too.
             let past = match main.get(case.as_str()) {
-                Some(&WITHHELD) => Vec::new(),
+                Some(&WITHHELD) if joined == WITHHELD => Vec::new(),
+                Some(&WITHHELD) => vec![format!("main withheld, joined {joined:?}")],
                 Some(main) => past(main, &joined),
                 None => vec![format!("no main join for {case}")],
             };
@@ -1164,8 +1178,9 @@ fn a_label_line_under_an_open_block_keeps_its_value_hidden_at_every_cut() {
 /// A block under a header the gate's link scanner hides it under, though no
 /// other label test names its key (`seed_phrase: |`, `recovery_phrase: |`,
 /// `code: |`, `pw: |`), cut at every byte of a block whose lines are 100
-/// blanks deep: past 80 bytes from the label no read of the part sees it, so
-/// only the join's block scan can. The whole hides the block, and the join
+/// blanks deep: past twice `WINDOW_CHARS` (40 characters each side of a seam,
+/// in `safetext/seams.rs`) the first read of the part does not see the label,
+/// so only the join's block scan can. The whole hides the block, and the join
 /// withholds it or shows no six-character run of its values.
 #[test]
 fn a_block_under_any_header_the_gate_hides_stays_hidden_when_cut_inside() {
@@ -1188,4 +1203,100 @@ fn a_block_under_any_header_the_gate_hides_stays_hidden_when_cut_inside() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A block whose lines mix tabs and spaces (`    seed_phrase: |`, then a line
+/// two tabs deep, then one six spaces deep): the gate owns a tab line under a
+/// space-indented label (its indent is no prefix of the label's), so the join
+/// reads it in the block too. Cut at every byte, both gates: the whole hides
+/// both lines (not vacuous), and the join withholds them or shows no run of
+/// four characters of either. The second value has a blank in it, so a cut
+/// there leaves no clear text glued to the part's mark.
+#[test]
+fn a_block_of_tab_and_space_lines_stays_hidden_at_every_cut() {
+    let tabbed = "Hunter2!";
+    let mut failures = Vec::new();
+    for value in [
+        "zzzz-wwww-yyyy-x4xx-aaaa-bbbb-cccc-dddd",
+        "zzzz-wwww-yyyy-x4xx aaaa-bbbb-cccc-dddd",
+    ] {
+        let text = format!("    seed_phrase: |\n\t\t{tabbed}\n      {value}\n");
+        tab_block_cuts(&text, (tabbed, value), &mut failures);
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+fn tab_block_cuts(text: &str, (tabbed, value): (&str, &str), failures: &mut Vec<String>) {
+    for (name, mut gate) in gates() {
+        for at in (1..text.len()).filter(|&at| text.is_char_boundary(at)) {
+            let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+            if !whole_hides(&whole, tabbed) || !whole_hides(&whole, value) {
+                failures.push(format!("{name} at {at}: whole shows {whole:?}"));
+            }
+            if !hides(&joined, tabbed) || !hides(&joined, value) {
+                failures.push(format!("{name} at {at}: {joined:?} shows it"));
+            }
+        }
+    }
+}
+
+/// MiniMax's input for the tab rule, end to end: a tab line under a space-
+/// indented label (`    seed_phrase: |`, then `\t\taaaa-bbbb`, then a line six
+/// spaces deep). The gate owns the tab line, so the join must too; before
+/// JOIN-SEAM-10 it showed `aaaa-bbbb` in clear at a cut. Cut at every byte,
+/// both gates: the whole was issued and hides the value (not vacuous), and
+/// the join withholds it or shows no run of four characters of it.
+#[test]
+fn a_tab_line_under_a_space_label_stays_hidden_at_every_cut() {
+    let text = "    seed_phrase: |\n\t\taaaa-bbbb\n      cccc-dddd\n";
+    let mut failures = Vec::new();
+    for (name, mut gate) in gates() {
+        for at in (1..text.len()).filter(|&at| text.is_char_boundary(at)) {
+            let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+            if !whole_hides(&whole, "aaaa-bbbb") {
+                failures.push(format!(
+                    "{name} at {at}: whole {whole:?} shows it or is refused"
+                ));
+            }
+            if !hides(&joined, "aaaa-bbbb") {
+                failures.push(format!("{name} at {at}: {joined:?} shows it"));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A block under an entry whose key holds a key, whatever its value
+/// (`seed_phrase: abc`, `pin: 1`): the gate owns the deeper lines as the
+/// value's key block. Cut at every byte from the entry to the block's end,
+/// both gates: the whole hides the block, and the join withholds it or shows
+/// no run of four characters of its values.
+#[test]
+fn a_block_under_a_key_entry_with_a_value_stays_hidden_at_every_cut() {
+    let pad = " ".repeat(100);
+    let block = format!("{pad}aaaa-bbbb\n{pad}cccc-dddd\n");
+    let mut failures = Vec::new();
+    for label in ["seed_phrase: abc", "pin: 1"] {
+        let text = format!("Notes.\n{label}\n{block}That was all.\n");
+        let from = text.find(label).expect("label") + 1;
+        let to = text.find(&block).expect("block") + block.len();
+        for at in from..=to {
+            for (name, mut gate) in gates() {
+                let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+                if !whole_hides(&whole, "aaaa-bbbb") || !whole_hides(&whole, "cccc-dddd") {
+                    failures.push(format!("{name} {label:?}: whole shows {whole:?}"));
+                }
+                if !hides(&joined, "aaaa-bbbb") || !hides(&joined, "cccc-dddd") {
+                    failures.push(format!("{name} {label:?} at {at}: {joined:?} shows it"));
+                }
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+#[should_panic(expected = "too short to test")]
+fn hides_refuses_a_value_too_short_to_test() {
+    hides("anything", "abc12");
 }
