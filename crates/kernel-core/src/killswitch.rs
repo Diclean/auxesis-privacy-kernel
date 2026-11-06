@@ -25,7 +25,8 @@ pub fn stop_path(home: &Path) -> PathBuf {
 /// True when the switch is engaged.
 ///
 /// Uses `symlink_metadata` so a dangling symlink at the marker path still
-/// counts as engaged (fail safe).
+/// counts as engaged (fail safe). Any error other than "not found" while
+/// checking the marker also counts as engaged.
 pub fn is_stopped(home: &Path) -> bool {
     // Read the marker through the verified home handle when
     // this process has one (fail-safe on any error: a home we cannot verify
@@ -35,7 +36,13 @@ pub fn is_stopped(home: &Path) -> bool {
             .exists_no_follow(Path::new(STOP_FILE))
             .unwrap_or(true);
     }
-    std::fs::symlink_metadata(stop_path(home)).is_ok()
+    // Fail closed: only a marker that is really absent (NotFound, which
+    // includes a missing home on first run) reads as running. Any other
+    // error (EACCES, EIO, ENOTDIR, ...) means we cannot tell, so stopped.
+    match std::fs::symlink_metadata(stop_path(home)) {
+        Ok(_) => true,
+        Err(err) => err.kind() != std::io::ErrorKind::NotFound,
+    }
 }
 
 /// Engage the kill switch, creating the home directory when needed.
