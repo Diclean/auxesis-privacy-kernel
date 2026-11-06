@@ -81,6 +81,16 @@ fn leaks(whole: &str, joined: &str, value: &str) -> Vec<String> {
         .collect()
 }
 
+/// Whether `joined` hides `value` as the whole does: it is withheld, or no
+/// six-character run of `value` shows in it, hidden by the whole or not.
+fn hides(joined: &str, value: &str) -> bool {
+    let chars: Vec<char> = value.chars().collect();
+    joined == WITHHELD
+        || !chars
+            .windows(6)
+            .any(|run| joined.contains(&String::from_iter(run)))
+}
+
 #[test]
 fn a_value_cut_at_a_seam_stays_hidden_where_the_whole_hides_it() {
     let mut failures = Vec::new();
@@ -1063,7 +1073,8 @@ fn a_long_comment_on_a_block_header_does_not_make_its_block_too_long() {
 /// A commented block header after another value on its label line (an
 /// e-mail, or a bearer token, before `password: | # x`) over a block of plain
 /// lines a part alone never hides, cut at every byte of the label line and
-/// the block: the whole hides the block, and no block line shows in the join.
+/// the block: the whole hides the block, and no six-character run of it the
+/// whole hides shows in the join.
 #[test]
 fn a_block_under_a_label_line_with_another_value_first_stays_hidden_at_every_cut() {
     let lines = ["  aaaa-bbbb".to_string(), "  cccc-dddd".to_string()];
@@ -1071,7 +1082,7 @@ fn a_block_under_a_label_line_with_another_value_first_stays_hidden_at_every_cut
     let mut failures = Vec::new();
     for label in [
         "Contact bob@example.com for the password: | # x",
-        "Authorization: Bearer abcdefghijklmnop password: | # x",
+        "Authorization: Bearer abcdefgh1jklmnop password: | # x",
     ] {
         let text = format!("Notes.\n{label}\n{block}That was all.\n");
         let from = text.find(label).expect("label");
@@ -1082,7 +1093,7 @@ fn a_block_under_a_label_line_with_another_value_first_stays_hidden_at_every_cut
                 if lines.iter().any(|line| whole.contains(line.trim())) {
                     failures.push(format!("{name} {label:?}: whole shows {whole:?}"));
                 }
-                let shown = shown_lines(&lines, &whole, &joined);
+                let shown = leaks(&whole, &joined, &block);
                 if !shown.is_empty() {
                     failures.push(format!("{name} {label:?} at {at}: shows {shown:?}"));
                 }
@@ -1093,15 +1104,88 @@ fn a_block_under_a_label_line_with_another_value_first_stays_hidden_at_every_cut
 }
 
 /// A commented header whose comment ends at a lone CR, a value on the line
-/// past it (`password: |\u{a0}# x\r TAIL\rFAKESECRET`), issued whole: the
-/// value never shows (a regression guard).
+/// past it (`password: |\u{a0}# x\r TAIL\rFAKESECRET`): the gate issues it
+/// and the value never shows, whole or joined from two parts cut anywhere.
 #[test]
 fn a_value_past_a_lone_cr_after_a_commented_header_stays_hidden_whole() {
     let text = "password: |\u{a0}# x\r TAIL\rFAKESECRET\n";
     for (name, mut gate) in gates() {
-        if let Ok(issued) = gate.text(text) {
-            let issued = issued.0.as_str().to_string();
-            assert!(!issued.contains("FAKESECRET"), "{name}: {issued:?}");
+        let issued = gate.text(text).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        let issued = issued.0.as_str().to_string();
+        assert!(!issued.contains("FAKESECRET"), "{name}: {issued:?}");
+        for at in (1..text.len()).filter(|&at| text.is_char_boundary(at)) {
+            let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+            let shown = leaks(&whole, &joined, "FAKESECRET");
+            assert!(
+                shown.is_empty(),
+                "{name} at {at}: {joined:?} shows {shown:?}"
+            );
         }
     }
+}
+
+/// A label line under an open block opens its own. DeepSeek's #116 input: a
+/// line 100 blanks deep with an e-mail before `the password: hunter2`, then a
+/// bare `password` line, then a value 60 blanks deep; and the marked variant,
+/// `password: hunter2` over an indented low-entropy block. Cut at every byte
+/// from the second line to the value's end, both gates: the whole hides the
+/// value (the value has a digit and a password sign, so it is a secret and the
+/// test is not vacuous), and the join withholds it or shows no six-character
+/// run of it.
+#[test]
+fn a_label_line_under_an_open_block_keeps_its_value_hidden_at_every_cut() {
+    let value = "zzzz-w4ww-yyyy-x9xx!";
+    let first = format!(
+        "{}Contact bob@example.com for the password: hunter2\n",
+        " ".repeat(100)
+    );
+    let texts = [
+        format!("{first}password\n{}{value}", " ".repeat(60)),
+        format!("{first}password: hunter2\n  aaaa-bbbb\n  {value}\nThat was all.\n"),
+    ];
+    let mut failures = Vec::new();
+    for text in &texts {
+        let to = text.find(value).expect("value") + value.len();
+        for at in (first.len()..=to).filter(|&at| text.is_char_boundary(at)) {
+            for (name, mut gate) in gates() {
+                let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+                if whole.contains(value) || whole.contains("aaaa-bbbb") {
+                    failures.push(format!("{name} at {at}: whole shows {whole:?}"));
+                }
+                if !hides(&joined, value) || !hides(&joined, "aaaa-bbbb") {
+                    failures.push(format!("{name} at {at}: {joined:?} shows the value"));
+                }
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A block under a header the gate's link scanner hides it under, though no
+/// other label test names its key (`seed_phrase: |`, `recovery_phrase: |`,
+/// `code: |`, `pw: |`), cut at every byte of a block whose lines are 100
+/// blanks deep: past 80 bytes from the label no read of the part sees it, so
+/// only the join's block scan can. The whole hides the block, and the join
+/// withholds it or shows no six-character run of its values.
+#[test]
+fn a_block_under_any_header_the_gate_hides_stays_hidden_when_cut_inside() {
+    let pad = " ".repeat(100);
+    let block = format!("{pad}aaaa-bbbb\n{pad}cccc-dddd\n");
+    let mut failures = Vec::new();
+    for label in ["seed_phrase: |", "recovery_phrase: |", "code: |", "pw: |"] {
+        let text = format!("Notes.\n{label}\n{block}That was all.\n");
+        let from = text.find(&block).expect("block");
+        for at in from..=from + block.len() {
+            for (name, mut gate) in gates() {
+                let [whole, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+                if whole.contains("aaaa-bbbb") || whole.contains("cccc-dddd") {
+                    failures.push(format!("{name} {label:?}: whole shows {whole:?}"));
+                }
+                if !hides(&joined, "aaaa-bbbb") || !hides(&joined, "cccc-dddd") {
+                    failures.push(format!("{name} {label:?} at {at}: {joined:?} shows it"));
+                }
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }

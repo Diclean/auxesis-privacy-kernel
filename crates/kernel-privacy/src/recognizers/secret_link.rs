@@ -42,6 +42,15 @@ static KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
     .expect("key list compiles")
 });
 
+/// Whether `line` is a block header this scanner hides the block under: an
+/// entry whose value is a block-scalar header (`seed_phrase: |`, `pw: >-`,
+/// `code: | # x`) and whose key holds a key (a weak one too: an entry key
+/// always counts). One line, its key read at most 64 characters in.
+pub(crate) fn heads_key_block(line: &str) -> bool {
+    matches!(lex::shape(line, 0).1, Shape::Entry(_, Kind::Header, key)
+        if lex::secret_key(&line[key.0..key.1]))
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Kind {
     Empty,
