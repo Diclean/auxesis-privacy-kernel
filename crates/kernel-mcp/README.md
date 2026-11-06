@@ -11,7 +11,7 @@ The crate speaks JSON-RPC 2.0 and knows nothing about any one vendor.
 
 ```toml
 [dependencies]
-auxesis-kernel-mcp = "0.1.5"
+auxesis-kernel-mcp = "0.1.6"
 ```
 
 The package is `auxesis-kernel-mcp`; the library name stays `kernel_mcp`.
