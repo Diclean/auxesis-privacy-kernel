@@ -28,6 +28,14 @@ pub(super) fn columns(text: &str, spans: &mut Vec<(usize, usize)>) -> Vec<(usize
     headers
 }
 
+/// Whether `text[start..end]` is a header line naming a secret column under
+/// any of the lists, the line a table's secret cells are read under.
+pub(crate) fn secret_table_header(text: &str, start: usize, end: usize) -> bool {
+    [Names::Main, Names::Wide, Names::Export]
+        .into_iter()
+        .any(|names| header(text, start, end, names).is_some())
+}
+
 /// The secret cells of every table the export list names (a bare `pass`, the
 /// password manager columns), read like the wide pair of [`columns`]. Not a
 /// part of [`lines_scan`](super::scan::lines_scan): the gate adds these spans on top of what main's

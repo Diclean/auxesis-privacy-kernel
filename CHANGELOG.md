@@ -25,6 +25,14 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   to six blank lines, or of 8 to 19 characters after `SSWS:` in any case (a
   value with no dot that is not a listed word). Nothing it masked before is
   left clear.
+- A join withholds a line break between base64 lines only on a sign of a key
+  (a `-----BEGIN`/`END` frame or PuTTY header near it, a line of 40 base64
+  characters or more, a key token beside it, or a word naming a key above the
+  block): a table of short hex lines joins as it is. A seam in a row of a
+  table whose secret cells were hidden before it, or that a header naming a
+  secret column opens, withholds the join. Open
+  judges a digest on the text as well as on the read, and an address after a
+  seam also ends with a major city (Lyon, Lille, …).
 - The secret recogniser also masks an `htpasswd` password on the line after a
   `\` line continuation, one before a redirect with a blank (`2 >file`), and a
   41-character Okta token with no digit before a full stop after the words that

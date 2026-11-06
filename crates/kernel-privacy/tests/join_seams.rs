@@ -2,6 +2,8 @@
 //! hidden wherever the whole text hides it, and a join that finds nothing new
 //! is the concatenation of its parts, byte for byte.
 
+use std::collections::HashMap;
+
 use kernel_core::privacy::PrivacyMode::{Open, Private};
 use kernel_core::privacy::{admit, Context, Decision, Destination, PathId};
 use kernel_privacy::{Gate, SafeText};
@@ -189,18 +191,16 @@ fn clear_words(text: &str) -> Vec<String> {
 }
 
 /// The words `joined` shows in clear that are a word, or a piece of one, that
-/// `whole` hides: the value must be absent whole, not only in long runs.
+/// `whole` hides, one character long too.
 fn shown_pieces(text: &str, whole: &str, joined: &str) -> Vec<String> {
     let kept = clear_words(whole);
     let words = text.split(|ch: char| !ch.is_alphanumeric());
     let hidden: Vec<&str> = words
-        .filter(|word| word.chars().count() > 1 && !kept.iter().any(|kept| kept == word))
+        .filter(|word| !word.is_empty() && !kept.iter().any(|kept| kept == word))
         .collect();
-    let shown = clear_words(joined).into_iter().filter(|word| {
-        word.chars().count() > 1
-            && !kept.contains(word)
-            && hidden.iter().any(|w| w.contains(word.as_str()))
-    });
+    let shown = clear_words(joined)
+        .into_iter()
+        .filter(|word| !kept.contains(word) && hidden.iter().any(|w| w.contains(word.as_str())));
     shown.collect()
 }
 
@@ -295,4 +295,269 @@ fn a_join_of_three_plain_parts_or_prose_beside_a_value_is_the_concatenation() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A table of 16-character base64 lines is no key: cut in half at a line
+/// break, it joins as a key never would, and still hides an IBAN row.
+#[test]
+fn a_base64_table_cut_at_a_line_break_joins() {
+    let table = "0123456789abcdef\n".repeat(100);
+    let iban = "0123456789abcdef\n".repeat(9) + "FR7630006000011234567890189\n";
+    for (name, mut gate) in gates() {
+        let (head, tail) = table.split_at(table.len() / 2);
+        let [whole, _, joined] = split(&mut gate, &[head, tail]);
+        assert_eq!(joined, whole, "{name}");
+        let ruled = format!("----\n{head}");
+        let [whole, _, joined] = split(&mut gate, &[&ruled, tail]);
+        assert_eq!(joined, whole, "{name} under a rule");
+        let text = iban.repeat(10);
+        let at = text.len() / 2 + text[text.len() / 2..].find("FR76").expect("row") + 9;
+        let (head, tail) = text.split_at(at);
+        let [whole, _, joined] = split(&mut gate, &[head, tail]);
+        let shown = shown_pieces(&text, &whole, &joined);
+        assert!(
+            joined != WITHHELD && shown.is_empty(),
+            "{name} {joined} {shown:?}"
+        );
+    }
+}
+
+/// The fixed corpus the oracles read: each text of `CUTS` cut in the middle of
+/// its stretch, prose beside a value, the keys cut before their short last
+/// line, and addresses that end with a city or a brand.
+fn corpus() -> Vec<Vec<String>> {
+    let mut corpus: Vec<Vec<String>> = CUTS
+        .lines()
+        .map(|line| {
+            let cut: Vec<&str> = line.split('|').collect();
+            let mut at = cut[0].find(cut[1]).expect("stretch") + cut[1].len() / 2;
+            while !cut[0].is_char_boundary(at) {
+                at += 1;
+            }
+            vec![cut[0][..at].to_string(), cut[0][at..].to_string()]
+        })
+        .collect();
+    let beside = [
+        "password: hunter2|\nThanks a lot, see you.",
+        "password: hunter2 |\nsee you at noon.",
+        "Send it to 10 Downing Street| today at noon.",
+        "Meeting With Jean Dupont At| 10 Downing Street",
+        "Meet at 10 Downing Street| Thanks Jean.",
+        "Write to 12 rue de la Paix| Lyon today.",
+        "Write to 12 rue de la Paix| Lille.",
+        "Ship to 5 High Street| Uber Orange.",
+    ];
+    corpus.extend(beside.map(|parts| parts.split('|').map(String::from).collect()));
+    for key in keys() {
+        let at = key.rfind("QUJD").expect("last line") - 1;
+        corpus.push(vec![key[..at].to_string(), key[at..].to_string()]);
+    }
+    // Tables cut in half: hex lines, a rule above them, a secret column.
+    let (hex, rows) = (
+        "0123456789abcdef\n".repeat(50),
+        "0123456789abcdef,fedcba9876543210\n".repeat(50),
+    );
+    for (head, tail) in [(hex.clone(), hex.clone()), (format!("----\n{hex}"), hex)] {
+        corpus.push(vec![head, tail]);
+    }
+    corpus.push(vec![format!("id,password\n{rows}"), rows]);
+    corpus
+}
+
+/// A corpus case's name in [`MAIN_JOINS`]: the mode, the seam and the text's start.
+fn case(name: &str, parts: &[&str]) -> String {
+    let start: String = parts.concat().chars().take(32).collect();
+    format!("{name} {} {}", parts[0].len(), start.replace('\n', "⏎"))
+}
+
+/// Main's join (9376e38) of each corpus case, by its [`case`] name, tokens as `⟦⟧`.
+const MAIN_JOINS: &str = "Private 16 the password: hunter2 => the password: [secret removed]
+Private 4 password: hunter2 ok => password: [secret removed]
+Private 4 password: Fake-Pass-42 => password: [secret removed]
+Private 22 password: Fake-Pass-42Bonjour to => password: ⟦⟧[value removed] [secret removed]
+Private 6 Authorization: Bearer FakeToken1 => Authorization: Bearer [secret removed]
+Private 20 my card is 4000 0012 3456 7899 => my card is [card removed]
+Private 27 my card is 4000 0012 3456-7899-1 => my card is ⟦⟧[id removed]
+Private 21 IBAN FR76 3000 6000 0112 3456 78 => [value removed] ⟦⟧⟦⟧ ok
+Private 18 IBAN GB82 WEST 1234 5698 7654 32 => [value removed] ⟦⟧⟦⟧ ok
+Private 13 call +33 6 12 34 56 78 => call [value removed]
+Private 23 Le patient a le cancer du sein. => Le patient a le ⟦⟧ [health removed].
+Private 28 Le patient a un cancer du colon. => Le patient a un ⟦⟧ [health removed].
+Private 29 Le patient a la maladie de Crohn => Le patient a la ⟦⟧[value removed]
+Private 33 Le patient a le diabète de type  => Le patient a le ⟦⟧ [health removed].
+Private 37 Send it to 10 Downing Street, Lo => Send it to ⟦⟧[address removed] ⟦⟧ today.
+Private 25 Écrire au 12 rue de la Paix, 750 => Écrire au ⟦⟧[value removed] ⟦⟧.
+Private 27 See https://example.com/private/ => See ⟦⟧[value removed] now.
+Private 25 See www.example.org/page?id=42&r => See www.example.org/page?id=42&ref=mail now.
+Private 24 mail alice@example.com.fake.com  => mail ⟦⟧[value removed] now.
+Private 11 My key is sk-proj-Fake0123456789 => My key is [value removed]⟦⟧[value removed]
+Private 19 Passport P<GBRDOE<JOHN<<<<<<<<<< => Passport [value removed]⟦⟧
+Private 15 Company number 12345678 => Company number [id removed]
+Private 11 Adószám: 12345678-2-42 => Adószám: ⟦⟧
+Private 15 VAT reg no: GB 123 4567 89 => VAT reg no: [value removed] ⟦⟧
+Private 17 password: hunter2⏎Thanks a lot,  => password: ⟦⟧ [secret removed]
+Private 18 password: hunter2 ⏎see you at no => password: ⟦⟧  [secret removed]
+Private 28 Send it to 10 Downing Street tod => Send it to ⟦⟧ today at noon.
+Private 27 Meeting With Jean Dupont At 10 D => Meeting With Jean Dupont At ⟦⟧
+Private 25 Meet at 10 Downing Street Thanks => Meet at ⟦⟧ Thanks Jean.
+Private 26 Write to 12 rue de la Paix Lyon  => Write to ⟦⟧ Lyon today.
+Private 26 Write to 12 rue de la Paix Lille => Write to ⟦⟧ Lille.
+Private 21 Ship to 5 High Street Uber Orang => Ship to ⟦⟧ [address removed]
+Private 230 My key:⏎-----BEGIN PRIVATE KEY-- => My key: ⟦⟧ [secret removed] [secret removed]
+Private 787 My key:⏎MIIEvQIBADANRkFLRSBLRVkg => My key: ⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧⟦⟧ [secret removed] (That was all.)
+Private 850 0123456789abcdef⏎0123456789abcde => ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef 
+Private 855 ----⏎0123456789abcdef⏎0123456789 => ---- ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef ⟦⟧abcdef 
+Private 1712 id,password⏎0123456789abcdef,fed => id,password ⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧,⟦⟧ ⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba⟦⟧abcdef,fedcba9876543210 
+Open 16 the password: hunter2 => the password: [secret removed]
+Open 4 password: hunter2 ok => password: [secret removed]
+Open 4 password: Fake-Pass-42 => password: [secret removed]
+Open 22 password: Fake-Pass-42Bonjour to => password: [secret removed][value removed] [secret removed]
+Open 6 Authorization: Bearer FakeToken1 => Authorization: Bearer [secret removed]
+Open 20 my card is 4000 0012 3456 7899 => my card is [card removed]
+Open 27 my card is 4000 0012 3456-7899-1 => my card is 4000 0012 3456-7899-1234
+Open 21 IBAN FR76 3000 6000 0112 3456 78 => [value removed] [iban removed][id removed] ok
+Open 18 IBAN GB82 WEST 1234 5698 7654 32 => [value removed] [iban removed][value removed] [value removed] ok
+Open 13 call +33 6 12 34 56 78 => call +33 6 12 34 56 78
+Open 23 Le patient a le cancer du sein. => Le patient a le [health removed] [health removed].
+Open 28 Le patient a un cancer du colon. => Le patient a un [health removed] [health removed].
+Open 29 Le patient a la maladie de Crohn => Le patient a la [health removed][value removed]
+Open 33 Le patient a le diabète de type  => Le patient a le [health removed] [health removed].
+Open 37 Send it to 10 Downing Street, Lo => Send it to [address removed][address removed] [address removed] today.
+Open 25 Écrire au 12 rue de la Paix, 750 => Écrire au [address removed][value removed] [address removed].
+Open 27 See https://example.com/private/ => See https://example.com/private/page now.
+Open 25 See www.example.org/page?id=42&r => See www.example.org/page?id=42&ref=mail now.
+Open 24 mail alice@example.com.fake.com  => mail alice@example.com.fake.com now.
+Open 11 My key is sk-proj-Fake0123456789 => My key is [secret removed].
+Open 19 Passport P<GBRDOE<JOHN<<<<<<<<<< => Passport [value removed][id removed]
+Open 15 Company number 12345678 => Company number [id removed]
+Open 11 Adószám: 12345678-2-42 => Adószám: [id removed]
+Open 15 VAT reg no: GB 123 4567 89 => VAT reg no: [id removed]
+Open 17 password: hunter2⏎Thanks a lot,  => password: [secret removed] [secret removed]
+Open 18 password: hunter2 ⏎see you at no => password: [secret removed]  [secret removed]
+Open 28 Send it to 10 Downing Street tod => Send it to [address removed] today at noon.
+Open 27 Meeting With Jean Dupont At 10 D => Meeting With Jean Dupont At [address removed]
+Open 25 Meet at 10 Downing Street Thanks => Meet at [address removed] Thanks Jean.
+Open 26 Write to 12 rue de la Paix Lyon  => Write to [address removed] Lyon today.
+Open 26 Write to 12 rue de la Paix Lille => Write to [address removed] Lille.
+Open 21 Ship to 5 High Street Uber Orang => Ship to [address removed] [address removed]
+Open 230 My key:⏎-----BEGIN PRIVATE KEY-- => My key: [secret removed] [secret removed] [secret removed]
+Open 787 My key:⏎MIIEvQIBADANRkFLRSBLRVkg => My key: [secret removed] [secret removed] (That was all.)
+Open 850 0123456789abcdef⏎0123456789abcde => [auxesis: withheld]
+Open 855 ----⏎0123456789abcdef⏎0123456789 => [auxesis: withheld]
+Open 1712 id,password⏎0123456789abcdef,fed => [auxesis: withheld]";
+
+/// The words `joined` shows past those `main` shows, counted.
+fn past(main: &str, joined: &str) -> Vec<String> {
+    let mut left = clear_words(main);
+    let words = clear_words(joined).into_iter();
+    let shown = words.filter(|word| match left.iter().position(|kept| kept == word) {
+        Some(at) => left.swap_remove(at).is_empty(),
+        None => true,
+    });
+    shown.collect()
+}
+
+#[test]
+fn a_join_hides_all_that_main_hid_and_all_the_whole_text_hides() {
+    let main: HashMap<&str, &str> = MAIN_JOINS
+        .lines()
+        .filter_map(|line| line.split_once(" => "))
+        .collect();
+    let (mut seen, mut failures) = (Vec::new(), Vec::new());
+    for (name, mut gate) in gates() {
+        for parts in corpus() {
+            let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
+            let [whole, _, joined] = split(&mut gate, &parts);
+            let case = case(name, &parts);
+            // Where main withheld, the join need only hide what the whole text hides.
+            let past = match main.get(case.as_str()) {
+                Some(&WITHHELD) => Vec::new(),
+                Some(main) => past(main, &joined),
+                None => vec![format!("no main join for {case}")],
+            };
+            seen.push(case);
+            let shown = shown_pieces(&parts.concat(), &whole, &joined);
+            if !past.is_empty() || !shown.is_empty() {
+                failures.push(format!(
+                    "{name} {parts:?}\n  whole  {whole}\n  joined {joined}\n  past main {past:?}\n  shows  {shown:?}"
+                ));
+            }
+        }
+    }
+    seen.sort_unstable();
+    seen.dedup();
+    assert_eq!(seen.len(), main.len(), "a main join per case");
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A table's secret cells after a seam, far from its header, stay hidden.
+#[test]
+fn a_secret_column_cut_far_from_its_header_stays_hidden() {
+    let rows = "0123456789abcdef,fedcba9876543210\n".repeat(50);
+    let (head, tail) = (format!("id,password\n{rows}"), rows.clone());
+    let text = format!("{head}{tail}");
+    for (name, mut gate) in gates() {
+        let [whole, _, joined] = split(&mut gate, &[&head, &tail]);
+        assert!(!whole.contains("fedcba"), "{name} {whole}");
+        let shown = shown_pieces(&text, &whole, &joined);
+        assert!(shown.is_empty(), "{name} {joined} {shown:?}");
+    }
+}
+
+/// A key body wrapped at 32 columns, under a label or a key's name, cut at a
+/// line break: no line of it shows. Main withheld it once the body runs past
+/// the widest window (80 lines); a shorter one it read whole, as the gate does.
+#[test]
+fn a_key_wrapped_at_32_columns_cut_at_a_line_break_stays_hidden() {
+    let line = "U1RTIE9OTFkgRkFLRSBLRVkgRk9SIFRF";
+    let body = [line; 80].join("\n");
+    for text in [format!("My key:\n{body}\n"), format!("secret: {body}\n")] {
+        let at = text.match_indices('\n').nth(40).expect("break").0 + 1;
+        for (name, mut gate) in gates() {
+            let [_, _, joined] = split(&mut gate, &[&text[..at], &text[at..]]);
+            assert!(!joined.contains(line), "{name} {joined}");
+        }
+    }
+}
+
+/// A table cut right under its header: no cell is hidden before the seam, and
+/// the rows after it stay hidden, whatever the delimiter.
+#[test]
+fn a_secret_table_cut_right_under_its_header_stays_hidden() {
+    for delim in [",", ";", "\t", "|"] {
+        let rows = format!("0123456789abcdef{delim}fedcba9876543210\n").repeat(50);
+        let head = format!("id{delim}password\n");
+        let text = format!("{head}{rows}");
+        for (name, mut gate) in gates() {
+            let [whole, _, joined] = split(&mut gate, &[&head, &rows]);
+            assert!(!whole.contains("fedcba"), "{name} {delim:?} {whole}");
+            let shown = shown_pieces(&text, &whole, &joined);
+            assert!(shown.is_empty(), "{name} {delim:?} {joined} {shown:?}");
+        }
+    }
+}
+
+/// A padded table (`, ` cells) cut far below its header, past 16 KiB: the
+/// rows after the seam stay hidden, as the cells hidden before it say.
+#[test]
+fn a_padded_secret_table_cut_far_below_its_header_stays_hidden() {
+    for delim in [", ", " ; ", "\t", " | "] {
+        let row = |n: usize| format!("{n}{delim}fedcba9876543210\n");
+        let head = format!(
+            "id{delim}password\n{}",
+            (0..900).map(row).collect::<String>()
+        );
+        let tail: String = (900..1000).map(row).collect();
+        let text = format!("{head}{tail}");
+        for (name, mut gate) in gates() {
+            let [whole, _, joined] = split(&mut gate, &[&head, &tail]);
+            assert!(!whole.contains("fedcba"), "{name} {delim:?} whole");
+            let shown = shown_pieces(&text, &whole, &joined);
+            assert!(
+                shown.is_empty(),
+                "{name} {delim:?} shown={}",
+                joined.matches("fedcba").count()
+            );
+        }
+    }
 }
