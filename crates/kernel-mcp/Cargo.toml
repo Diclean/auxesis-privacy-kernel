@@ -30,14 +30,14 @@ async-trait = "0.1"
 # S2 reuses the shared untrusted-text sanitiser and the `Risk` enum rather than
 # growing a second copy of either.
 # The privacy rows an MCP transport maps to (`kernel_core::privacy`, B13/B14).
-kernel-core = { package = "auxesis-kernel-core", path = "../kernel-core", version = "0.1.4" }
-kernel-broker = { package = "auxesis-kernel-broker", path = "../kernel-broker", version = "0.1.4" }
+kernel-core = { package = "auxesis-kernel-core", path = "../kernel-core", version = "0.1.5" }
+kernel-broker = { package = "auxesis-kernel-broker", path = "../kernel-broker", version = "0.1.5" }
 # Item 5: the arguments of a `tools/call` are built from the grant-bound
 # `SafeValue`, so a raw `serde_json::Value` cannot reach an HTTP server.
-kernel-privacy = { package = "auxesis-kernel-privacy", path = "../kernel-privacy", version = "0.1.4" }
+kernel-privacy = { package = "auxesis-kernel-privacy", path = "../kernel-privacy", version = "0.1.5" }
 # Runtime HTTP MCP connections reuse the exact SSRF guard `test_server` uses,
 # including IP pinning (redesign item 6).
-kernel-net = { package = "auxesis-kernel-net", path = "../kernel-net", version = "0.1.4" }
+kernel-net = { package = "auxesis-kernel-net", path = "../kernel-net", version = "0.1.5" }
 # The 6-char disambiguator for over-long wire names.
 blake3 = "1"
 # Item 4: the confirmation digest pins the SHA-256 of the binary at the

@@ -6,6 +6,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-06
+
 ### Added
 
 - `SandboxHome::open_dir` opens a directory under the home without following
