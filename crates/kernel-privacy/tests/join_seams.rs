@@ -1089,7 +1089,7 @@ fn a_long_comment_on_a_block_header_does_not_make_its_block_too_long() {
 /// A commented block header after another value on its label line (an
 /// e-mail, or a bearer token, before `password: | # x`) over a block of plain
 /// lines a part alone never hides, cut at every byte of the label line and
-/// the block: the whole hides the block, and no six-character run of it the
+/// the block: the whole hides the block, and no four-character run of it the
 /// whole hides shows in the join.
 #[test]
 fn a_block_under_a_label_line_with_another_value_first_stays_hidden_at_every_cut() {
@@ -1146,7 +1146,7 @@ fn a_value_past_a_lone_cr_after_a_commented_header_stays_hidden_whole() {
 /// `password: hunter2` over an indented low-entropy block. Cut at every byte
 /// from the second line to the value's end, both gates: the whole hides the
 /// value (the value has a digit and a password sign, so it is a secret and the
-/// test is not vacuous), and the join withholds it or shows no six-character
+/// test is not vacuous), and the join withholds it or shows no four-character
 /// run of it.
 #[test]
 fn a_label_line_under_an_open_block_keeps_its_value_hidden_at_every_cut() {
@@ -1183,7 +1183,7 @@ fn a_label_line_under_an_open_block_keeps_its_value_hidden_at_every_cut() {
 /// blanks deep: past twice `WINDOW_CHARS` (40 characters each side of a seam,
 /// in `safetext/seams.rs`) the first read of the part does not see the label,
 /// so only the join's block scan can. The whole hides the block, and the join
-/// withholds it or shows no six-character run of its values.
+/// withholds it or shows no four-character run of its values.
 #[test]
 fn a_block_under_any_header_the_gate_hides_stays_hidden_when_cut_inside() {
     let pad = " ".repeat(100);
