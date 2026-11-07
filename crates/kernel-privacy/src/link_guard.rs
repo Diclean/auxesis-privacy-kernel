@@ -709,12 +709,14 @@ impl LinkGuard {
                 self.mode = Mode::Url;
                 self.clear();
             }
-            2 if matches!(ch, '\n' | '\r') => {}
+            // A line break (LF, CR, U+2028, U+2029 or any other) ends a
+            // `word:` candidate: no URL has a raw break after its scheme, and
+            // `Label:` then a line is prose. Markdown targets, autolinks and
+            // tag attributes keep hiding through their own modes.
             3 if ch == '/' => {
                 self.mode = Mode::Url;
                 self.clear();
             }
-            3 if matches!(ch, '\n' | '\r') => {}
             _ => {
                 self.clear_scheme();
                 if ch.is_ascii_alphabetic() {
@@ -882,4 +884,96 @@ fn is_format_char(ch: char) -> bool {
 }
 fn scheme_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '+' | '.' | '-')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LinkGuard;
+
+    const TOKEN: &str = "\u{27e6}EMAIL_1\u{27e7}";
+    const VALUE: &str = "mira@fictive.example";
+
+    /// Stream `chunks` through the guard the way the display does: plain text
+    /// goes straight in, a token waits until its context is decided.
+    fn render(chunks: &[&str]) -> String {
+        let mut guard = LinkGuard::default();
+        let mut out = String::new();
+        let mut pending = String::new();
+        for (i, chunk) in chunks.iter().enumerate() {
+            let last = i + 1 == chunks.len();
+            pending.push_str(chunk);
+            while !pending.is_empty() {
+                let at = pending.find('\u{27e6}').unwrap_or(pending.len());
+                guard.append_to(&mut out, &pending[..at]);
+                pending.drain(..at);
+                if pending.is_empty() || (!pending.starts_with(TOKEN) && !last) {
+                    break;
+                }
+                assert!(pending.starts_with(TOKEN), "cut token at the end");
+                let after = &pending[TOKEN.len()..];
+                match guard.append_token_value(&mut out, "EMAIL_1", VALUE, after, last) {
+                    Some(_) => pending.replace_range(..TOKEN.len(), ""),
+                    None if last => panic!("undecided at the end"),
+                    None => break,
+                }
+            }
+        }
+        guard.finish(&mut out);
+        out
+    }
+
+    /// The whole text, then the same text cut at every char boundary.
+    fn shown_everywhere(template: &str) -> (bool, String) {
+        let text = template.replace("{E}", TOKEN);
+        let whole = render(&[&text]);
+        for (cut, _) in text.char_indices().skip(1) {
+            let (head, tail) = text.split_at(cut);
+            assert_eq!(render(&[head, tail]), whole, "{text:?} cut at {cut}");
+        }
+        let shown = whole.contains(VALUE);
+        assert_ne!(shown, whole.contains("[hidden]"), "{text:?} -> {whole:?}");
+        (shown, whole)
+    }
+
+    #[test]
+    fn a_label_then_a_line_break_does_not_open_a_link() {
+        for template in [
+            "Mira Fictive:\n{E}",
+            "Mira Fictive:\r{E}",
+            "Mira Fictive:\r\n{E}",
+            "Mira Fictive:\u{2028}{E}",
+            "Mira Fictive:\u{2029}{E}",
+            "Mira Fictive:\n\n{E} wrote.",
+            "E-mail:\n- {E}",
+            "https:\n{E}",
+            "javascript:\r\n{E}",
+        ] {
+            let (shown, whole) = shown_everywhere(template);
+            assert!(shown, "{template:?} -> {whole:?}");
+        }
+    }
+
+    #[test]
+    fn outside_links_across_a_line_break_stay_hidden() {
+        for template in [
+            "Mira Fictive:{E}",
+            "https:{E}",
+            "https:\n//evil.invalid/?q={E}",
+            "[x](https:\n{E})",
+            "[x](https:\r\n{E})",
+            "[x](\n{E})",
+            "[x](https:\u{2028}{E})",
+            "<https:\n{E}>",
+            "<https:\r\n{E}>",
+            "<mailto:\n{E}>",
+            "mailto:\n{E}",
+            "<a href=\"mailto:\n{E}\">x</a>",
+            "<a href=\"https:\r\n{E}\">x</a>",
+            "<img src=\"https:\n{E}\">",
+            "https://evil.invalid/x\n{E}",
+        ] {
+            let (shown, whole) = shown_everywhere(template);
+            assert!(!shown, "{template:?} -> {whole:?}");
+        }
+    }
 }
