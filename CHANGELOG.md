@@ -6,6 +6,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- When text is joined from parts, a key entry that has a value and an indented
+  block under it (`seed_phrase: abc`, `pin: 1`) stays withheld when cut: the
+  block lines under it stay hidden, and which lines belong to the block follows
+  the gate's indentation rule, including lines mixing tabs and spaces.
+
 ## [0.1.10] - 2026-11-06
 
 ### Changed
