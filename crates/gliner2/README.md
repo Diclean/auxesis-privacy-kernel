@@ -8,7 +8,7 @@ match them, with byte offsets, a label and a score.
 
 ```toml
 [dependencies]
-auxesis-gliner2 = "0.1.10"
+auxesis-gliner2 = "0.1.11"
 ```
 
 The package is `auxesis-gliner2`; the library name stays `gliner2_rs`.
