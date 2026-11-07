@@ -6,12 +6,20 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-11-07
+
 ### Fixed
 
 - `LinkGuard`: a `word:` label followed by a line break (LF, CR, CRLF, U+2028,
   U+2029) no longer counts as a link scheme, so a value on the next line
-  (`Mira Fictive:` then an e-mail) shows. Markdown targets, autolinks and
-  tag attributes that span a line break stay hidden.
+  (`Mira Fictive:` then an e-mail) shows. Inline markdown targets, autolinks
+  and tag attributes that span a line break stay hidden.
+
+### Known issues
+
+- A markdown link reference definition whose destination is the value itself
+  (`[r]: value`, or the destination on the next line) is not yet treated as a
+  link target. This predates 0.1.12.
 
 ## [0.1.11] - 2026-11-07
 
