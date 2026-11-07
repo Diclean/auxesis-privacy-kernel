@@ -18,10 +18,10 @@ exclude = ["tests/**"]
 name = "kernel_broker"
 
 [dependencies]
-kernel-core = { package = "auxesis-kernel-core", path = "../kernel-core", version = "0.1.11" }
-kernel-net = { package = "auxesis-kernel-net", path = "../kernel-net", version = "0.1.11" }
+kernel-core = { package = "auxesis-kernel-core", path = "../kernel-core", version = "0.1.12" }
+kernel-net = { package = "auxesis-kernel-net", path = "../kernel-net", version = "0.1.12" }
 # Owner-identifier guard on outbound text (owner_ids.rs): the recognisers only.
-kernel-privacy = { package = "auxesis-kernel-privacy", path = "../kernel-privacy", version = "0.1.11" }
+kernel-privacy = { package = "auxesis-kernel-privacy", path = "../kernel-privacy", version = "0.1.12" }
 aho-corasick = "1"
 async-trait = "0.1"
 base64 = "0.23"
