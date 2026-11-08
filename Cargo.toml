@@ -28,7 +28,7 @@ rust-version = "1.99"
 [workspace.dependencies]
 proptest = "1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
-rusqlite = { version = "0.39", features = ["bundled-sqlcipher", "fallible_uint"] }
+rusqlite = { version = "0.41", features = ["bundled-sqlcipher", "fallible_uint"] }
 serde = { version = "1", features = ["derive"] }
 tempfile = "3"
 thiserror = "2"
