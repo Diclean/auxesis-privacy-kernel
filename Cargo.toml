@@ -33,7 +33,7 @@ serde = { version = "1", features = ["derive"] }
 tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
-toml = "0.9"
+toml = "1.1"
 toml_edit = "=0.25.16"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
